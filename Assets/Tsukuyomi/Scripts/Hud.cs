@@ -8,7 +8,7 @@ namespace Tsukuyomi
     /// 画面の四隅のかぎ、上の方位の帯（名所の向きと距離）、左上の接続表示、左下の座標、右下のキー、
     /// 一人称の照準、場所に入ったときの名前、お知らせ、Esc のメニュー、M の地図とワープ。
     /// </summary>
-    public class Hud : MonoBehaviour
+    public partial class Hud : MonoBehaviour
     {
         public PlayerController player;
         public OrbitCamera cam;
@@ -211,7 +211,8 @@ namespace Tsukuyomi
         {
             if (Ts.ShotMode)
             {
-                Blocked = false;
+                Blocked = ShopOpen;
+
                 if (_menu || _map) { }
                 Cursor.lockState = CursorLockMode.None;
                 UpdateZone();
@@ -219,13 +220,15 @@ namespace Tsukuyomi
             }
             if (Input.GetKeyDown(KeyCode.Escape))
             {
-                if (_map) _map = false;
+                if (ShopOpen) CloseShop();
+                else if (_map) _map = false;
                 else _menu = !_menu;
             }
             if (Input.GetKeyDown(KeyCode.M) && !_menu) _map = !_map;
             if (Input.GetKeyDown(KeyCode.F3)) { _debug = !_debug; Toast(_debug ? "デバッグ表示オン（F3 で消す・F12 で写真）" : "デバッグ表示オフ"); }
             if (Input.GetKeyDown(KeyCode.F12)) TakePhoto();
-            Blocked = _menu || _map;
+            ShopKeys();
+            Blocked = _menu || _map || ShopOpen;
 
             if (Blocked)
             {
@@ -364,6 +367,8 @@ namespace Tsukuyomi
                 }
                 // 右下：キー
                 Keys();
+                // お店の AR 看板と「E で入る」
+                DrawShopSigns();
                 // 一人称の照準
                 if (cam != null && cam.firstPerson)
                 {
@@ -405,6 +410,7 @@ namespace Tsukuyomi
             if (_debug) DrawDebug();
             if (_map) DrawMap();
             else if (_menu) DrawMenu();
+            else if (ShopOpen) DrawShop();
             GUI.matrix = Matrix4x4.identity;
         }
 
@@ -465,7 +471,7 @@ namespace Tsukuyomi
 
         void Keys()
         {
-            var keys = new[] { ("WASD", "移動"), ("SHIFT", "走る"), ("SPACE", "ジャンプ"), ("V", "視点"), ("M", "地図"), ("ESC", "メニュー") };
+            var keys = new[] { ("WASD", "移動"), ("SHIFT", "走る"), ("SPACE", "ジャンプ"), ("V", "視点"), ("M", "地図"), ("C", "着がえ"), ("ESC", "メニュー") };
             float a = _hintT > 0 ? 0.95f : 0.5f;
             float x = W - 36;
             for (int i = keys.Length - 1; i >= 0; i--)
@@ -485,27 +491,31 @@ namespace Tsukuyomi
         void DrawMenu()
         {
             Fill(new Rect(0, 0, W, H), new Color(0.01f, 0.03f, 0.08f, 0.55f));
-            var r = new Rect(W / 2 - 310, H / 2 - 450, 620, 900);
+            var r = new Rect(W / 2 - 330, H / 2 - 485, 660, 970);
             Panel(r);
             Text(new Rect(r.x, r.y + 24, r.width, 24), "SYSTEM MENU", 18, Cyan, TextAnchor.MiddleCenter, true);
             Text(new Rect(r.x, r.y + 50, r.width, 70), "ツクヨミ", 54, Color.white, TextAnchor.MiddleCenter, false, FontStyle.Bold);
             Fill(new Rect(r.x + 200, r.y + 124, 220, 2), Pink);
             float y = r.y + 150;
-            if (Button(new Rect(r.x + 90, y, 440, 66), "つづける")) _menu = false;
+            if (Button(new Rect(r.x + 110, y, 440, 66), "つづける")) _menu = false;
             y += 82;
-            if (Button(new Rect(r.x + 90, y, 440, 66), "地図とワープ（M）")) { _menu = false; _map = true; }
+            if (Button(new Rect(r.x + 110, y, 440, 66), "地図とワープ（M）")) { _menu = false; _map = true; }
             y += 82;
-            if (Button(new Rect(r.x + 90, y, 440, 66), cam != null && cam.firstPerson ? "視点：一人称（V で切りかえ）" : "視点：三人称（V で切りかえ）")) cam?.Toggle();
+            if (Button(new Rect(r.x + 110, y, 440, 66), cam != null && cam.firstPerson ? "視点：一人称（V で切りかえ）" : "視点：三人称（V で切りかえ）")) cam?.Toggle();
             y += 82;
-            if (Button(new Rect(r.x + 90, y, 440, 66), AmbientAudio.Muted ? "音：オフ（押すとオン）" : "音：オン（押すとオフ）")) AmbientAudio.Muted = !AmbientAudio.Muted;
+            if (Button(new Rect(r.x + 110, y, 440, 66), AmbientAudio.Muted ? "音：オフ（押すとオン）" : "音：オン（押すとオフ）")) AmbientAudio.Muted = !AmbientAudio.Muted;
             y += 82;
-            if (Button(new Rect(r.x + 90, y, 440, 66), $"画質：{Quality.Name}（押すと切りかえ）")) Quality.Next();
+            if (Button(new Rect(r.x + 110, y, 440, 66), $"画質：{Quality.Name}（押すと切りかえ）")) Quality.Next();
             y += 82;
-            if (Button(new Rect(r.x + 90, y, 440, 66), "写真のフォルダを開く")) { System.IO.Directory.CreateDirectory(PhotoDir); Application.OpenURL("file:///" + PhotoDir.Replace('\\', '/')); }
+            if (Button(new Rect(r.x + 110, y, 440, 66), "写真のフォルダを開く")) { System.IO.Directory.CreateDirectory(PhotoDir); Application.OpenURL("file:///" + PhotoDir.Replace('\\', '/')); }
             y += 82;
-            if (Button(new Rect(r.x + 90, y, 440, 66), "ログアウト（終わる）")) GameSession.Instance?.Logout();
-            Text(new Rect(r.x, r.yMax - 100, r.width, 90),
-                "WASD・矢印 歩く　Shift 走る　Space ジャンプ　V 視点\nマウス 見回す　ホイール 近づく・離れる（いちばん近くで一人称）\nF3 デバッグ表示　F4 飛行（デバッグ）　F12 写真（メニューの「写真のフォルダを開く」で見られます）",
+            if (Button(new Rect(r.x + 110, y, 440, 66), "着がえ（C）")) OpenWardrobe();
+            y += 82;
+            if (Button(new Rect(r.x + 110, y, 440, 66), "ログアウト（終わる）")) GameSession.Instance?.Logout();
+            Text(new Rect(r.x, r.yMax - 116, r.width, 110),
+
+                "WASD・矢印 歩く　Shift 走る　Space ジャンプ　V 視点\nマウス 見回す　ホイール 近づく・離れる（いちばん近くで一人称）\nF3 デバッグ表示　F4 飛行（デバッグ）　F12 写真（メニューの「写真のフォルダを開く」で見られます）\nE お店に入る（月見商店街の店先で）　C 着がえ",
+
                 17, new Color(1, 1, 1, 0.75f), TextAnchor.UpperCenter);
         }
 

@@ -1,5 +1,7 @@
 using System;
 using System.Collections;
+using System.Collections.Generic;
+
 using System.Globalization;
 using System.IO;
 using UnityEngine;
@@ -22,6 +24,16 @@ namespace Tsukuyomi
 
         public static GameSession Instance { get; private set; }
 
+        /// <summary>持ち物と着ているもの（ショップ・着がえから使う）。</summary>
+        public SaveData Data => _data;
+
+        /// <summary>買い物や着がえのあと、すぐ保存する（確認用の起動でも持ち物は残す）。</summary>
+        public void SaveItems()
+        {
+            if (_data == null) return;
+            SaveStore.Save(_data);
+        }
+
         void Awake() => Instance = this;
 
         void Start()
@@ -29,8 +41,15 @@ namespace Tsukuyomi
             _shotMode = Ts.ShotMode;
             Quality.Load();
             Application.runInBackground = true;
-            _data = Ts.Flag("--fresh") ? new SaveData() : SaveStore.Load();
+            // --fresh は「保存した場所を使わない」。--fresh-all は持ち物もふくめて初めから（確認用）
+            _data = Ts.Flag("--fresh-all") ? new SaveData() : SaveStore.Load();
+            if (Ts.Flag("--fresh")) _data.has = false;
+            if (_data.owned == null) _data.owned = new List<string>();
+            if (_data.wearing == null) _data.wearing = new List<string>();
+            if (Catalog.Get(_data.clothes) == null) _data.clothes = Catalog.StartClothes;
             bool first = !_data.has;
+            var ward = player.GetComponent<Wardrobe>();
+            if (ward != null) ward.Wear(_data.clothes, _data.wearing);
 
             var warp = Ts.Arg("--warp");
             var z = warp != null ? Zone.Find(warp) : null;
@@ -79,6 +98,8 @@ namespace Tsukuyomi
             foreach (var item in spec.Split(';'))
             {
                 var p = item.Split('|');
+                Hud.CloseShop();
+
                 var z = Zone.Find(p[0]);
                 if (z != null) z.WarpTo(player, cam);
                 else if (p[0].StartsWith("@"))
@@ -93,6 +114,10 @@ namespace Tsukuyomi
                 if (p.Length > 2) ApplyCam(p[2]);
                 Hud.OpenMap(p.Length > 3 && p[3] == "map");
                 Hud.OpenMenu(p.Length > 3 && p[3] == "menu");
+                // shop:gofuku[:品物] でお店の画面、wear で着がえ、buy:品物 で本当に買う（テスト用のミニヤチヨで）
+                if (p.Length > 3 && p[3].StartsWith("shop:")) { var a = p[3].Split(':'); Hud.OpenShopFor(a[1], a.Length > 2 ? a[2] : null, true); }
+                if (p.Length > 3 && p[3] == "wear") Hud.OpenWardrobe();
+                if (p.Length > 3 && p[3].StartsWith("buy:")) Hud.TestBuy(p[3].Substring(4));
                 cam.firstPerson = p.Length > 4 && p[4] == "fp";
                 yield return new WaitForSeconds(2.5f);
                 int f0 = Time.frameCount; float t0 = Time.realtimeSinceStartup;

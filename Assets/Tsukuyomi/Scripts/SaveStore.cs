@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using UnityEngine;
 
@@ -15,6 +16,11 @@ namespace Tsukuyomi
         public int logins;
         public string firstLogin = "";
         public string lastLogin = "";
+        // 段階2：買ったもの・着ているもの
+        public List<string> owned = new List<string>();
+        public string clothes = Catalog.StartClothes;
+        public List<string> wearing = new List<string>();
+        public int eaten;
     }
 
     /// <summary>%APPDATA%\Tsukuyomi\save.json に、ログアウトした場所などを残す。</summary>

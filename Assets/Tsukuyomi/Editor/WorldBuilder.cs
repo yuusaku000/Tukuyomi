@@ -85,6 +85,10 @@ namespace Tsukuyomi.EditorTools
             session.player = player; session.cam = cam; session.spawn = spawn;
             var hud = sys.AddComponent<Hud>();
             hud.player = player; hud.cam = cam;
+            // 段階2：町を歩く人たち（起動のときに作る）
+            var crowd = new GameObject("町の人たち").AddComponent<Crowd>();
+            crowd.litTemplate = ColorMat(Color.white);
+
 
             Combiner.Run(_env);
             foreach (var t in _env.GetComponentsInChildren<Transform>(true))
@@ -229,6 +233,11 @@ namespace Tsukuyomi.EditorTools
             cam = camGo.AddComponent<OrbitCamera>();
             cam.target = go.transform;
             pc.cam = cam;
+            // 段階2：着せ替え
+            var ward = go.AddComponent<Wardrobe>();
+            ward.doll = pc.doll; ward.cam = cam;
+            ward.litTemplate = ColorMat(Color.white);
+            ward.glowTemplate = Glow("glow_wear", Color.white, 1.3f, 2.6f);
             return pc;
         }
 
@@ -608,12 +617,12 @@ namespace Tsukuyomi.EditorTools
         {
             var go = new GameObject("道の地図");
             var sm = go.AddComponent<StreetMap>();
-            var pts = new List<Vector2>(); var counts = new List<int>(); var halves = new List<float>();
+            var pts = new List<Vector2>(); var counts = new List<int>(); var halves = new List<float>(); var names = new List<string>();
             foreach (var s in Town.Streets)
             {
-                pts.AddRange(s.pts); counts.Add(s.pts.Count); halves.Add(s.half);
+                pts.AddRange(s.pts); counts.Add(s.pts.Count); halves.Add(s.half); names.Add(s.name);
             }
-            sm.points = pts.ToArray(); sm.counts = counts.ToArray(); sm.halves = halves.ToArray();
+            sm.points = pts.ToArray(); sm.counts = counts.ToArray(); sm.halves = halves.ToArray(); sm.names = names.ToArray();
         }
 
         /// <summary>名所の場所に道が通っていないか（通っていたらログに出す）。</summary>
@@ -938,6 +947,7 @@ namespace Tsukuyomi.EditorTools
         {
             Physics.SyncTransforms();
             var g = Group(_env, "町並み", Vector3.zero);
+            Shops.Build(g); // 段階2：買い物ができるお店（家より先に場所をとる）
             int seed = 0;
             int along = Town.FillAlongStreets(g, (s, i, c, y, rot, w, d) =>
             {

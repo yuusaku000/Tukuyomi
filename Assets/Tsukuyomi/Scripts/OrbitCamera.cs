@@ -76,7 +76,17 @@ namespace Tsukuyomi
             transform.SetPositionAndRotation(pivot + dir * _cur, r);
         }
 
+        /// <summary>着がえで人形の部品が増えたり減ったりしたら呼ぶ（一人称で隠す部品を数えなおす）。</summary>
+        public void RefreshBody()
+        {
+            if (target == null) return;
+            _body.Clear();
+            target.GetComponentsInChildren(true, _body);
+            foreach (var b in _body) if (b) b.enabled = !_bodyHidden;
+        }
+
         void SetBodyHidden(bool hide)
+
         {
             if (_bodyHidden == hide) return;
             _bodyHidden = hide;

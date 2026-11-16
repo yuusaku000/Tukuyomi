@@ -9,6 +9,9 @@ namespace Tsukuyomi
         public float speed;
         public bool dance;
         public float danceTempo = 2.1f;
+        /// <summary>右手を決まった形にする（0〜1。食べる・傘をさすなど）。</summary>
+        public float holdR;
+        public Vector3 holdREuler = new Vector3(-120, 0, -25);
 
         float _phase, _seed;
 
@@ -37,6 +40,8 @@ namespace Tsukuyomi
             float sw = moving ? Mathf.Sin(_phase) * 40f * Mathf.Max(0.4f, k) : Mathf.Sin(t * 1.3f) * 3f;
             if (armL) armL.localRotation = Quaternion.Euler(sw, 0, -8f);
             if (armR) armR.localRotation = Quaternion.Euler(-sw, 0, 8f);
+            if (armR && holdR > 0) armR.localRotation = Quaternion.Slerp(armR.localRotation, Quaternion.Euler(holdREuler), holdR);
+
             if (head) head.localRotation = Quaternion.Euler(0, Mathf.Sin(t * 0.4f) * 4f, 0);
         }
     }
