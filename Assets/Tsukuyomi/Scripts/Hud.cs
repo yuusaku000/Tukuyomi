@@ -18,6 +18,15 @@ namespace Tsukuyomi
         public static bool Blocked { get; private set; }
 
         /// <summary>一人称のまん中の照準（メニューでオン・オフ。PlayerPrefs に残す）。</summary>
+        /// <summary>上の方位の帯（メニューでオン・オフ。PlayerPrefs に残す）。</summary>
+        public static bool CompassOn
+        {
+            get => PlayerPrefs.GetInt("tsukuyomi_compass", 1) == 1;
+            set { PlayerPrefs.SetInt("tsukuyomi_compass", value ? 1 : 0); PlayerPrefs.Save(); }
+        }
+
+        bool _sound; // 音量の画面
+
         public static bool CrosshairOn
         {
             get => PlayerPrefs.GetInt("tsukuyomi_crosshair", 1) == 1;
@@ -231,6 +240,7 @@ namespace Tsukuyomi
                 else if (ShopOpen) CloseShop();
                 else if (_map) _map = false;
                 else if (_book) _book = false;
+                else if (_sound) _sound = false;
                 else if (!_menu && Fishing.Busy) { Fishing.I.Stop(); Toast("竿をしまいました"); }
                 else if (!_menu && Rest.Sitting) Rest.I.Stand();
                 else _menu = !_menu;
@@ -340,7 +350,9 @@ namespace Tsukuyomi
             Frame(r, new Color(Cyan.r, Cyan.g, Cyan.b, hover ? 0.95f : 0.45f), hover ? 2f : 1f);
             Fill(new Rect(r.x, r.y, 4, r.height), hover ? Pink : new Color(Pink.r, Pink.g, Pink.b, 0.6f));
             Text(new Rect(r.x + 8, r.y, r.width - 8, r.height), s, size, Color.white, TextAnchor.MiddleCenter);
-            return GUI.Button(r, GUIContent.none, GUIStyle.none);
+            bool hit = GUI.Button(r, GUIContent.none, GUIStyle.none);
+            if (hit) Sfx.Click();
+            return hit;
         }
 
         // ───────── 画面 ─────────
@@ -370,7 +382,7 @@ namespace Tsukuyomi
             if (!Blocked && calm) DrawActivity();
             if (!Blocked && !calm)
             {
-                Compass();
+                if (CompassOn) Compass();
                 // 釣り・座る・番付の立て札
                 DrawActivity();
                 // 左下：座標
@@ -425,6 +437,7 @@ namespace Tsukuyomi
 
             if (_debug) DrawDebug();
             if (_map) DrawMap();
+            else if (_menu && _sound) DrawSound();
             else if (_menu) DrawMenu();
             else if (ShopOpen) DrawShop();
             else if (_book) DrawBook();
@@ -436,8 +449,8 @@ namespace Tsukuyomi
         void Compass()
         {
             if (cam == null || player == null) return;
-            float cw = 760, cx = W / 2, y = 34;
-            var bar = new Rect(cx - cw / 2, y, cw, 46);
+            float cw = 520, cx = W / 2, y = 30;
+            var bar = new Rect(cx - cw / 2, y, cw, 30);
             Fill(bar, new Color(0.02f, 0.06f, 0.13f, 0.35f));
             Fill(new Rect(bar.x, bar.yMax - 1, bar.width, 1), new Color(Cyan.r, Cyan.g, Cyan.b, 0.5f));
             float yaw = cam.transform.eulerAngles.y;
@@ -450,8 +463,8 @@ namespace Tsukuyomi
                 float x = Px(d);
                 bool major = d % 90 == 0;
                 float a = 1 - Mathf.Abs(dd) / (fov / 2);
-                Fill(new Rect(x - 0.75f, bar.yMax - (major ? 16 : 8), 1.5f, major ? 16 : 8), new Color(Cyan.r, Cyan.g, Cyan.b, 0.8f * a));
-                if (major) Text(new Rect(x - 20, y + 2, 40, 22), d == 0 ? "N" : d == 90 ? "E" : d == 180 ? "S" : "W", 18, new Color(1, 1, 1, a), TextAnchor.MiddleCenter, true);
+                Fill(new Rect(x - 0.75f, bar.yMax - (major ? 10 : 5), 1.5f, major ? 10 : 5), new Color(Cyan.r, Cyan.g, Cyan.b, 0.8f * a));
+                if (major) Text(new Rect(x - 20, y + 1, 40, 18), d == 0 ? "N" : d == 90 ? "E" : d == 180 ? "S" : "W", 14, new Color(1, 1, 1, a), TextAnchor.MiddleCenter, true);
             }
             var marks = new List<(Zone z, float dd, float dist, float bearing)>();
             foreach (var z in Zone.All)
@@ -474,15 +487,15 @@ namespace Tsukuyomi
                 float a = 1 - Mathf.Abs(dd) / (fov / 2) * 0.7f;
                 var c = z.mapColor; c.a = a;
                 Fill(new Rect(x - 4, bar.yMax + 4, 8, 8), c);
-                if (i >= 5) continue;
+                if (i >= 3) continue;
                 int row = 0;
                 foreach (var pl in placed) if (Mathf.Abs(pl.x - x) < 150 && pl.row == row) row++;
-                if (row > 2) continue;
+                if (row > 1) continue;
                 placed.Add((x, row));
-                float ly = bar.yMax + 12 + row * 40;
-                if (row > 0) Fill(new Rect(x - 0.5f, bar.yMax + 12, 1, row * 40), new Color(c.r, c.g, c.b, a * 0.5f));
-                Text(new Rect(x - 90, ly, 180, 22), z.title, 15, new Color(1, 1, 1, a), TextAnchor.UpperCenter);
-                Text(new Rect(x - 90, ly + 19, 180, 18), $"{dist:0}m", 13, new Color(Cyan.r, Cyan.g, Cyan.b, a * 0.9f), TextAnchor.UpperCenter, true);
+                float ly = bar.yMax + 8 + row * 30;
+                if (row > 0) Fill(new Rect(x - 0.5f, bar.yMax + 8, 1, row * 30), new Color(c.r, c.g, c.b, a * 0.5f));
+                Text(new Rect(x - 80, ly, 160, 18), z.title, 12, new Color(1, 1, 1, a * 0.85f), TextAnchor.UpperCenter);
+                Text(new Rect(x - 80, ly + 14, 160, 15), $"{dist:0}m", 11, new Color(Cyan.r, Cyan.g, Cyan.b, a * 0.8f), TextAnchor.UpperCenter, true);
             }
             Fill(new Rect(cx - 1, y - 6, 2, 12), Pink);
         }
@@ -524,7 +537,7 @@ namespace Tsukuyomi
             y += step;
             if (Button(new Rect(r.x + 110, y, 440, bh), cam != null && cam.firstPerson ? "視点：一人称（V で切りかえ）" : "視点：三人称（V で切りかえ）")) cam?.Toggle();
             y += step;
-            if (Button(new Rect(r.x + 110, y, 440, bh), AmbientAudio.Muted ? "音：オフ（押すとオン）" : "音：オン（押すとオフ）")) AmbientAudio.Muted = !AmbientAudio.Muted;
+            if (Button(new Rect(r.x + 110, y, 440, bh), AmbientAudio.Muted ? "音量：ミュート中（押して変える）" : $"音量：全体 {SoundPrefs.Master * 100:0}%（押して変える）")) _sound = true;
             y += step;
             if (Button(new Rect(r.x + 110, y, 440, bh), $"画質：{Quality.Name}（押すと切りかえ）")) Quality.Next();
             y += step;
@@ -534,7 +547,8 @@ namespace Tsukuyomi
             y += step;
             if (Button(new Rect(r.x + 110, y, 440, bh), Crowd.BubblesOn ? "吹き出し：オン（押すとオフ）" : "吹き出し：オフ（押すとオン）")) Crowd.BubblesOn = !Crowd.BubblesOn;
             y += step;
-            if (Button(new Rect(r.x + 110, y, 440, bh), CrosshairOn ? "照準（まん中の十字）：オン" : "照準（まん中の十字）：オフ")) CrosshairOn = !CrosshairOn;
+            if (Button(new Rect(r.x + 110, y, 215, bh), CompassOn ? "方位：オン" : "方位：オフ", 22)) CompassOn = !CompassOn;
+            if (Button(new Rect(r.x + 335, y, 215, bh), CrosshairOn ? "照準：オン" : "照準：オフ", 22)) CrosshairOn = !CrosshairOn;
             y += step;
             if (Button(new Rect(r.x + 110, y, 440, bh), "ログアウト（終わる）")) GameSession.Instance?.Logout();
             Text(new Rect(r.x, r.yMax - 116, r.width, 110),
@@ -542,6 +556,45 @@ namespace Tsukuyomi
                 "WASD・矢印 歩く　Shift 走る　Space ジャンプ　V 視点\nマウス 見回す　ホイール 近づく・離れる（いちばん近くで一人称）\nF3 デバッグ表示　F4 飛行（デバッグ）　F12 写真（メニューの「写真のフォルダを開く」で見られます）\nE お店に入る・座る・釣りをする（釣り堀のふちで）　C 着がえ　B 図鑑と番付",
 
                 17, new Color(1, 1, 1, 0.75f), TextAnchor.UpperCenter);
+        }
+
+        /// <summary>音量の画面（全体・環境音・効果音・ミュート）。</summary>
+        void DrawSound()
+        {
+            Fill(new Rect(0, 0, W, H), new Color(0.01f, 0.03f, 0.08f, 0.55f));
+            var r = new Rect(W / 2 - 360, H / 2 - 260, 720, 520);
+            Panel(r);
+            Text(new Rect(r.x, r.y + 22, r.width, 22), "SOUND", 18, Cyan, TextAnchor.MiddleCenter, true);
+            Text(new Rect(r.x, r.y + 48, r.width, 56), "音量", 44, Color.white, TextAnchor.MiddleCenter, false, FontStyle.Bold);
+            float y = r.y + 130;
+            float Row(string label, float v, string hint)
+            {
+                Text(new Rect(r.x + 50, y, 200, 36), label, 26, Color.white, TextAnchor.MiddleLeft);
+                Text(new Rect(r.xMax - 140, y, 90, 36), $"{v * 100:0}%", 24, Gold, TextAnchor.MiddleRight, true);
+                var sr = new Rect(r.x + 230, y + 12, r.width - 400, 14);
+                Fill(sr, new Color(0.02f, 0.05f, 0.12f, 0.8f));
+                Fill(new Rect(sr.x, sr.y, sr.width * v, sr.height), new Color(Cyan.r, Cyan.g, Cyan.b, 0.8f));
+                Frame(sr, new Color(Cyan.r, Cyan.g, Cyan.b, 0.6f), 1f);
+                Fill(new Rect(sr.x + sr.width * v - 6, sr.y - 7, 12, 28), Pink);
+                var e = Event.current;
+                var hit = new Rect(sr.x - 8, sr.y - 14, sr.width + 16, 42);
+                if ((e.type == EventType.MouseDown || e.type == EventType.MouseDrag) && e.button == 0 && hit.Contains(e.mousePosition))
+                {
+                    v = Mathf.Clamp01((e.mousePosition.x - sr.x) / sr.width);
+                    e.Use();
+                }
+                Text(new Rect(r.x + 230, y + 30, r.width - 400, 22), hint, 14, new Color(1, 1, 1, 0.55f));
+                y += 82;
+                return v;
+            }
+            float m = Row("全体", SoundPrefs.Master, "ツクヨミの音ぜんぶ");
+            if (!Mathf.Approximately(m, SoundPrefs.Master)) SoundPrefs.Master = m;
+            float a = Row("環境音", SoundPrefs.Ambient, "波・水・ざわめき・風鈴・祭囃子・鐘・鹿威し・花火");
+            if (!Mathf.Approximately(a, SoundPrefs.Ambient)) SoundPrefs.Ambient = a;
+            float f = Row("効果音", SoundPrefs.Effects, "足音・ボタン・買い物・釣り・遊覧船");
+            if (!Mathf.Approximately(f, SoundPrefs.Effects)) SoundPrefs.Effects = f;
+            if (Button(new Rect(r.x + 60, r.yMax - 90, 290, 62), SoundPrefs.Muted ? "ミュート：オン" : "ミュート：オフ")) SoundPrefs.Muted = !SoundPrefs.Muted;
+            if (Button(new Rect(r.xMax - 350, r.yMax - 90, 290, 62), "もどる（Esc）")) _sound = false;
         }
 
         void DrawMap()

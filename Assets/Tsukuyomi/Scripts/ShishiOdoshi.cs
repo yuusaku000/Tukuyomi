@@ -22,6 +22,7 @@ namespace Tsukuyomi
         void Update()
         {
             if (tube == null) return;
+            if (_src != null) _src.volume = 0.9f * SoundPrefs.Ambient;
             float prev = _t;
             _t += Time.deltaTime;
             float fill = period - 1.2f;

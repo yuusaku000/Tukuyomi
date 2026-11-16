@@ -23,7 +23,7 @@ namespace Tsukuyomi
         public GameObject lookGate;   // 月見台の乗り口の見えない柵（船が来ているときだけ消す）
         public GameObject shipGate;   // 船の乗り口の見えない柵（止まっているときだけ消す）
         public ParticleSystem trail;
-        public Vector3 cruiseCenter = new Vector3(0, 80f, 140f);
+        public Vector3 cruiseCenter = new Vector3(0, 75f, 140f);
         public float cruiseRadius = 125f;
 
         public static SkyShip I { get; private set; }
@@ -60,6 +60,7 @@ namespace Tsukuyomi
             var n = Ts.Now; _lastAutoSlot = n.Hour * 2 + n.Minute / 30;
             if (Ts.Arg("--ship") == "fly") { AutoLap(1); }
             if (Ts.Arg("--ship") == "look") { CallToLookout(); }
+            if (Ts.Arg("--ship") == "ride" && Ts.ShotMode) { BookAtSea(); } // 確認用：払わずに乗って3周
         }
 
         void SetDocked(bool docked, bool atLook)
@@ -164,14 +165,25 @@ namespace Tsukuyomi
             _legs.Enqueue(new Leg
             {
                 dur = 22f, say = "空へのぼっています",
-                begin = () => { where = Where.Flying; SetDocked(false, false); },
+                begin = () =>
+                {
+                    where = Where.Flying; SetDocked(false, false);
+                    if (_pc != null && (_pc.Position - transform.position).sqrMagnitude < 70f * 70f) Sfx.Gong(); // 出航の合図
+                },
                 pos = t => Bez(dock, dock + fd * 30f + Vector3.up * 20f, entry - tangent * 45f, entry, Ease(t)),
             });
-            _legs.Enqueue(new Leg
+            // 1周目：島の上を高く大きく／2周目：町の名所をめぐる低空／3周目：島のまわりの海の上をすれすれに
+            string[] names = { "島の上を高く回っています", "町の名所をめぐっています（低空）", "海の上をすれすれに飛んでいます" };
+            for (int k = 0; k < laps; k++)
             {
-                dur = LapSeconds * laps, say = laps > 1 ? $"空を{laps}周しています" : "空を回っています",
-                pos = t => Circle(a0 + t * Mathf.PI * 2 * laps) + Vector3.up * Mathf.Sin(t * Mathf.PI * 2 * laps * 2) * 4f,
-            });
+                var route = Route(k % 3, a0);
+                int lap = k;
+                _legs.Enqueue(new Leg
+                {
+                    dur = route.len / CruiseSpeed(k % 3), say = (laps > 1 ? $"{lap + 1}周目：" : "") + names[k % 3],
+                    pos = route.At,
+                });
+            }
             _legs.Enqueue(new Leg
             {
                 dur = 22f, say = "おりています",
@@ -179,6 +191,119 @@ namespace Tsukuyomi
                 end = () => { if (_paidRider && RiderAboard && homeAfter) Hud.Toast("おつかれさまでした。桟橋に着きました"); },
             });
             if (homeAfter) _legs.Enqueue(Home());
+        }
+
+        // ───────── 3つの航路 ─────────
+
+        static float CruiseSpeed(int kind) => kind == 0 ? 11f : kind == 1 ? 9f : 12f;
+
+        /// <summary>密に区切った道すじ（長さで引ける）。高さは、下の建物や地形より clearance 以上あける。</summary>
+        public class Path
+        {
+            public Vector3[] p; public float[] s; public float len;
+            public Vector3 At(float u)
+            {
+                float d = Mathf.Clamp01(u) * len;
+                int lo = 0, hi = s.Length - 1;
+                while (hi - lo > 1) { int m = (lo + hi) / 2; if (s[m] <= d) lo = m; else hi = m; }
+                float seg = s[hi] - s[lo];
+                return Vector3.Lerp(p[lo], p[hi], seg > 1e-4f ? (d - s[lo]) / seg : 0);
+            }
+        }
+
+        readonly Dictionary<(int, int), Path> _routes = new Dictionary<(int, int), Path>();
+        readonly RaycastHit[] _hits = new RaycastHit[8];
+
+        static readonly Vector2[] Sights =
+        {
+            new Vector2(0, 22), new Vector2(74, 44), new Vector2(40, 100), new Vector2(0, 75), new Vector2(-40, 112), new Vector2(-74, 127),
+            new Vector2(-28, 160), new Vector2(-11, 157), new Vector2(0, 204), new Vector2(36, 198), new Vector2(23, 158), new Vector2(62, 140),
+        };
+
+        /// <summary>そこの真下でいちばん高い物の高さ（船の幅ぶん、5か所で見る）。</summary>
+        float Highest(Vector3 p)
+        {
+            float best = Island.Height(p.x, p.z);
+            foreach (var o in new[] { Vector3.zero, new Vector3(6, 0, 0), new Vector3(-6, 0, 0), new Vector3(0, 0, 9), new Vector3(0, 0, -9) })
+            {
+                int n = Physics.RaycastNonAlloc(new Vector3(p.x + o.x, 400f, p.z + o.z), Vector3.down, _hits, 500f, ~0, QueryTriggerInteraction.Ignore);
+                for (int i = 0; i < n; i++)
+                {
+                    if (_hits[i].collider.transform.IsChildOf(transform) || _hits[i].collider is CharacterController) continue;
+                    if (_hits[i].point.y > best) best = _hits[i].point.y;
+                }
+            }
+            return Mathf.Max(best, 0f);
+        }
+
+        Path Route(int kind, float a0)
+        {
+            int key = Mathf.RoundToInt(a0 * 100f);
+            if (_routes.TryGetValue((kind, key), out var cached)) return cached;
+            var c = new Vector2(cruiseCenter.x, cruiseCenter.z);
+            var J = Circle(a0);
+            var wps = new List<Vector3> { J };
+            float clearance = 14f;
+            if (kind == 0)
+            {
+                for (int i = 1; i < 32; i++) wps.Add(Circle(a0 + i * Mathf.PI * 2 / 32));
+            }
+            else if (kind == 1)
+            {
+                // 名所を、出発の向きから回る順にならべる
+                var list = new List<(float ang, Vector2 p)>();
+                foreach (var q in Sights)
+                {
+                    float ang = Mathf.Repeat(Mathf.Atan2(q.y - c.y, q.x - c.x) - a0, Mathf.PI * 2);
+                    list.Add((ang, q));
+                }
+                list.Sort((x, y) => x.ang.CompareTo(y.ang));
+                foreach (var (_, q) in list) wps.Add(new Vector3(q.x, Island.TerraceHeight(q.x, q.y) + 24f, q.y));
+                clearance = 12f;
+            }
+            else
+            {
+                var ic = Island.Center;
+                for (int i = 1; i < 36; i++)
+                {
+                    float a = a0 + i * Mathf.PI * 2 / 36;
+                    wps.Add(new Vector3(ic.x + Mathf.Cos(a) * 178f, 12f, ic.y + Mathf.Sin(a) * 178f));
+                }
+                clearance = 10f;
+            }
+            wps.Add(J);
+            // カトマル・ロムで3mごとに区切る
+            var pts = new List<Vector3>();
+            for (int i = 0; i < wps.Count - 1; i++)
+            {
+                var p0 = wps[Mathf.Max(0, i - 1)]; var p1 = wps[i]; var p2 = wps[i + 1]; var p3 = wps[Mathf.Min(wps.Count - 1, i + 2)];
+                int n = Mathf.Max(2, Mathf.CeilToInt(Vector3.Distance(p1, p2) / 3f));
+                for (int k = 0; k < n; k++)
+                {
+                    float t = k / (float)n, t2 = t * t, t3 = t2 * t;
+                    pts.Add(0.5f * (2 * p1 + (-p0 + p2) * t + (2 * p0 - 5 * p1 + 4 * p2 - p3) * t2 + (-p0 + 3 * p1 - 3 * p2 + p3) * t3));
+                }
+            }
+            pts.Add(J);
+            // 下の物より clearance 以上あけて、上り下りはなめらかに（前もって上がる）
+            var h = new float[pts.Count];
+            for (int i = 0; i < pts.Count; i++) h[i] = Mathf.Max(pts[i].y, Highest(pts[i]) + clearance);
+            h[0] = J.y; h[h.Length - 1] = J.y;
+            for (int i = 1; i < h.Length; i++) h[i] = Mathf.Max(h[i], h[i - 1] - 1.2f);
+            for (int i = h.Length - 2; i >= 0; i--) h[i] = Mathf.Max(h[i], h[i + 1] - 1.2f);
+            for (int pass = 0; pass < 3; pass++)
+                for (int i = 1; i < h.Length - 1; i++) h[i] = Mathf.Max(h[i], (h[i - 1] + h[i] + h[i + 1]) / 3f);
+            var path = new Path { p = new Vector3[pts.Count], s = new float[pts.Count] };
+            for (int i = 0; i < pts.Count; i++)
+            {
+                path.p[i] = new Vector3(pts[i].x, h[i], pts[i].z);
+                if (i > 0) path.s[i] = path.s[i - 1] + Vector3.Distance(path.p[i - 1], path.p[i]);
+            }
+            path.len = path.s[path.s.Length - 1];
+            _routes[(kind, key)] = path;
+            float hmin = float.MaxValue, hmax = 0; foreach (var q in path.p) { hmin = Mathf.Min(hmin, q.y); hmax = Mathf.Max(hmax, q.y); }
+            Debug.Log($"[Ship] route {kind}: {path.len:0}m, {path.len / CruiseSpeed(kind):0}s, height {hmin:0}〜{hmax:0}");
+            return path;
         }
 
         // ───────── 毎フレーム ─────────

@@ -216,6 +216,7 @@ namespace Tsukuyomi
                 _shipBusy = false;
                 if (!res.ok) { _shipMsg = string.IsNullOrEmpty(res.error) ? "払えませんでした" : res.error; return; }
                 _shipAsk = null;
+                Sfx.Coin();
                 if (SkyShip.I == null) return;
                 if (booth.atLookout) SkyShip.I.CallToLookout(); else SkyShip.I.BookAtSea();
                 Toast($"遊覧船の切符を買いました（{SkyShip.Price} ふじゅ〜）　残り {Catalog.Yen(res.fuju)} ふじゅ〜");

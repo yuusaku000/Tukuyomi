@@ -40,6 +40,8 @@ namespace Tsukuyomi
         {
             _shotMode = Ts.ShotMode;
             Quality.Load();
+            SoundPrefs.Apply();
+            Sfx.Ensure();
             Application.runInBackground = true;
             // --fresh は「保存した場所を使わない」。--fresh-all は持ち物もふくめて初めから（確認用）
             _data = Ts.Flag("--fresh-all") ? new SaveData() : SaveStore.Load();
@@ -112,7 +114,9 @@ namespace Tsukuyomi
                     var xz = p[0].Substring(1).Split(',');
                     float x = float.Parse(xz[0], CultureInfo.InvariantCulture), zz = float.Parse(xz[1], CultureInfo.InvariantCulture);
                     float ground = Island.Height(x, zz);
-                    if (Physics.Raycast(new Vector3(x, 200, zz), Vector3.down, out var hit, 400, ~0, QueryTriggerInteraction.Ignore)) ground = hit.point.y;
+                    // "@x,z,y" なら、その高さから下を見る（建物の中の階など）
+                    float from = xz.Length > 2 ? float.Parse(xz[2], CultureInfo.InvariantCulture) + 1.5f : 200f;
+                    if (Physics.Raycast(new Vector3(x, from, zz), Vector3.down, out var hit, 400, ~0, QueryTriggerInteraction.Ignore)) ground = hit.point.y;
                     player.Teleport(new Vector3(x, ground + 0.1f, zz), 0);
                 }
                 if (p.Length > 1 && p[1].Length > 0) Ts.SetTime(p[1]);

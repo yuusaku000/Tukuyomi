@@ -191,6 +191,7 @@ namespace Tsukuyomi
         void Update()
         {
             if (state == St.Off) return;
+            if (_src != null) _src.volume = SoundPrefs.Effects;
             float dt = Time.deltaTime;
             if (msgT > 0) msgT -= dt;
             if (resultT > 0 && !Ts.ShotMode) resultT -= dt;

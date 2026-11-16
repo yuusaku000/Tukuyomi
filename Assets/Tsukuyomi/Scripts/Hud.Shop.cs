@@ -172,6 +172,7 @@ namespace Tsukuyomi
                     return;
                 }
                 _balanceKnown = true; _balanceErr = null;
+                Sfx.Coin();
                 var d = Data;
                 if (it.kind == ItemKind.Food)
                 {
@@ -230,10 +231,10 @@ namespace Tsukuyomi
             {
                 var v = s.sign - c.transform.position;
                 float dist = v.magnitude;
-                if (dist > 45f || Vector3.Dot(v, c.transform.forward) < 0) continue;
+                if (dist > 24f || Vector3.Dot(v, c.transform.forward) < 0) continue; // 近くの店だけ名前を出す
                 var sp = c.WorldToScreenPoint(s.sign);
                 float x = sp.x / S, y = (Screen.height - sp.y) / S;
-                float a = Mathf.Clamp01((45f - dist) / 10f);
+                float a = Mathf.Clamp01((24f - dist) / 6f);
                 var r = new Rect(x - 130, y - 34, 260, 68);
                 Panel(r, a);
                 Fill(new Rect(r.x, r.y, 4, r.height), new Color(Pink.r, Pink.g, Pink.b, a));
@@ -319,8 +320,8 @@ namespace Tsukuyomi
                 else if (Button(b1, "つける")) Equip(sel, true);
             }
             else if (sel == null) Text(new Rect(r.x + 26, by, 420, 66), "品物をえらぶと試着できます", 20, new Color(1, 1, 1, 0.7f), TextAnchor.MiddleLeft);
-            if (Button(new Rect(r.xMax - 250, by, 226, 66), "とじる（Esc）")) CloseShop();
-            if (_shop.kind != ItemKind.Food) TurnButtons(r);
+            if (Button(new Rect(r.xMax - 250, by, 226, 66), "とじる（Esc）")) { CloseShop(); return; } // 閉じたあと _shop は空（ここで落ちていた）
+            if (_shop != null && _shop.kind != ItemKind.Food) TurnButtons(r);
         }
 
         /// <summary>人形を回すボタン（A・D や ←・→ でも回せる）。お店と着がえの画面の左に出す。</summary>

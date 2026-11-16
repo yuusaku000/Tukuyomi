@@ -17,6 +17,30 @@ namespace Tsukuyomi
             return clip;
         }
 
+        /// <summary>
+        /// くり返し用の音：少し長めに作って、終わりの部分を始まりに重ねる（つなぎ目で「プツッ」と鳴らないように）。
+        /// </summary>
+        static AudioClip MakeLoop(string name, float seconds, System.Func<float, float> f)
+        {
+            int n = Mathf.CeilToInt(seconds * Rate), nf = Mathf.CeilToInt(Mathf.Min(1.5f, seconds * 0.25f) * Rate);
+            var raw = new float[n + nf];
+            for (int i = 0; i < raw.Length; i++) raw[i] = f(i / (float)Rate);
+            var data = new float[n];
+            System.Array.Copy(raw, data, n);
+            for (int i = 0; i < nf; i++)
+            {
+                float k = i / (float)nf;
+                data[i] = raw[i] * Mathf.Sqrt(k) + raw[n + i] * Mathf.Sqrt(1 - k);
+            }
+            // 大きすぎる所をおさえる（音割れの雑音を防ぐ）
+            float peak = 0.0001f;
+            foreach (var v in data) peak = Mathf.Max(peak, Mathf.Abs(v));
+            if (peak > 0.9f) for (int i = 0; i < n; i++) data[i] *= 0.9f / peak;
+            var clip = AudioClip.Create(name, n, 1, Rate, false);
+            clip.SetData(data, 0);
+            return clip;
+        }
+
         sealed class Rng
         {
             uint _s;
@@ -62,13 +86,12 @@ namespace Tsukuyomi
         {
             var r = new Rng(12345);
             float lp = 0, lp2 = 0;
-            return Make("water", seconds, t =>
+            return MakeLoop("water", seconds, t =>
             {
                 lp += (r.Next() - lp) * bright;
-                lp2 += (lp - lp2) * 0.3f;
+                lp2 += (lp - lp2) * 0.25f;
                 float swell = 0.7f + 0.3f * Mathf.Sin(t * 2 * Mathf.PI / seconds * 3f);
-                float edge = Mathf.Min(1f, Mathf.Min(t, seconds - t) * 4f);
-                return lp2 * swell * 0.9f * Mathf.Lerp(0.6f, 1f, edge);
+                return lp2 * swell * 0.9f;
             });
         }
 
@@ -77,13 +100,14 @@ namespace Tsukuyomi
         {
             var r = new Rng(777);
             float bp = 0, bp2 = 0;
-            return Make("crowd", seconds, t =>
+            float bp3 = 0;
+            return MakeLoop("crowd", seconds, t =>
             {
-                bp += (r.Next() - bp) * 0.12f;
+                bp += (r.Next() - bp) * 0.08f;
                 bp2 += (bp - bp2) * 0.04f;
+                bp3 += ((bp - bp2) - bp3) * 0.35f; // 高い「サー」という音をけずる
                 float syll = 0.55f + 0.45f * Mathf.Abs(Mathf.Sin(t * 5.3f) * Mathf.Sin(t * 3.1f + 1f));
-                float edge = Mathf.Min(1f, Mathf.Min(t, seconds - t) * 4f);
-                return (bp - bp2) * syll * 1.6f * Mathf.Lerp(0.7f, 1f, edge);
+                return bp3 * syll * 1.8f;
             });
         }
 
@@ -180,6 +204,29 @@ namespace Tsukuyomi
                 return v * 0.16f * Mathf.Clamp01(t * 600f);
             });
         }
+
+        /// <summary>ボタンの「ポン」。</summary>
+        public static AudioClip Click() => Make("click", 0.08f, t => Mathf.Sin(2 * Mathf.PI * 1250f * t) * Mathf.Exp(-t * 60f) * 0.35f);
+
+        /// <summary>買ったときの「チリン」。</summary>
+        public static AudioClip Coin() => Make("coin", 0.6f, t =>
+            (Mathf.Sin(2 * Mathf.PI * 1976f * t) + 0.6f * Mathf.Sin(2 * Mathf.PI * 2637f * Mathf.Max(0, t - 0.07f)) * (t > 0.07f ? 1 : 0)) * Mathf.Exp(-t * 7f) * 0.22f);
+
+        /// <summary>石畳の足音（やわらかい「コッ」）。</summary>
+        public static AudioClip Step(int seed)
+        {
+            var r = new Rng((uint)(91 + seed));
+            float lp = 0;
+            return Make("step", 0.09f, t =>
+            {
+                lp += (r.Next() - lp) * 0.35f;
+                return (lp * 0.8f + Mathf.Sin(2 * Mathf.PI * (180f + seed * 25f) * t) * 0.4f) * Mathf.Exp(-t * 55f) * 0.5f;
+            });
+        }
+
+        /// <summary>遊覧船の出航の合図（やわらかい鐘）。</summary>
+        public static AudioClip Gong() => Make("gong", 3f, t =>
+            (Mathf.Sin(2 * Mathf.PI * 330f * t) + 0.5f * Mathf.Sin(2 * Mathf.PI * 495f * t) * Mathf.Exp(-t * 1.5f) + 0.3f * Mathf.Sin(2 * Mathf.PI * 660f * t)) * Mathf.Exp(-t * 1.4f) * 0.3f * Mathf.Clamp01(t * 300f));
 
         /// <summary>花火（ドーン、パチパチ）。</summary>
         public static AudioClip Boom()

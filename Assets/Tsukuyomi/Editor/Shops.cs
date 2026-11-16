@@ -50,6 +50,10 @@ namespace Tsukuyomi.EditorTools
             Stall("kori", "かき氷と飲み物「しろくま」", "SHAVED ICE ▸ SHIROKUMA", "つめた〜いの、あります", "下町の環状通り", 25, 0, new Color(0.3f, 0.6f, 0.9f)),
             // 上段の参道
             House("fudan", ItemKind.Clothes, "ふだん着の店「木綿屋」", "EVERYDAY WEAR ▸ MOMENYA", "まいど。毎日着るなら、うちの木綿がいちばん", "上段の参道", 0, 140),
+            // 服の形ごとの店
+            House("miko", ItemKind.Clothes, "巫女装束「神楽屋」", "MIKO ▸ KAGURAYA", "ようこそお参りくださいました。装束の着つけ、お手伝いします", "上段の環状通り|上段の参道|中段の環状通り|下町の環状通り", 25, 150),
+            House("dress", ItemKind.Clothes, "ドレス着物「月下美人」", "DRESS KIMONO ▸ GEKKABIJIN", "いらっしゃいませ！ ふわっと広がる裾、ためしてみて", "東西通り|月見商店街|中段の環状通り|下町の環状通り", 45, 80),
+            House("juni", ItemKind.Clothes, "十二単「雅」", "JUNIHITOE ▸ MIYABI", "ようこそ。色のかさね、ひとつずつお見せしますね", "頂上の参道|上段の参道|上段の環状通り|中段の環状通り|下町の環状通り", 0, 180),
             new Def { group = "komono", kind = ItemKind.Accessory, title = "小間物の屋台「花かんざし」", english = "ACCESSORY ▸ HANAKANZASHI", hello = "いらっしゃいませ。お参りのおともに、ひとつどうぞ", street = "上段の参道|上段の環状通り", near = new Vector2(0, 124), stall = true, cloth = new Color(0.95f, 0.6f, 0.75f) },
 
         };
@@ -79,6 +83,16 @@ namespace Tsukuyomi.EditorTools
             l.Add(Again(F("furisode"), "上段の環状通り|下町の環状通り", 0.04f));
             // 頂上の参道
             l.Add(Again(System.Array.Find(Defs, d => d.group == "komono" && d.stall), "頂上の参道|上段の参道", 0.5f));
+            // もっとお店を：新しい服の店の2軒目と、屋台をあちこちに
+            l.Add(Again(F("dress"), "下町の環状通り", 0.5f));
+            l.Add(Again(F("miko"), "中段の環状通り", 0.35f));
+            l.Add(Again(F("juni"), "中段の環状通り|上段の環状通り|下町の環状通り", 0.65f));
+            l.Add(Again(F("kanmi"), "中段の環状通り", 0.92f));
+            l.Add(Again(F("takoyaki"), "上段の環状通り", 0.9f));
+            l.Add(Again(F("crepe"), "中段の環状通り", 0.08f));
+            l.Add(Again(F("oden"), "下町の環状通り", 0.2f));
+            l.Add(Again(F("kori"), "上段の環状通り", 0.3f));
+            l.Add(Again(F("yukata"), "中段の環状通り", 0.6f));
             return l.ToArray();
         }
 

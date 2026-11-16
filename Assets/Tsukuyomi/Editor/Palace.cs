@@ -176,11 +176,58 @@ namespace Tsukuyomi.EditorTools
             for (float x = -W / 2 + 1f; x < W / 2; x += 1.25f)
                 foreach (float sd in new[] { -1f, 1f }) Cyl(g, "高欄の小柱", new Vector3(x, upY + 0.45f, sd * (D / 2 - 0.15f)), 0.04f, 0.9f, Vermilion);
             // 望楼の上の裳階（ひさし）と、もう一階（月見の間）。窓が灯り、まわりに高欄
-            MeshObj(g, "望楼の屋根", Roof(W + 3.2f, D + 3.2f, 1.5f, 0.9f), new Vector3(0, upY + H2, 0), copper);
+            MeshObj(g, "望楼の屋根", Roof(W + 3.2f, D + 3.2f, 0.8f, 0.7f), new Vector3(0, upY + H2, 0), copper);
             const float W3 = W - 5f, D3 = D - 2.4f, H3 = 3.4f;
-            float y3 = upY + H2 + 1.1f;
-            Box(g, "三階の縁", new Vector3(0, y3 + 0.05f, 0), new Vector3(W3 + 1.6f, 0.2f, D3 + 1.6f), WoodDark);
-            Box(g, "三階", new Vector3(0, y3 + H3 / 2, 0), new Vector3(W3, H3, D3), Buildings.RedLacquer);
+            float y3 = upY + H2 + 1.1f, f3 = y3 + 0.15f; // f3：三階の床の上
+            // 三階の床（縁もふくむ）。南がわに望楼から上がる階段の穴をあける
+            const float hx0 = -7.3f, hx1 = 0.45f, hz0 = -3.2f, hz1 = -1.95f;
+            float ex = W3 / 2 + 0.8f, ez = D3 / 2 + 0.8f;
+            void Floor(float x0, float x1, float z0, float z1) => Box(g, "三階の床", new Vector3((x0 + x1) / 2, y3 + 0.05f, (z0 + z1) / 2), new Vector3(x1 - x0, 0.2f, z1 - z0), WoodDark, true);
+            Floor(-ex, ex, -ez, hz0); Floor(-ex, ex, hz1, ez); Floor(-ex, hx0, hz0, hz1); Floor(hx1, ex, hz0, hz1);
+            Box(g, "三階の畳", new Vector3(2.5f, f3 + 0.01f, 0.6f), new Vector3(W3 - 6f, 0.02f, D3 - 2.6f), Tatami);
+            // 望楼から三階への階段（西から東へ上がる）
+            {
+                const float run3 = 0.42f, sw3 = hz1 - hz0 - 0.1f;
+                int n3 = Mathf.CeilToInt((f3 - upY) / 0.28f);
+                float rise3 = (f3 - upY) / n3;
+                for (int i = 0; i < n3; i++)
+                {
+                    float top = upY + (i + 1) * rise3;
+                    Box(g, "三階への階段", new Vector3(hx0 + 0.05f + i * run3 + run3 / 2, (upY + top) / 2, (hz0 + hz1) / 2), new Vector3(run3 + 0.02f, top - upY, sw3), WoodDark, true);
+                }
+                Box(g, "階段の手すり", new Vector3((hx0 + hx1) / 2, f3 + 0.9f, hz1 + 0.05f), new Vector3(hx1 - hx0, 0.1f, 0.1f), Vermilion);
+                Box(g, "見えない柵", new Vector3((hx0 + hx1) / 2 - 0.3f, f3 + 0.7f, hz1 + 0.08f), new Vector3(hx1 - hx0 - 0.6f, 1.4f, 0.15f), Vermilion, true).GetComponent<Renderer>().enabled = false;
+                Box(g, "見えない柵", new Vector3(hx0 - 0.08f, f3 + 0.7f, (hz0 + hz1) / 2), new Vector3(0.15f, 1.4f, hz1 - hz0), Vermilion, true).GetComponent<Renderer>().enabled = false;
+            }
+            // 三階の壁（中に入れる）。北のまん中は縁へ出る戸口
+            var wallMat = Buildings.RedLacquer;
+            foreach (float sd in new[] { -1f, 1f })
+            {
+                Box(g, "三階の壁", new Vector3(sd * (W3 / 2 - 0.1f), f3 + H3 / 2, 0), new Vector3(0.2f, H3, D3), wallMat, true);
+                if (sd < 0) Box(g, "三階の壁", new Vector3(0, f3 + H3 / 2, -D3 / 2 + 0.1f), new Vector3(W3, H3, 0.2f), wallMat, true);
+                else
+                {
+                    foreach (float sx in new[] { -1f, 1f })
+                        Box(g, "三階の壁", new Vector3(sx * (W3 / 4 + 0.45f), f3 + H3 / 2, D3 / 2 - 0.1f), new Vector3(W3 / 2 - 0.9f, H3, 0.2f), wallMat, true);
+                    Box(g, "戸口の上", new Vector3(0, f3 + 2.3f + (H3 - 2.3f) / 2, D3 / 2 - 0.1f), new Vector3(1.8f, H3 - 2.3f, 0.2f), wallMat, true);
+                }
+            }
+            // 縁の見えない柵（落ちないように）
+            foreach (float sd in new[] { -1f, 1f })
+            {
+                Box(g, "見えない柵", new Vector3(0, f3 + 0.7f, sd * (ez - 0.1f)), new Vector3(ex * 2, 1.4f, 0.2f), Vermilion, true).GetComponent<Renderer>().enabled = false;
+                Box(g, "見えない柵", new Vector3(sd * (ex - 0.1f), f3 + 0.7f, 0), new Vector3(0.2f, 1.4f, ez * 2), Vermilion, true).GetComponent<Renderer>().enabled = false;
+                Box(g, "三階の高欄", new Vector3(sd * (W3 / 2 + 0.75f), y3 + 0.7f, 0), new Vector3(0.1f, 0.1f, D3 + 1.4f), Vermilion);
+            }
+            // 中：月見のソファ・行灯・あかり
+            SofaSet(g, new Vector3(3.2f, f3, -1.0f), 180f);
+            foreach (float x in new[] { -5.5f, 6.3f })
+            {
+                Box(g, "行灯", new Vector3(x, f3 + 0.55f, 2.2f), new Vector3(0.4f, 0.6f, 0.4f), GlowWhite);
+                Box(g, "行灯の台", new Vector3(x, f3 + 0.12f, 2.2f), new Vector3(0.3f, 0.25f, 0.3f), WoodDark);
+            }
+            Lamp(g, new Vector3(0, f3 + 2.6f, 0), new Color(1f, 0.78f, 0.55f), 10f, 1.6f);
+            y3 = f3 - 0.15f;
             foreach (float sd in new[] { -1f, 1f })
             {
                 for (int i = 0; i < 5; i++)

@@ -674,6 +674,9 @@ namespace Tsukuyomi.EditorTools
             // 大画面広場
             Box(g, "広場の石畳", new Vector3(PlazaC.x, l1 + 0.04f, PlazaC.y), new Vector3(30f, 0.08f, 30f), Parts.Paving);
             var (hallPos, hallYaw) = PlaceScreenHall(l1);
+            // 大画面と懸造りの展望台のあいだは2階建てまで（見晴らしを残す）
+            Buildings.LowRise.Clear();
+            Buildings.LowRise.Add((new Vector2(hallPos.x, hallPos.z), _lookEdge, 14f));
             ScreenHall(g, hallPos, hallYaw, out studio);
             for (int i = 0; i < 8; i++)
             {

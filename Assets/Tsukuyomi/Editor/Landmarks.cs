@@ -455,7 +455,7 @@ namespace Tsukuyomi.EditorTools
             fw.transform.SetParent(decoParent, false);
             var f = fw.AddComponent<Fireworks>();
             f.sparkMat = spark;
-            f.area = new Vector3(0, 0, -170);
+            f.area = new Vector3(0, 0, -115); // 島とライブステージのあいだの海の上
 
             // 蛍：天の川の下流ぞい
             var ch = Island.Channels[0];

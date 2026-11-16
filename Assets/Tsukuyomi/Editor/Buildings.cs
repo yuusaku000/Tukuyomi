@@ -150,8 +150,24 @@ namespace Tsukuyomi.EditorTools
             Box(g, "看板", new Vector3(x, y, z + 0.1f), new Vector3(0.8f, h, 0.04f), Signage(seed));
         }
 
+        /// <summary>高い建物を建てない帯（a から b まで、幅 r）。大画面と展望台のあいだなど、見晴らしを残したい所。</summary>
+        public static readonly List<(Vector2 a, Vector2 b, float r)> LowRise = new List<(Vector2, Vector2, float)>();
+
+        static bool InLowRise(Vector3 world)
+        {
+            var p = new Vector2(world.x, world.z);
+            foreach (var (a, b, r) in LowRise)
+            {
+                var ab = b - a;
+                float t = Mathf.Clamp01(Vector2.Dot(p - a, ab) / Mathf.Max(0.001f, ab.sqrMagnitude));
+                if (Vector2.Distance(p, a + ab * t) < r) return true;
+            }
+            return false;
+        }
+
         public static Transform TownHouse(Transform parent, Vector3 pos, float rotY, float w, float d, int floors, int roofKind, bool shop, int seed)
         {
+            if (floors >= 3 && LowRise.Count > 0 && InLowRise(parent != null ? parent.TransformPoint(pos) : pos)) floors = 2;
             var g = Group(parent, floors >= 4 ? "高楼" : floors == 3 ? "楼閣" : floors == 2 ? "二階建ての店" : "店", pos, rotY);
             Base(g, w, d);
             float y0 = 0.62f, h = R(3.4f, 3.9f);
