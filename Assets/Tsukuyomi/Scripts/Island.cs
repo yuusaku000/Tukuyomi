@@ -16,8 +16,8 @@ namespace Tsukuyomi
     public static class Island
     {
         public const float Ground = 1.2f;
-        public static readonly Vector2 Center = new Vector2(0, 150);
-        public const float Radius = 150f;
+        public static readonly Vector2 Center = new Vector2(0, 158);
+        public const float Radius = 158f;
 
         public struct Level
         {
@@ -97,7 +97,7 @@ namespace Tsukuyomi
                 var d = new Vector2(x - L.c.x, z - L.c.y);
                 float dist = d.magnitude;
                 float r = L.RadiusAt(Mathf.Atan2(d.y, d.x));
-                h += L.rise * (1 - Ts.Smooth(r - 0.7f, r + 0.7f, dist));
+                h += L.rise * (1 - Ts.Smooth(r - 1.3f, r - 0.3f, dist)); // 段差は石垣（半径 r）の内側におさめる
             }
             float hd = Vector2.Distance(new Vector2(x, z), HillCenter);
             h += HillHeight * Ts.Smooth(HillRadius, 3f, hd);
@@ -118,7 +118,7 @@ namespace Tsukuyomi
         {
             float h = TerraceHeight(x, z);
             float inside = Inside(x, z);
-            return Mathf.Lerp(-3.5f, h, Ts.Smooth(-7f, 0f, inside));
+            return Mathf.Lerp(-3.5f, h, Ts.Smooth(0.2f, 1.0f, inside)); // 島のふちは石の護岸（段差は護岸の内側）
         }
 
         /// <summary>本当の地面の高さ。</summary>

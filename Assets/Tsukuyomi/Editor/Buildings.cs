@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 using static Tsukuyomi.EditorTools.Kit;
 using static Tsukuyomi.EditorTools.Parts;
@@ -12,7 +13,7 @@ namespace Tsukuyomi.EditorTools
     /// </summary>
     public static class Buildings
     {
-        public static Material WindowGlow => Glow("glow_window", new Color(1f, 0.72f, 0.42f), 0.25f, 2.2f);
+        public static Material WindowGlow => Glow("glow_window", new Color(1f, 0.72f, 0.42f), 0.25f, 1.35f);
         public static Material Kawara => Lit("roof_kawara", new Color(0.24f, 0.26f, 0.3f), 0.5f, 0f, true);
         public static Material Namako => Lit("namako", new Color(0.18f, 0.19f, 0.22f), 0.3f);
         static readonly Color[] SignColors =
@@ -68,6 +69,61 @@ namespace Tsukuyomi.EditorTools
             }
         }
 
+        public static Material DarkBoard => Lit("wall_dark_board", new Color(0.24f, 0.16f, 0.12f), 0.25f);
+        public static Material RedLacquer => Lit("wall_red_lacquer", new Color(0.55f, 0.12f, 0.08f), 0.4f);
+        public static Material EaveGlow => Glow("glow_eave", new Color(1f, 0.55f, 0.22f), 0.5f, 1.7f);
+
+        /// <summary>軒先にずらりとならぶ小さな灯り（前と後ろ。all なら両わきにも）。</summary>
+        static void EaveLights(Transform g, float rw, float rd, float y, bool all)
+        {
+            void Row(float len, System.Func<float, Vector3> at)
+            {
+                int n = Mathf.Max(2, Mathf.RoundToInt(len / 1.4f));
+                for (int i = 0; i <= n; i++)
+                    Box(g, "軒の灯", at(-len / 2 + len * i / n), new Vector3(0.24f, 0.3f, 0.24f), EaveGlow);
+            }
+            Row(rw - 0.6f, x => new Vector3(x, y, rd / 2 - 0.2f));
+            Row(rw - 0.6f, x => new Vector3(x, y, -rd / 2 + 0.2f));
+            if (all)
+            {
+                Row(rd - 0.6f, z => new Vector3(rw / 2 - 0.2f, y, z));
+                Row(rd - 0.6f, z => new Vector3(-rw / 2 + 0.2f, y, z));
+            }
+        }
+
+        /// <summary>壁のネオン（魚・メンダコ・月のどれか）。x の正負で壁の向きを決める。</summary>
+        static void NeonShape(Transform g, Vector3 at, int seed)
+        {
+            var colors = new[] { Glow("neon_pink", new Color(1f, 0.35f, 0.75f), 1.2f, 4f), Glow("neon_cyan", new Color(0.3f, 0.95f, 1f), 1.2f, 4f), Glow("neon_green", new Color(0.5f, 1f, 0.45f), 1.2f, 4f) };
+            var m = colors[seed % colors.Length];
+            var n = Group(g, "ネオン", at, at.x > 0 ? 90 : -90);
+            var pts = new List<Vector2>();
+            int kind = seed % 3;
+            if (kind == 0) // 魚
+            {
+                for (int i = 0; i <= 16; i++) { float a = i / 16f * Mathf.PI * 2; pts.Add(new Vector2(Mathf.Cos(a) * 1.0f, Mathf.Sin(a) * 0.5f)); }
+                pts.Add(new Vector2(1.0f, 0)); pts.Add(new Vector2(1.6f, 0.5f)); pts.Add(new Vector2(1.6f, -0.5f)); pts.Add(new Vector2(1.0f, 0));
+            }
+            else if (kind == 1) // メンダコ（まるい頭と足）
+            {
+                for (int i = 0; i <= 12; i++) { float a = i / 12f * Mathf.PI; pts.Add(new Vector2(Mathf.Cos(a) * 0.9f, Mathf.Sin(a) * 0.7f)); }
+                for (int i = 0; i <= 6; i++) pts.Add(new Vector2(-0.9f + i * 0.3f, i % 2 == 0 ? -0.35f : 0f));
+                pts.Add(new Vector2(0.9f, 0));
+            }
+            else // 三日月
+            {
+                for (int i = 0; i <= 14; i++) { float a = -1.2f + i / 14f * 2.4f + Mathf.PI / 2; pts.Add(new Vector2(Mathf.Cos(a) * 0.9f, Mathf.Sin(a) * 0.9f)); }
+                for (int i = 14; i >= 0; i--) { float a = -1.0f + i / 14f * 2.0f + Mathf.PI / 2; pts.Add(new Vector2(Mathf.Cos(a) * 0.6f + 0.25f, Mathf.Sin(a) * 0.6f)); }
+            }
+            for (int i = 0; i < pts.Count - 1; i++)
+            {
+                var a = pts[i]; var b = pts[i + 1];
+                var mid = (a + b) / 2; float len = Vector2.Distance(a, b);
+                var seg = Box(n, "線", new Vector3(mid.x, mid.y, 0.05f), new Vector3(len + 0.04f, 0.07f, 0.05f), m);
+                seg.transform.localRotation = Quaternion.Euler(0, 0, Mathf.Atan2(b.y - a.y, b.x - a.x) * Mathf.Rad2Deg);
+            }
+        }
+
         static void Sign(Transform g, float x, float y, float z, float h, int seed)
         {
             Box(g, "看板の枠", new Vector3(x, y, z), new Vector3(0.95f, h + 0.2f, 0.18f), Black);
@@ -76,7 +132,7 @@ namespace Tsukuyomi.EditorTools
 
         public static Transform TownHouse(Transform parent, Vector3 pos, float rotY, float w, float d, int floors, int roofKind, bool shop, int seed)
         {
-            var g = Group(parent, floors >= 3 ? "楼閣" : floors == 2 ? "二階建ての店" : "店", pos, rotY);
+            var g = Group(parent, floors >= 4 ? "高楼" : floors == 3 ? "楼閣" : floors == 2 ? "二階建ての店" : "店", pos, rotY);
             Base(g, w, d);
             float y0 = 0.62f, h = R(3.4f, 3.9f);
             float front = shop ? 1.6f : 0.4f;
@@ -117,23 +173,38 @@ namespace Tsukuyomi.EditorTools
 
             float y = y0 + h;
             float cw = w, cd = d;
+            // 上の階の壁：白い漆喰・こげ茶の板・朱塗りのどれか（建物ごと）
+            double wv = Rng.NextDouble();
+            var upperWall = wv < 0.5 ? WhiteWall : wv < 0.8 ? DarkBoard : RedLacquer;
+            bool neon = Rng.NextDouble() < 0.3;
             for (int f = 1; f < floors; f++)
             {
-                // 下の階の屋根（裳階）と、少し小さい上の階
+                // 下の階の屋根（裳階）と、軒にならぶ灯り
                 float skirtH = Mathf.Min(cw, cd) * 0.16f;
                 MeshObj(g, "屋根", Roof(cw + 2.2f, cd + 2.2f, skirtH, 0.6f), new Vector3(0, y + 0.02f, 0), RoofOf(roofKind));
-                float nw = cw - 1.4f, nd = cd - 1.4f, nh = h * 0.85f;
+                EaveLights(g, cw + 2.2f, cd + 2.2f, y - 0.15f, floors >= 4);
+                float nw = Mathf.Max(4.5f, cw - (floors >= 4 ? 0.7f : 1.4f)), nd = Mathf.Max(4.5f, cd - (floors >= 4 ? 0.7f : 1.4f)), nh = h * 0.82f;
                 float ny = y + skirtH * 0.75f;
                 Box(g, "縁", new Vector3(0, ny + 0.02f, 0), new Vector3(nw + 1.2f, 0.14f, nd + 1.2f), WoodDark);
-                Box(g, "上の階", new Vector3(0, ny + nh / 2, 0), new Vector3(nw, nh, nd), WhiteWall, true);
+                Box(g, "上の階", new Vector3(0, ny + nh / 2, 0), new Vector3(nw, nh, nd), upperWall, true);
                 Box(g, "高欄", new Vector3(0, ny + 0.5f, nd / 2 + 0.55f), new Vector3(nw + 0.8f, 0.12f, 0.12f), Vermilion);
-                Windows(g, nw, ny + nh * 0.55f, nd / 2 + 0.03f, Mathf.Max(2, Mathf.RoundToInt(nw / 2.2f)));
+                // 窓（前・後ろ・両わき）。夜はあたたかく灯る
+                Windows(g, nw, ny + nh * 0.55f, nd / 2 + 0.03f, Mathf.Max(2, Mathf.RoundToInt(nw / 1.8f)));
+                var back = Group(g, "裏の窓", Vector3.zero, 180);
+                Windows(back, nw, ny + nh * 0.55f, nd / 2 + 0.03f, Mathf.Max(2, Mathf.RoundToInt(nw / 2.2f)));
+                var sideL = Group(g, "わきの窓", Vector3.zero, 90);
+                Windows(sideL, nd, ny + nh * 0.55f, nw / 2 + 0.03f, Mathf.Max(1, Mathf.RoundToInt(nd / 2.4f)));
+                var sideR = Group(g, "わきの窓", Vector3.zero, -90);
+                Windows(sideR, nd, ny + nh * 0.55f, nw / 2 + 0.03f, Mathf.Max(1, Mathf.RoundToInt(nd / 2.4f)));
                 foreach (float sx in new[] { -1f, 1f })
                     foreach (float sz in new[] { -1f, 1f })
                         Cyl(g, "柱", new Vector3(sx * (nw / 2 - 0.05f), ny + nh / 2, sz * (nd / 2 - 0.05f)), 0.13f, nh, Vermilion);
                 Box(g, "梁", new Vector3(0, ny + nh - 0.1f, nd / 2), new Vector3(nw + 0.3f, 0.28f, 0.3f), Vermilion);
+                if (neon && f == Mathf.Min(floors - 1, 2))
+                    NeonShape(g, new Vector3((Rng.NextDouble() < 0.5 ? -1 : 1) * (nw / 2 + 0.06f), ny + nh * 0.5f, 0), seed);
                 y = ny + nh; cw = nw; cd = nd;
             }
+            if (floors >= 2) EaveLights(g, cw + 2.3f, cd + 2.3f, y - 0.15f, floors >= 4);
             float rh = Mathf.Min(cw, cd) * 0.42f;
             MeshObj(g, "屋根の頂", Roof(cw + 2.3f, cd + 2.3f, rh, 0.75f), new Vector3(0, y + 0.02f, 0), RoofOf(roofKind));
             Ridge(g, y + 0.02f + rh, cw, cd);

@@ -12,7 +12,7 @@ namespace Tsukuyomi
     {
         public PlayerController player;
         public OrbitCamera cam;
-        public Vector2 worldMin = new Vector2(-175, -170), worldMax = new Vector2(175, 315);
+        public Vector2 worldMin = new Vector2(-185, -170), worldMax = new Vector2(185, 330);
 
         /// <summary>メニューか地図を開いている間は true（歩けない・見回せない）。</summary>
         public static bool Blocked { get; private set; }

@@ -54,19 +54,20 @@ namespace Tsukuyomi.EditorTools
 
             var (sun, moon) = Lights();
             Sea();
+            ReserveLandmarks();
+            Streets();
+            Lanes();
             TerrainBuilder.Build(_env);
             Entrance();
             _stageWarp = Landmarks.SeaStage(_env, _deco, new Vector2(0, -130), -74.2f);
-            ReserveLandmarks();
-            Streets();
-            StairsAll();
-            Town.BuildStreets(_env, Parts.Paving);
+            Town.BuildStreets(_env, TerrainBuilder.PavingTex, TerrainBuilder.AlleyTex);
             SaveStreetMap();
             CheckLandmarks();
             LandmarksAll(out var studio);
             Houses();
             Clutter.Build(_env, _deco);
             Waterfalls();
+            Seaside();
             Landmarks.SkyAndNight(_deco);
             SkyLanterns();
             Boundaries();
@@ -165,14 +166,19 @@ namespace Tsukuyomi.EditorTools
                 return c;
             }
             var bloom = Add<Bloom>();
-            bloom.intensity.Override(1.1f);
-            bloom.threshold.Override(1.05f);
+            bloom.intensity.Override(0.75f);
+            bloom.threshold.Override(1.25f);
             bloom.scatter.Override(0.68f);
             var tone = Add<Tonemapping>();
             tone.mode.Override(TonemappingMode.Neutral);
             var color = Add<ColorAdjustments>();
             color.saturation.Override(12f);
             color.contrast.Override(6f);
+            // 色づくり：影は青みどり、光は暖かく（ツクヨミの夜の色）
+            var split = Add<SplitToning>();
+            split.shadows.Override(new Color(0.32f, 0.55f, 0.72f));
+            split.highlights.Override(new Color(1f, 0.78f, 0.6f));
+            split.balance.Override(-15f);
             var vig = Add<Vignette>();
             vig.intensity.Override(0.22f);
             vig.smoothness.Override(0.45f);
@@ -338,6 +344,9 @@ namespace Tsukuyomi.EditorTools
             Town.Reserve(_lookEdge + dir * 4f, 13f);
             Town.Reserve(_lookEdge - dir * 6f, 10f);
             Town.Reserve(new Vector2(74, 44), 14f); // 風鈴の回廊
+            foreach (var (c, r) in new[] { (PlazaC, 16f), (new Vector2(60, 100), 6f), (Island.HillCenter, Island.HillRadius + 1f), (Island.Pond.center, 15f), (new Vector2(-40, 126), 7f),
+                                           (PagodaC, 8f), (KaguraC, 7f), (BellC, 5f), (WisteriaC, 7f), (BambooC, 6f), (new Vector2(-58, 128), 7f), (_lookEdge - _lookOut * 6f, 9f), (new Vector2(0, 206), 24f) })
+                Town.Landmarks.Add((c, r));
             // ワープした場所の目の前に家が来ないように
             foreach (var p in new[] { new Vector2(0, 12), new Vector2(0, 52), new Vector2(24, 100), new Vector2(-40, 100), new Vector2(-74, 127), new Vector2(0, 131), new Vector2(-38, 150), new Vector2(0, 184) })
                 Town.Reserve(p, 5f);
@@ -410,11 +419,156 @@ namespace Tsukuyomi.EditorTools
                 k++;
             }
 
+            // 茶屋への道（池の北をとおって、千本鳥居の石段の下へ）
+            Town.AddStreet("茶屋への道", new[] { new Vector2(-58, 121.5f), new Vector2(-40, 121.5f), new Vector2(-24, 121), new Vector2(-8, 108), new Vector2(-1, 104) }, 1.8f, 1);
             // 中段の横の通り（商店街と環状通りをつなぐ）
             Town.AddStreet("東西通り", new[] { new Vector2(-100, 78), new Vector2(-40, 80), new Vector2(0, 80), new Vector2(40, 80), new Vector2(100, 78) }, 3f, 1);
         }
 
         static void StairsAll() { }
+
+        /// <summary>
+        /// 路地裏：各段に内側の環状の路地を何本か通し、放射の路地でつなぐ。
+        /// 段の外・名所・池にかかる所で切り、切れた端は外の環状通りへつなぐ（行き止まりにしない）。
+        /// </summary>
+        static void Lanes()
+        {
+            var c0 = Island.Center;
+            var L1 = Island.Levels[0]; var L2 = Island.Levels[1];
+            Vector2 ToRing0(Vector2 p) { var d = (p - c0).normalized; return c0 + d * (Island.EdgeRadius(Mathf.Atan2(d.y, d.x)) - 13f); }
+            Vector2 ToRing1(Vector2 p) { var d = (p - L1.c).normalized; return L1.c + d * (L1.RadiusAt(Mathf.Atan2(d.y, d.x)) - 10f); }
+            Vector2 ToRing2(Vector2 p) { var d = (p - L2.c).normalized; return L2.c + d * (L2.RadiusAt(Mathf.Atan2(d.y, d.x)) - 11f); }
+            int n = 0;
+            // 下町：北側の裏路地（南は水路があるので通さない）
+            n += Town.AddLanes("下町の裏路地", Town.Ring(c0, a => Island.EdgeRadius(a) - 31f, -15f, 195f, 2f), 1.8f, 0, ToRing0);
+            // 中段：内側の環状の路地2本と、それをつなぐ放射の路地
+            n += Town.AddLanes("中段の裏路地A", Town.Ring(L1.c, a => L1.RadiusAt(a) - 29f, 0f, 360f, 2f), 1.8f, 1, ToRing1);
+            n += Town.AddLanes("中段の裏路地B", Town.Ring(L1.c, a => L1.RadiusAt(a) - 47f, 0f, 360f, 2f), 1.6f, 1, ToRing1);
+            for (float deg = 12f; deg < 372f; deg += 24f)
+            {
+                float a = deg * Mathf.Deg2Rad;
+                var d = new Vector2(Mathf.Cos(a), Mathf.Sin(a));
+                float r = L1.RadiusAt(a);
+                n += Town.AddLanes("中段の横路地", new List<Vector2> { L1.c + d * (r - 10f), L1.c + d * (r - 50f) }, 1.5f, 1, ToRing1);
+            }
+            // 上段：内側の環状の路地
+            n += Town.AddLanes("上段の裏路地", Town.Ring(L2.c, a => L2.RadiusAt(a) - 25f, 0f, 360f, 3f), 1.6f, 2, ToRing2);
+            for (float deg = 30f; deg < 390f; deg += 45f)
+            {
+                float a = deg * Mathf.Deg2Rad;
+                var d = new Vector2(Mathf.Cos(a), Mathf.Sin(a));
+                float r = L2.RadiusAt(a);
+                n += Town.AddLanes("上段の横路地", new List<Vector2> { L2.c + d * (r - 11f), L2.c + d * (r - 26f) }, 1.4f, 2, ToRing2);
+            }
+            Debug.Log($"[Tsukuyomi] lanes: {n} pieces");
+        }
+
+        /// <summary>
+        /// 頂上：月の御殿。楼門 → 回廊でかこんだ白砂の庭（鏡の池・桜・月うさぎ）→ 正殿。
+        /// 正殿のうしろには崖からせり出した月見台、上空には光る月の輪がゆっくり回る。
+        /// </summary>
+        static void Summit(Transform parent, float top)
+        {
+            var c = Island.Levels[2].c;
+            var g = Group(parent, "月の御殿", new Vector3(0, top, 0));
+            var gravel = Lit("gravel_white", new Color(0.9f, 0.89f, 0.85f), 0.05f);
+            Box(g, "白砂の庭", new Vector3(c.x, 0.03f, c.y + 1), new Vector3(30f, 0.06f, 26f), gravel);
+            for (float z = c.y - 10; z < c.y + 12; z += 1.1f)
+                Box(g, "砂紋", new Vector3(c.x, 0.07f, z), new Vector3(28f, 0.02f, 0.08f), Lit("gravel_line", new Color(0.8f, 0.79f, 0.75f), 0.05f));
+            // 回廊（入口は南と北）
+            void Corridor(Vector2 a, Vector2 b)
+            {
+                var mid = (a + b) / 2; var dir = (b - a); float len = dir.magnitude; dir /= len;
+                float yaw = Mathf.Atan2(dir.x, dir.y) * Mathf.Rad2Deg;
+                var k = Group(g, "回廊", new Vector3(mid.x, 0, mid.y), yaw);
+                Box(k, "床", new Vector3(0, 0.25f, 0), new Vector3(3.2f, 0.5f, len), Wood, true);
+                for (float z = -len / 2; z <= len / 2 + 0.01f; z += 3f)
+                    foreach (float x in new[] { -1.4f, 1.4f })
+                        Cyl(k, "柱", new Vector3(x, 1.9f, z), 0.14f, 2.8f, Vermilion);
+                Box(k, "梁", new Vector3(-1.4f, 3.25f, 0), new Vector3(0.22f, 0.25f, len), Vermilion);
+                Box(k, "梁", new Vector3(1.4f, 3.25f, 0), new Vector3(0.22f, 0.25f, len), Vermilion);
+                MeshObj(k, "屋根", Roof(5.4f, len + 1.6f, 1.3f, 0.35f), new Vector3(0, 3.4f, 0), RoofCopper);
+                for (float z = -len / 2 + 1.5f; z < len / 2; z += 3f) Chochin(k, new Vector3(1.6f, 2.8f, z), GlowWhite);
+            }
+            float x0 = c.x - 16, x1 = c.x + 16, z0 = c.y - 13, z1 = c.y + 14;
+            Corridor(new Vector2(x0, z0), new Vector2(c.x - 3.5f, z0));
+            Corridor(new Vector2(c.x + 3.5f, z0), new Vector2(x1, z0));
+            Corridor(new Vector2(x0, z0), new Vector2(x0, z1));
+            Corridor(new Vector2(x1, z0), new Vector2(x1, z1));
+            Corridor(new Vector2(x0, z1), new Vector2(c.x - 3.5f, z1));
+            Corridor(new Vector2(c.x + 3.5f, z1), new Vector2(x1, z1));
+            // 楼門
+            var gate = Group(g, "楼門", new Vector3(c.x, 0, z0));
+            foreach (float x in new[] { -3f, 3f })
+                foreach (float z in new[] { -1.6f, 1.6f })
+                    Cyl(gate, "柱", new Vector3(x, 2.6f, z), 0.28f, 5.2f, Vermilion, true);
+            MeshObj(gate, "屋根", Roof(9f, 6f, 1.6f, 0.7f), new Vector3(0, 5.2f, 0), RoofCopper);
+            Box(gate, "二階", new Vector3(0, 6.9f, 0), new Vector3(5.6f, 2f, 3.2f), Buildings.RedLacquer);
+            MeshObj(gate, "屋根2", Roof(8.4f, 5.6f, 2.4f, 0.9f), new Vector3(0, 7.9f, 0), RoofCopper);
+            Box(gate, "扁額", new Vector3(0, 6.9f, -1.7f), new Vector3(2f, 1f, 0.1f), Black);
+            Box(gate, "扁額金", new Vector3(0, 6.9f, -1.76f), new Vector3(1.7f, 0.75f, 0.03f), GlowGold);
+            // 月うさぎ（狛犬のかわり）
+            foreach (float x in new[] { -4.5f, 4.5f })
+            {
+                var r = Group(g, "月うさぎ", new Vector3(c.x + x, 0, z0 + 2.5f), x < 0 ? 30 : -30);
+                Box(r, "台", new Vector3(0, 0.5f, 0), new Vector3(1.2f, 1f, 1.2f), Stone, true);
+                var white = Lit("rabbit_stone", new Color(0.92f, 0.92f, 0.95f), 0.3f);
+                Ball(r, "体", new Vector3(0, 1.45f, 0), new Vector3(0.9f, 0.9f, 1.1f), white);
+                Ball(r, "頭", new Vector3(0, 2.05f, 0.35f), new Vector3(0.6f, 0.55f, 0.6f), white);
+                Ball(r, "耳", new Vector3(-0.12f, 2.6f, 0.3f), new Vector3(0.14f, 0.55f, 0.12f), white);
+                Ball(r, "耳", new Vector3(0.12f, 2.6f, 0.3f), new Vector3(0.14f, 0.55f, 0.12f), white);
+                Ball(r, "目", new Vector3(-0.15f, 2.1f, 0.62f), Vector3.one * 0.07f, GlowRed);
+                Ball(r, "目", new Vector3(0.15f, 2.1f, 0.62f), Vector3.one * 0.07f, GlowRed);
+            }
+            // 鏡の池と石の橋、桜、灯籠
+            var basin = Group(g, "鏡の池", new Vector3(c.x, 0, c.y - 3));
+            Box(basin, "縁", new Vector3(0, 0.2f, 0), new Vector3(14f, 0.4f, 6f), Stone, true);
+            var mirror = Shaded("water_mirror", "Tsukuyomi/Water");
+            mirror.SetColor("_Deep", new Color(0.03f, 0.08f, 0.16f)); mirror.SetColor("_Shallow", new Color(0.08f, 0.2f, 0.32f));
+            mirror.SetFloat("_Scale", 0.6f); mirror.SetFloat("_Speed", 0.2f); mirror.SetFloat("_Alpha", 0.95f); mirror.SetFloat("_Grid", 0.8f);
+            Prim(PrimitiveType.Quad, basin, "水", new Vector3(0, 0.42f, 0), new Vector3(13.2f, 5.2f, 1), mirror, false, new Vector3(90, 0, 0));
+            Box(basin, "石の橋", new Vector3(0, 0.55f, 0), new Vector3(2.4f, 0.3f, 6.4f), Stone, true);
+            foreach (float x in new[] { -10f, 10f }) Sakura(g, new Vector3(c.x + x, 0, c.y - 2), 0.9f, true);
+            foreach (float x in new[] { -6f, 6f }) foreach (float z in new[] { -9f, 3f }) Toro(g, new Vector3(c.x + x, 0, c.y + z), z < 0, 1.1f);
+            // 正殿（高い基壇の上の三階の楼閣）
+            Box(g, "基壇", new Vector3(c.x, 0.7f, c.y + 8), new Vector3(24f, 1.4f, 11f), Stone, true);
+            for (int i = 0; i < 5; i++)
+                Box(g, "段", new Vector3(c.x, (i + 1) * 0.14f, c.y + 2.2f - (4 - i) * 0.4f), new Vector3(8f, (i + 1) * 0.28f, 0.4f), Stone, true);
+            Buildings.TownHouse(g, new Vector3(c.x, 1.4f, c.y + 8), 0, 20f, 9f, 3, 2, false, 11).name = "正殿";
+            Lamp(g, new Vector3(c.x, 6f, c.y - 4), new Color(1f, 0.75f, 0.5f), 30f, 2.6f);
+            // 月見台（北へせり出す）
+            var dir = new Vector2(0, 1);
+            var edge = c + dir * (Island.Levels[2].RadiusAt(Mathf.PI / 2) - 0.5f);
+            var deckC = edge + dir * 3.5f;
+            var deck = Group(g, "月見台", new Vector3(deckC.x, 0, deckC.y));
+            Box(deck, "舞台", new Vector3(0, -0.15f, 0), new Vector3(14f, 0.3f, 9f), Wood, true);
+            foreach (float x in new[] { -6.8f, 6.8f })
+            {
+                Box(deck, "高欄", new Vector3(x, 0.9f, 0), new Vector3(0.12f, 0.12f, 9f), Vermilion);
+                Box(deck, "見えない柵", new Vector3(x, 0.7f, 0), new Vector3(0.3f, 1.4f, 9f), Vermilion, true).GetComponent<Renderer>().enabled = false;
+            }
+            Box(deck, "高欄", new Vector3(0, 0.9f, 4.4f), new Vector3(14f, 0.12f, 0.12f), Vermilion);
+            Box(deck, "見えない柵", new Vector3(0, 0.7f, 4.5f), new Vector3(14f, 1.4f, 0.3f), Vermilion, true).GetComponent<Renderer>().enabled = false;
+            float below = Island.Height(deckC.x, deckC.y + 3) - top;
+            for (float x = -6f; x <= 6f; x += 3f)
+                foreach (float z in new[] { 0f, 4f })
+                    Cyl(deck, "脚", new Vector3(x, below / 2, z), 0.3f, -below, Wood);
+            // 上空の月の輪（AR）
+            var ring = Group(_deco, "月の輪", new Vector3(c.x, top + 26f, c.y + 4));
+            for (int i = 0; i < 36; i++)
+            {
+                float a = i * Mathf.PI * 2 / 36;
+                var seg = Box(ring, "輪", new Vector3(Mathf.Cos(a) * 9f, Mathf.Sin(a) * 9f, 0), new Vector3(1.7f, 0.3f, 0.3f), Glow("glow_ring", new Color(1f, 0.82f, 0.45f), 0.6f, 1.8f));
+                seg.transform.localRotation = Quaternion.Euler(0, 0, a * Mathf.Rad2Deg + 90);
+            }
+            for (int i = 0; i < 20; i++)
+            {
+                float a = -1.2f + i / 19f * 2.4f + Mathf.PI / 2;
+                Box(ring, "三日月", new Vector3(Mathf.Cos(a) * 5f, Mathf.Sin(a) * 5f - 0.5f, 0), new Vector3(0.8f, 0.8f, 0.25f), Glow("glow_ring_pink", new Color(1f, 0.5f, 0.78f), 0.6f, 1.8f));
+            }
+            var fr = ring.gameObject.AddComponent<Floaty>(); fr.spin = 6f; fr.amplitude = 0.8f; fr.speed = 0.3f;
+
+        }
 
         static void SaveStreetMap()
         {
@@ -480,7 +634,8 @@ namespace Tsukuyomi.EditorTools
                 koi.transform.localRotation = Quaternion.Euler(0, R(0, 360), 0);
             }
             Buildings.TownHouse(g, new Vector3(-40, Hgt(-40, 127), 127), 180, 14f, 7.5f, 1, 0, true, 5).name = "茶屋";
-            for (int i = 0; i < 3; i++) TeaSeat(g, new Vector3(-46 + i * 6, l1, 121.5f), 0);
+            for (int i = 0; i < 3; i++) TeaSeat(g, new Vector3(-46 + i * 6, l1, 124.5f), 0);
+            Lounge(g, new Vector3(-58, l1, 128f), 180);
             for (int i = 0; i < 4; i++) Toro(g, new Vector3(pond.center.x + (i % 2 == 0 ? -1 : 1) * (pond.width / 2 + 2f), l1, pond.center.y + (i < 2 ? -1 : 1) * (pond.height / 2 + 2f)), true, 0.8f);
 
             // 千年桜の丘
@@ -520,12 +675,7 @@ namespace Tsukuyomi.EditorTools
             Landmarks.Bamboo(g, BambooC, 13f, new Vector2(1, 1));
             _lookoutWarp = Landmarks.Lookout(g, _lookEdge, _lookOut);
 
-            // 頂上：月の御殿
-            var top = Group(g, "月の御殿", new Vector3(0, l3, 206));
-            Box(top, "石畳", new Vector3(0, 0.04f, -6), new Vector3(30, 0.08f, 22), Parts.Paving);
-            Buildings.TownHouse(top, new Vector3(0, 0, 4), 0, 24f, 12f, 2, 2, false, 9).name = "正殿";
-            foreach (float x in new[] { -9f, 9f }) Toro(top, new Vector3(x, 0, -12f), true, 1.3f);
-            Lamp(top, new Vector3(0, 6, -8), new Color(1f, 0.75f, 0.5f), 26f, 2.4f);
+            Summit(g, l3);
 
             // 屋形船
             for (int i = 0; i < 3; i++) Landmarks.Yakatabune(_deco, Island.Channels[1], 20f + i * 70f, i);
@@ -538,6 +688,127 @@ namespace Tsukuyomi.EditorTools
             Marker("商店街のざわめき", new Vector3(0, l1 + 2, 78), CrowdPts);
             Marker("下町のざわめき", new Vector3(0, G + 2, 20), CrowdPts);
             Marker("上段のざわめき", new Vector3(0, l2 + 2, 140), CrowdPts);
+        }
+
+        /// <summary>茶屋のくつろぎ場：屋根だけの開いた座敷に、ソファ・低い机・お茶・提灯・すだれ。</summary>
+        static void Lounge(Transform parent, Vector3 pos, float rotY)
+        {
+            var g = Group(parent, "茶屋のくつろぎ場", pos, rotY);
+            Box(g, "床", new Vector3(0, 0.3f, 0), new Vector3(10f, 0.6f, 7f), Wood, true);
+            Box(g, "畳", new Vector3(0, 0.61f, 0), new Vector3(9.2f, 0.02f, 6.2f), Lit("tatami", new Color(0.72f, 0.7f, 0.45f), 0.1f));
+            foreach (float x in new[] { -4.7f, 4.7f })
+                foreach (float z in new[] { -3.2f, 3.2f })
+                    Cyl(g, "柱", new Vector3(x, 2.1f, z), 0.13f, 3f, Vermilion);
+            MeshObj(g, "屋根", Roof(12.5f, 9.5f, 2.6f, 0.7f), new Vector3(0, 3.6f, 0), RoofBark);
+            var sofa = Lit("sofa_red", new Color(0.62f, 0.12f, 0.16f), 0.15f);
+            var cushion = Lit("sofa_cushion", new Color(0.92f, 0.82f, 0.6f), 0.1f);
+            for (int i = 0; i < 2; i++)
+            {
+                float x = i == 0 ? -2.4f : 2.4f;
+                var s = Group(g, "ソファ", new Vector3(x, 0.62f, 1.6f), 0);
+                Box(s, "座面", new Vector3(0, 0.25f, 0), new Vector3(3.2f, 0.5f, 1.1f), sofa, true);
+                Box(s, "背もたれ", new Vector3(0, 0.65f, 0.5f), new Vector3(3.2f, 0.8f, 0.25f), sofa);
+                Box(s, "ひじかけ", new Vector3(-1.55f, 0.5f, 0), new Vector3(0.2f, 0.5f, 1.1f), sofa);
+                Box(s, "ひじかけ", new Vector3(1.55f, 0.5f, 0), new Vector3(0.2f, 0.5f, 1.1f), sofa);
+                for (int k = 0; k < 3; k++) Box(s, "クッション", new Vector3(-1f + k, 0.62f, 0.25f), new Vector3(0.7f, 0.4f, 0.18f), cushion, false, new Vector3(-12, 0, 0));
+                var t = Group(g, "低い机", new Vector3(x, 0.62f, -0.2f), 0);
+                Box(t, "天板", new Vector3(0, 0.38f, 0), new Vector3(1.8f, 0.08f, 0.9f), WoodDark, true);
+                foreach (float lx in new[] { -0.8f, 0.8f }) foreach (float lz in new[] { -0.35f, 0.35f }) Box(t, "脚", new Vector3(lx, 0.17f, lz), new Vector3(0.08f, 0.34f, 0.08f), WoodDark);
+                Clutter.Prop(t, "ceramic_vase_04", t.position + Vector3.up * 0.42f, 0, 0.5f);
+                Ball(t, "茶わん", new Vector3(0.4f, 0.47f, 0.1f), new Vector3(0.14f, 0.08f, 0.14f), ColorMat(new Color(0.3f, 0.5f, 0.35f)));
+                Ball(t, "茶わん", new Vector3(-0.4f, 0.47f, -0.1f), new Vector3(0.14f, 0.08f, 0.14f), ColorMat(new Color(0.3f, 0.5f, 0.35f)));
+            }
+            Box(g, "座布団", new Vector3(-2.4f, 0.66f, -1.4f), new Vector3(0.7f, 0.1f, 0.7f), cushion);
+            Box(g, "座布団", new Vector3(2.4f, 0.66f, -1.4f), new Vector3(0.7f, 0.1f, 0.7f), cushion);
+            var sudare = Lit("sudare", new Color(0.72f, 0.6f, 0.38f), 0.1f);
+            Box(g, "すだれ", new Vector3(0, 2.9f, 3.25f), new Vector3(9f, 1f, 0.04f), sudare);
+            for (int i = 0; i < 4; i++) Chochin(g, new Vector3(-3.6f + i * 2.4f, 2.9f, -3.3f), i % 2 == 0 ? GlowRed : GlowWhite);
+            Lamp(g, new Vector3(0, 2.6f, 0), new Color(1f, 0.7f, 0.45f), 10f, 1.8f);
+            Toro(g, new Vector3(-5.8f, 0, -3.8f), false, 0.8f);
+            Town.Reserve(new Vector2(pos.x, pos.z), 7f);
+        }
+
+        /// <summary>
+        /// 海ぞい：島の護岸と環状通りのあいだの遊歩道に、松・灯籠・長椅子と野点傘。
+        /// 護岸の外へは、ところどころ桟橋（小舟つき）・海の上の茶屋・大きな常夜灯・網干し。
+        /// </summary>
+        static void Seaside()
+        {
+            var g = Group(_env, "海ぞい", Vector3.zero);
+            var c = Island.Center;
+            var hull = Lit("boat_hull", new Color(0.3f, 0.2f, 0.14f), 0.3f);
+            int k = 0;
+            for (float deg = 0; deg < 360; deg += 2.4f, k++)
+            {
+                float a = deg * Mathf.Deg2Rad;
+                var d = new Vector2(Mathf.Cos(a), Mathf.Sin(a));
+                float er = Island.EdgeRadius(a);
+                var edge = c + d * er;
+                if (Mathf.Abs(edge.x) < 12f && edge.y < 14f) continue;          // 回廊の入口
+                if (Island.NearestWater(edge.x, edge.y) < 7f) continue;         // 水路・川の出口
+                float yaw = Mathf.Atan2(d.x, d.y) * Mathf.Rad2Deg;              // 海の方を向く
+                // 遊歩道の灯籠と松
+                var lp = c + d * (er - 2.4f);
+                if (k % 2 == 0 && !Town.OnAnyStreet(lp, 0.3f)) Toro(g, new Vector3(lp.x, Island.Ground, lp.y), k % 6 == 0, 0.8f);
+                var pp = c + d * (er - 5.5f);
+                if (k % 3 == 1 && !Town.OnAnyStreet(pp, 1.5f) && Town.Free(pp, 1.5f)) { Pine(g, new Vector3(pp.x, Island.Ground, pp.y), R(0.8f, 1.2f)); Town.Reserve(pp, 1.5f); }
+                // ところどころ、海の方へ出ていくもの
+                if (k % 5 != 2) continue;
+                int kind = (k / 5) % 5;
+                var outP = c + d * (er + 1.2f);
+                var side = new Vector2(-d.y, d.x);
+                if (kind == 0 || kind == 3)
+                {
+                    // 桟橋と小舟
+                    var pier = Group(g, "桟橋", new Vector3(outP.x, Island.Ground, outP.y), yaw);
+                    Box(pier, "床", new Vector3(0, -0.15f, 6f), new Vector3(2.6f, 0.3f, 13f), Wood, true);
+                    for (float z = 0; z <= 12; z += 3f)
+                        foreach (float x in new[] { -1.2f, 1.2f })
+                        {
+                            Cyl(pier, "杭", new Vector3(x, -2.2f, z), 0.15f, 4.2f, WoodDark);
+                            if (z % 6 == 0) { Cyl(pier, "灯の柱", new Vector3(x, 0.9f, z), 0.06f, 1.8f, WoodDark); Chochin(pier, new Vector3(x, 1.75f, z), GlowWhite); }
+                        }
+                    var boat = Group(pier, "小舟", new Vector3(2.6f, -1.05f, 9f), R(-10, 10));
+                    Box(boat, "船体", new Vector3(0, 0, 0), new Vector3(1.4f, 0.5f, 4.2f), hull);
+                    Box(boat, "へさき", new Vector3(0, 0.2f, 2.3f), new Vector3(0.9f, 0.35f, 0.8f), hull, false, new Vector3(-15, 0, 0));
+                    Box(boat, "腰かけ", new Vector3(0, 0.25f, 0), new Vector3(1.3f, 0.06f, 0.4f), Wood);
+                    Chochin(boat, new Vector3(0, 0.9f, -1.6f), GlowRed);
+                    Box(g, "見えない柵", new Vector3(outP.x + d.x * 6f + side.x * 1.4f, Island.Ground + 0.7f, outP.y + d.y * 6f + side.y * 1.4f), new Vector3(0.3f, 1.4f, 13f), Stone, true, new Vector3(0, yaw, 0)).GetComponent<Renderer>().enabled = false;
+                    Box(g, "見えない柵", new Vector3(outP.x + d.x * 6f - side.x * 1.4f, Island.Ground + 0.7f, outP.y + d.y * 6f - side.y * 1.4f), new Vector3(0.3f, 1.4f, 13f), Stone, true, new Vector3(0, yaw, 0)).GetComponent<Renderer>().enabled = false;
+                    Box(g, "見えない柵", new Vector3(outP.x + d.x * 12.6f, Island.Ground + 0.7f, outP.y + d.y * 12.6f), new Vector3(2.8f, 1.4f, 0.3f), Stone, true, new Vector3(0, yaw, 0)).GetComponent<Renderer>().enabled = false;
+                }
+                else if (kind == 1)
+                {
+                    // 海の上の茶屋（杭の上）
+                    var hp = outP + d * 5f;
+                    var h = Group(g, "海の上の茶屋", new Vector3(hp.x, Island.Ground, hp.y), yaw + 180);
+                    Box(h, "床", new Vector3(0, -0.2f, 0), new Vector3(10f, 0.4f, 9f), Wood, true);
+                    for (float x = -4.5f; x <= 4.5f; x += 3f) foreach (float z in new[] { -4f, 4f }) Cyl(h, "杭", new Vector3(x, -2.3f, z), 0.18f, 4.2f, WoodDark);
+                    Buildings.TownHouse(h, new Vector3(0, 0, -0.5f), 0, 8f, 6.5f, 2, 0, true, k);
+                    for (int i = 0; i < 2; i++) TeaSeat(h, new Vector3(-2.5f + i * 5f, 0, 3.6f), 0);
+                    Box(g, "渡り板", new Vector3(outP.x + d.x * 0.3f, Island.Ground - 0.15f, outP.y + d.y * 0.3f), new Vector3(2.2f, 0.3f, 2.6f), Wood, true, new Vector3(0, yaw, 0));
+                }
+                else if (kind == 2)
+                {
+                    // 大きな常夜灯
+                    var lp2 = c + d * (er - 1.2f);
+                    Toro(g, new Vector3(lp2.x, Island.Ground, lp2.y), true, 2.3f);
+                }
+                else
+                {
+                    // 長椅子と野点傘・網干し
+                    var bp = c + d * (er - 3.6f) + side * 3f;
+                    if (!Town.OnAnyStreet(bp, 1f)) TeaSeat(g, new Vector3(bp.x, Island.Ground, bp.y), yaw + 180);
+                    var np = c + d * (er - 3.2f) - side * 3f;
+                    if (!Town.OnAnyStreet(np, 1f))
+                    {
+                        var rack = Group(g, "網干し", new Vector3(np.x, Island.Ground, np.y), yaw + 90);
+                        foreach (float x in new[] { -1.6f, 1.6f }) Cyl(rack, "柱", new Vector3(x, 1.1f, 0), 0.06f, 2.2f, WoodDark);
+                        Box(rack, "竿", new Vector3(0, 2.1f, 0), new Vector3(3.4f, 0.06f, 0.06f), WoodDark);
+                        Box(rack, "網", new Vector3(0, 1.4f, 0), new Vector3(3.1f, 1.3f, 0.03f), Lit("net", new Color(0.35f, 0.32f, 0.26f), 0.05f));
+                    }
+                }
+            }
         }
 
         static void Petals(Vector3 pos)
@@ -640,18 +911,18 @@ namespace Tsukuyomi.EditorTools
                 {
                     if (r < 0.15) Buildings.Kura(g, new Vector3(c.x, y, c.y), rot, Mathf.Min(w, 8f), Mathf.Min(d, 7f));
                     else if (r < 0.32) Buildings.Ryotei(g, new Vector3(c.x, y, c.y), rot, w, d, seed);
-                    else Buildings.TownHouse(g, new Vector3(c.x, y, c.y), rot, w, d, r < 0.7 ? 2 : 1, Ri(0, 4), r < 0.8, seed);
+                    else Buildings.TownHouse(g, new Vector3(c.x, y, c.y), rot, w, d, r < 0.45 ? 2 : r < 0.6 ? 3 : 1, Ri(0, 4), r < 0.8, seed);
                 }
                 else if (s.level == 1)
                 {
-                    int floors = r < 0.18 ? 3 : r < 0.68 ? 2 : 1;
+                    int floors = r < 0.1 ? Ri(4, 7) : r < 0.35 ? 3 : r < 0.8 ? 2 : 1;
                     if (!main && r > 0.9) Buildings.Kura(g, new Vector3(c.x, y, c.y), rot, Mathf.Min(w, 8f), Mathf.Min(d, 7f));
                     else Buildings.TownHouse(g, new Vector3(c.x, y, c.y), rot, w, d, floors, Ri(0, 4), main || r < 0.75, seed);
                 }
                 else
                 {
                     if (r < 0.3) Buildings.Ryotei(g, new Vector3(c.x, y, c.y), rot, w, d, seed);
-                    else Buildings.TownHouse(g, new Vector3(c.x, y, c.y), rot, w, d, r < 0.6 ? 2 : 1, r < 0.5 ? 2 : 0, r < 0.5, seed);
+                    else Buildings.TownHouse(g, new Vector3(c.x, y, c.y), rot, w, d, r < 0.45 ? Ri(3, 7) : 2, r < 0.5 ? 2 : 0, r < 0.6, seed);
                 }
                 return true;
             });
@@ -659,10 +930,16 @@ namespace Tsukuyomi.EditorTools
             {
                 seed++;
                 if (Rng.NextDouble() < 0.2) Buildings.Kura(g, new Vector3(c.x, y, c.y), rot, Mathf.Min(w, 7.5f), Mathf.Min(d, 7f));
-                else Buildings.TownHouse(g, new Vector3(c.x, y, c.y), rot, w, d, Rng.NextDouble() < 0.5 ? 2 : 1, Ri(0, 4), false, seed);
+                else Buildings.TownHouse(g, new Vector3(c.x, y, c.y), rot, w, d, Rng.NextDouble() < 0.55 ? 2 : Rng.NextDouble() < 0.5 ? 3 : 1, Ri(0, 4), false, seed);
                 return true;
             });
             Debug.Log($"[Tsukuyomi] houses along streets: {along}, in gaps: {gaps}");
+            Physics.SyncTransforms();
+            int cliff = CliffSide(g, "中段の環状通り", Island.Levels[0].c, 1, ref seed) + CliffSide(g, "上段の環状通り", Island.Levels[1].c, 2, ref seed);
+            int stalls = SeaStalls(g, ref seed);
+            Physics.SyncTransforms();
+            StreetThemes(g);
+            Debug.Log($"[Tsukuyomi] cliff houses: {cliff}, sea stalls: {stalls}");
 
             // 通りの灯籠と提灯
             foreach (var s in Town.Streets)
@@ -692,6 +969,158 @@ namespace Tsukuyomi.EditorTools
                             Chochin(g, new Vector3(p.x - s.half + 1.2f + k * 2.4f, y + 5.15f, p.y), (k + i) % 2 == 0 ? GlowRed : GlowWhite);
                     }
             }
+        }
+
+        /// <summary>
+        /// 崖ぎわの家：環状通りの崖がわに、通りを向いた店を建てる。崖からはみ出た後ろ半分は、下の段から柱で支える（懸造り）。
+        /// </summary>
+        static int CliffSide(Transform g, string streetName, Vector2 center, int level, ref int seed)
+        {
+            var s = Town.Streets.Find(x => x.name == streetName);
+            if (s == null) return 0;
+            float top = L(level);
+            int n = 0;
+            int i = 0;
+            while (i < s.pts.Count - 1)
+            {
+                var p = s.pts[i];
+                var outward = (p - center).normalized;
+                float w = R(6.5f, 9f), d = R(7f, 9f);
+                var c = p + outward * (s.half + 0.7f + d / 2);
+                float rotY = Mathf.Atan2(-outward.x, -outward.y) * Mathf.Rad2Deg;
+                bool ok = true;
+                // 正面の 3m は平らな段の上、水・石段からはなれていること
+                for (float t = 0.8f; t <= 3.2f && ok; t += 0.8f)
+                    foreach (float sd in new[] { -0.45f, 0f, 0.45f })
+                    {
+                        var q = p + outward * (s.half + t) + new Vector2(-outward.y, outward.x) * sd * w;
+                        if (Mathf.Abs(Island.TerraceHeight(q.x, q.y) - top) > 0.2f || Island.NearestWater(q.x, q.y) < 3f || TerrainBuilder.NearStairs(q, 2f) || Island.Inside(q.x, q.y) < 4f) { ok = false; break; }
+                    }
+                if (!ok || !Town.Free(c, Mathf.Max(w, d) * 0.42f)) { i += 2; continue; }
+                var back = p + outward * (s.half + 0.7f + d);
+                float lower = Island.Height(back.x, back.y);
+                bool shopRow = seed % 3 != 0;
+                var b = Buildings.TownHouse(g, new Vector3(c.x, top, c.y), rotY, w, d, Ri(1, 4), Ri(0, 4), shopRow, seed++);
+                // 崖の外へはみ出た所を柱で支える
+                if (lower < top - 1.2f)
+                {
+                    var rot = Quaternion.Euler(0, rotY, 0);
+                    for (float lz = -d / 2 + 0.4f; lz < d / 2 - 2.5f; lz += 2.2f)
+                        foreach (float lx in new[] { -w / 2 + 0.4f, 0f, w / 2 - 0.4f })
+                        {
+                            var wp = new Vector3(c.x, 0, c.y) + rot * new Vector3(lx, 0, lz);
+                            float gy = Island.Height(wp.x, wp.z);
+                            if (gy > top - 1.2f) continue;
+                            Cyl(g, "崖の柱", new Vector3(wp.x, (gy + top - 1f) / 2, wp.z), 0.22f, top - 1f - gy, Wood);
+                            for (float yy = gy + 2.5f; yy < top - 1.5f; yy += 3f)
+                                Box(g, "貫", new Vector3(wp.x, yy, wp.z), new Vector3(w, 0.18f, 0.18f), Wood, false, new Vector3(0, rotY, 0));
+                        }
+                }
+                Town.Reserve(c, Mathf.Max(w, d) * 0.42f);
+                Town.Lots.Add(new Town.Lot { pos = new Vector3(c.x, top, c.y), rotY = rotY, w = w, d = d, facing = true });
+                n++;
+                i += Mathf.CeilToInt(w + 0.8f);
+            }
+            return n;
+        }
+
+        /// <summary>海ぞいの環状通りの海がわに、通りを向いた屋台をならべる。</summary>
+        static int SeaStalls(Transform g, ref int seed)
+        {
+            var s = Town.Streets.Find(x => x.name == "下町の環状通り");
+            if (s == null) return 0;
+            int n = 0;
+            for (int i = 3; i < s.pts.Count - 3; i += 7)
+            {
+                var p = s.pts[i];
+                var outward = (p - Island.Center).normalized;
+                var c = p + outward * (s.half + 1.8f);
+                if (!Town.Free(c, 1.8f) || Island.NearestWater(c.x, c.y) < 3f || Island.Inside(c.x, c.y) < 3.5f) continue;
+                if (Physics.CheckSphere(new Vector3(c.x, G + 1.2f, c.y), 1.4f, ~0, QueryTriggerInteraction.Ignore)) continue;
+                Buildings.Yatai(g, new Vector3(c.x, G, c.y), Mathf.Atan2(-outward.x, -outward.y) * Mathf.Rad2Deg, seed++);
+                Town.Reserve(c, 1.8f);
+                n++;
+            }
+            return n;
+        }
+
+        /// <summary>
+        /// 通りごとの顔：中段の環状通りの東は「屋根つきの商店街（アーケード）」、北は「提灯の天井」、上段の環状通りの西は「藤の天井」。
+        /// </summary>
+        static void StreetThemes(Transform g)
+        {
+            var L1 = Island.Levels[0]; var L2 = Island.Levels[1];
+            var r1 = Town.Streets.Find(x => x.name == "中段の環状通り");
+            var r2 = Town.Streets.Find(x => x.name == "上段の環状通り");
+            float Ang(Vector2 p, Vector2 c) { var d = p - c; float a = Mathf.Atan2(d.y, d.x) * Mathf.Rad2Deg; return a < 0 ? a + 360 : a; }
+            var arcade = Group(g, "アーケード", Vector3.zero);
+            var lanterns = Group(g, "提灯の天井", Vector3.zero);
+            var wisteria = Group(g, "藤の天井", Vector3.zero);
+            var purple = Glow("glow_wisteria", new Color(0.72f, 0.5f, 1f), 0.55f, 1.6f);
+            var glass = Landmarks.Holo("holo_arcade_roof", new Color(0.45f, 0.8f, 1f), 0.08f, 0.5f, 0.25f);
+            if (r1 != null)
+                for (int i = 0; i < r1.pts.Count - 1; i += 3)
+                {
+                    var p = r1.pts[i];
+                    if (TerrainBuilder.NearStairs(p, 2f) || Island.NearestWater(p.x, p.y) < 3f) continue;
+                    if (Mathf.Abs(Island.TerraceHeight(p.x, p.y) - L(1)) > 0.2f) continue;
+                    var dir = (r1.pts[i + 1] - p).normalized; var nrm = new Vector2(-dir.y, dir.x);
+                    float yaw = Mathf.Atan2(dir.x, dir.y) * Mathf.Rad2Deg;
+                    float a = Ang(p, L1.c);
+                    float y = L(1);
+                    if (a > 300 || a < 20)
+                    {
+                        // アーケード：両わきの柱と、光るガラスの屋根
+                        foreach (float sd in new[] { -1f, 1f })
+                        {
+                            var q = p + nrm * sd * (r1.half + 0.25f);
+                            if (Physics.CheckSphere(new Vector3(q.x, y + 2.5f, q.y), 0.3f)) continue;
+                            Cyl(arcade, "柱", new Vector3(q.x, y + 2.75f, q.y), 0.12f, 5.5f, Vermilion);
+                        }
+                        Box(arcade, "梁", new Vector3(p.x, y + 5.5f, p.y), new Vector3(r1.half * 2 + 0.8f, 0.2f, 0.2f), Vermilion, false, new Vector3(0, yaw + 90, 0));
+                        var roofL = Box(arcade, "屋根", new Vector3(p.x, y + 6.0f, p.y) + new Vector3(nrm.x, 0, nrm.y) * (r1.half / 2), new Vector3(r1.half + 0.6f, 0.06f, 3.1f), glass, false, new Vector3(0, yaw + 90, 0));
+                        roofL.transform.rotation = Quaternion.Euler(0, yaw, 0) * Quaternion.Euler(0, 0, 14f);
+                        var roofR = Box(arcade, "屋根", new Vector3(p.x, y + 6.0f, p.y) - new Vector3(nrm.x, 0, nrm.y) * (r1.half / 2), new Vector3(r1.half + 0.6f, 0.06f, 3.1f), glass, false, new Vector3(0, yaw + 90, 0));
+                        roofR.transform.rotation = Quaternion.Euler(0, yaw, 0) * Quaternion.Euler(0, 0, -14f);
+                        Chochin(arcade, new Vector3(p.x, y + 4.7f, p.y), i % 2 == 0 ? GlowWhite : GlowRed);
+                        if (i % 9 == 0) Box(arcade, "看板", new Vector3(p.x, y + 5.0f, p.y), new Vector3(2.6f, 0.6f, 0.06f), Buildings.Signage(i), false, new Vector3(0, yaw, 0));
+                    }
+                    else if (a > 60 && a < 130)
+                    {
+                        // 提灯の天井：道をおおう提灯の列
+                        Box(lanterns, "綱", new Vector3(p.x, y + 5.2f, p.y), new Vector3(r1.half * 2 + 1f, 0.03f, 0.03f), Black, false, new Vector3(0, yaw + 90, 0));
+                        for (float t = -r1.half + 0.6f; t <= r1.half - 0.6f; t += 1.3f)
+                        {
+                            var q = p + nrm * t;
+                            Chochin(lanterns, new Vector3(q.x, y + 4.75f - Mathf.Abs(t) * 0.05f, q.y), ((int)(t * 10) + i) % 3 == 0 ? GlowWhite : GlowRed);
+                        }
+                    }
+                }
+            if (r2 != null)
+                for (int i = 0; i < r2.pts.Count - 1; i += 3)
+                {
+                    var p = r2.pts[i];
+                    float a = Ang(p, L2.c);
+                    if (a < 140 || a > 230) continue;
+                    if (TerrainBuilder.NearStairs(p, 2f) || Island.NearestWater(p.x, p.y) < 3f) continue;
+                    if (Mathf.Abs(Island.TerraceHeight(p.x, p.y) - L(2)) > 0.2f) continue;
+                    var dir = (r2.pts[i + 1] - p).normalized; var nrm = new Vector2(-dir.y, dir.x);
+                    float yaw = Mathf.Atan2(dir.x, dir.y) * Mathf.Rad2Deg;
+                    float y = L(2);
+                    foreach (float sd in new[] { -1f, 1f })
+                    {
+                        var q = p + nrm * sd * (r2.half + 0.3f);
+                        if (Physics.CheckSphere(new Vector3(q.x, y + 1.5f, q.y), 0.3f)) continue;
+                        Cyl(wisteria, "柱", new Vector3(q.x, y + 1.7f, q.y), 0.09f, 3.4f, WoodDark);
+                    }
+                    Box(wisteria, "棚", new Vector3(p.x, y + 3.45f, p.y), new Vector3(r2.half * 2 + 0.8f, 0.1f, 0.1f), WoodDark, false, new Vector3(0, yaw + 90, 0));
+                    for (float t = -r2.half; t <= r2.half; t += 0.55f)
+                    {
+                        var q = p + nrm * t + dir * R(-1.2f, 1.2f);
+                        float len = R(0.6f, 1.4f);
+                        Ball(wisteria, "藤", new Vector3(q.x, y + 3.4f - len / 2, q.y), new Vector3(0.2f, len, 0.2f), purple);
+                    }
+                }
         }
 
         // ───────────────────────── 滝 ─────────────────────────

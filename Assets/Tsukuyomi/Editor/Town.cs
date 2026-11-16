@@ -18,7 +18,7 @@ namespace Tsukuyomi.EditorTools
         public struct Lot { public Vector3 pos; public float rotY, w, d; public bool facing; }
         public static readonly List<Lot> Lots = new List<Lot>();
 
-        public static void Reset() { Taken.Clear(); Lots.Clear(); BridgesMade.Clear(); }
+        public static void Reset() { Taken.Clear(); Lots.Clear(); BridgesMade.Clear(); StairsList.Clear(); Landmarks.Clear(); }
 
         public static void Reserve(Vector2 c, float r) => Taken.Add((c, r));
 
@@ -85,6 +85,44 @@ namespace Tsukuyomi.EditorTools
             Streets.Add(new Street { name = name, pts = Island.Resample(arr, 1f), half = half, level = level });
         }
 
+        /// <summary>
+        /// 路地を足す。段の外・丘・名所にかかる所で切り、切れた端は connect（外の環状通りの点を返す）へつないで、行き止まりをなくす。
+        /// </summary>
+        public static int AddLanes(string name, List<Vector2> raw, float half, int level, System.Func<Vector2, Vector2> connect)
+        {
+            var pts = Island.Resample(raw.ToArray(), 1f);
+            bool Good(Vector2 p)
+            {
+                if (!OnLevel(p, level)) return false;
+                if (Island.NearestWater(p.x, p.y) < half + 1f && Island.PondDistance(p.x, p.y) < half + 1.5f) return false;
+                foreach (var (c, r) in Landmarks) if (Vector2.Distance(c, p) < r + half + 1f) return false;
+                return true;
+            }
+            int pieces = 0;
+            var cur = new List<Vector2>();
+            void Flush()
+            {
+                if (cur.Count >= 8)
+                {
+                    Streets.Add(new Street { name = name + pieces, pts = new List<Vector2>(cur), half = half, level = level });
+                    if (connect != null)
+                        foreach (var end in new[] { cur[0], cur[cur.Count - 1] })
+                        {
+                            var to = connect(end);
+                            bool clear = true;
+                            for (float t = 0; t <= 1f; t += 0.05f) { var q = Vector2.Lerp(end, to, t); foreach (var (lc, lr) in Landmarks) if (Vector2.Distance(lc, q) < lr + half + 1f) clear = false; }
+                            if (clear && Vector2.Distance(end, to) > 2f && Vector2.Distance(end, to) < 40f)
+                                Streets.Add(new Street { name = name + pieces + "のつなぎ", pts = Island.Resample(new[] { end, to }, 1f), half = half, level = level });
+                        }
+                    pieces++;
+                }
+                cur.Clear();
+            }
+            foreach (var p in pts) { if (Good(p)) cur.Add(p); else Flush(); }
+            Flush();
+            return pieces;
+        }
+
         public static List<Vector2> Ring(Vector2 c, System.Func<float, float> radius, float a0Deg, float a1Deg, float stepDeg = 3f)
         {
             var list = new List<Vector2>();
@@ -97,7 +135,7 @@ namespace Tsukuyomi.EditorTools
         }
 
         /// <summary>石畳を地面に沿って敷く。段の外・水の上は切る。水を渡るところには橋をかける。</summary>
-        public static void BuildStreets(Transform parent, Material paving)
+        public static void BuildStreets(Transform parent, Material paving, Material alley)
         {
             var g = Group(parent, "通り", Vector3.zero);
             int si = 0;
@@ -127,7 +165,8 @@ namespace Tsukuyomi.EditorTools
                     var dirv = (i < s.pts.Count - 1 ? s.pts[i + 1] - p : p - s.pts[i - 1]).normalized;
                     var side = new Vector2(-dirv.y, dirv.x) * s.half;
                     var l = p + side; var r = p - side;
-                    v.Add(new Vector3(l.x, H(l) + 0.05f, l.y)); v.Add(new Vector3(r.x, H(r) + 0.05f, r.y));
+                    float sy = s.level >= 0 ? Island.LevelTop(s.level) + 0.05f : H(p) + 0.05f;
+                    v.Add(new Vector3(l.x, sy, l.y)); v.Add(new Vector3(r.x, sy, r.y));
                     uv.Add(new Vector2(0, along / 3f)); uv.Add(new Vector2(s.half * 2 / 3f, along / 3f));
                     if (prevOk)
                     {
@@ -142,7 +181,7 @@ namespace Tsukuyomi.EditorTools
                 m.SetVertices(v); m.SetUVs(0, uv); m.SetTriangles(t, 0);
                 m.RecalculateNormals(); m.RecalculateBounds();
                 m = SaveMeshForce("street_" + si, m);
-                var go = MeshObj(g, s.name, m, Vector3.zero, paving);
+                var go = MeshObj(g, s.name, m, Vector3.zero, s.half <= 2.0f ? alley : paving);
                 go.GetComponent<MeshRenderer>().shadowCastingMode = ShadowCastingMode.Off;
                 si++;
             }
@@ -169,22 +208,27 @@ namespace Tsukuyomi.EditorTools
                 var t = Mathf.Clamp01(Vector2.Dot(mid - p0, p1 - p0) / (p1 - p0).sqrMagnitude);
                 if (Vector2.Distance(mid, Vector2.Lerp(p0, p1, t)) <= best + 0.01f) { flow = (p1 - p0).normalized; break; }
             }
-            if (Mathf.Abs(Vector2.Dot(flow, dir)) > 0.6f) return;           // 斜めすぎる（川ぞいを走る）
+            if (Mathf.Abs(Vector2.Dot(flow, dir)) > 0.92f) return;          // 川ぞいを走っている（渡っていない）
             a -= dir * 1.8f; b += dir * 1.8f;
             float ya = Island.SurfaceNoWater(a.x, a.y), yb = Island.SurfaceNoWater(b.x, b.y);
             if (Mathf.Abs(ya - yb) > 0.4f) return;                           // 滝のところ
             float span = Vector2.Distance(a, b);
-            if (span < 4f || span > 20f) return;
-            foreach (var (pa, pb) in BridgesMade) if (Vector2.Distance((pa + pb) / 2, (a + b) / 2) < 10f) return;
+            if (span < 3f || span > 26f) return;
+            foreach (var (pa, pb) in BridgesMade) if (Vector2.Distance((pa + pb) / 2, (a + b) / 2) < 5f) return;
             BridgesMade.Add((a, b));
             float y = Mathf.Max(ya, yb);
-            Bridge(g, s.name + "の橋", new Vector3(a.x, y, a.y), new Vector3(b.x, y, b.y), s.half * 2 + 0.6f, Mathf.Min(1.5f, span * 0.1f), 10);
+            // 屋形船が通る水路は、船がくぐれる高い太鼓橋に
+            float arch = ch.name == "下町の水路" ? Mathf.Max(2.6f, span * 0.2f) : Mathf.Min(1.5f, span * 0.1f);
+            Bridge(g, s.name + "の橋", new Vector3(a.x, y, a.y), new Vector3(b.x, y, b.y), s.half * 2 + 0.6f, arch, 16);
             Reserve((a + b) / 2, span / 2 + 1f);
         }
 
         // ───────── 石段 ─────────
 
         public struct StairInfo { public bool ok; public Vector2 bottom, top; public float width; }
+        public static readonly List<StairInfo> StairsList = new List<StairInfo>();
+        /// <summary>名所の場所（路地が通らないように）。</summary>
+        public static readonly List<(Vector2 c, float r)> Landmarks = new List<(Vector2, float)>();
 
         /// <summary>
         /// start から dir の方へ進んで、最初の崖に石段をかける。torii なら千本鳥居。
@@ -227,17 +271,20 @@ namespace Tsukuyomi.EditorTools
                 float tc = tTop - (n - i) * run + run / 2;
                 var c = start + dir * tc;
                 Box(g, "段", new Vector3(c.x, (top + bottomY) / 2, c.y), new Vector3(width, top - bottomY, run + 0.03f), stone, true, new Vector3(0, yaw, 0));
-                foreach (float sd in new[] { -1f, 1f })
-                {
-                    var e = c + side * sd * (width / 2 + 0.35f);
-                    Box(g, "袖", new Vector3(e.x, (top + 0.7f + bottomY) / 2, e.y), new Vector3(0.7f, top + 0.7f - bottomY, run + 0.03f), stone, true, new Vector3(0, yaw, 0));
-                }
+
                 if (torii && i % 3 == 1)
                 {
                     var tg = Group(g, "鳥居", new Vector3(c.x, top, c.y), yaw + 90);
                     MiniTorii(tg, width + 0.4f, 3.6f + width * 0.15f);
                 }
                 if (i % 4 == 0) Reserve(c, width / 2 + 0.9f);
+            }
+            // わきの壁（斜めの手すりつき）
+            foreach (float sd in new[] { -1f, 1f })
+            {
+                var a0 = start + dir * tBottom + side * sd * (width / 2 + 0.35f);
+                var a1 = start + dir * tTop + side * sd * (width / 2 + 0.35f);
+                SideWall(g, a0, a1, h0, h1, bottomY, stone);
             }
             // 上のおどり場（平らな地面にしっかりのせる）
             var land = start + dir * (tTop + 1.2f);
@@ -256,7 +303,41 @@ namespace Tsukuyomi.EditorTools
             }
             Reserve(landB, width / 2 + 2f);
             Reserve(land, width / 2 + 2f);
+            var info = new StairInfo { ok = true, bottom = start + dir * (tBottom - 2.2f), top = start + dir * (tTop + 2.4f), width = width + 1.4f };
+            StairsList.Add(info);
             return new StairInfo { ok = true, bottom = bottomC, top = topC, width = width };
+        }
+
+        /// <summary>石段のわきの壁：下は地面、上は段にそって斜め（+0.8m の手すり）。</summary>
+        static void SideWall(Transform g, Vector2 a, Vector2 b, float h0, float h1, float bottomY, Material m)
+        {
+            var dir = (b - a).normalized;
+            var side = new Vector2(dir.y, -dir.x) * 0.35f;
+            Vector3 P(Vector2 p, Vector2 off, float y) => new Vector3(p.x + off.x, y, p.y + off.y);
+            float r0 = h0 + 0.8f, r1 = h1 + 0.8f;
+            var v = new List<Vector3>(); var t = new List<int>();
+            // 8つの角：左右（±side）× 下・上 × 始め・終わり
+            var L0 = P(a, side, bottomY); var L1 = P(b, side, bottomY); var L2 = P(a, side, r0); var L3 = P(b, side, r1);
+            var R0 = P(a, -side, bottomY); var R1 = P(b, -side, bottomY); var R2 = P(a, -side, r0); var R3 = P(b, -side, r1);
+            void Quad(Vector3 q0, Vector3 q1, Vector3 q2, Vector3 q3)
+            {
+                // 表と裏で頂点を分ける（同じ頂点を両面で使うと法線が消えて、光が壊れる）
+                int k = v.Count; v.AddRange(new[] { q0, q1, q2, q3 });
+                t.AddRange(new[] { k, k + 1, k + 2, k + 1, k + 3, k + 2 });
+                k = v.Count; v.AddRange(new[] { q0, q1, q2, q3 });
+                t.AddRange(new[] { k, k + 2, k + 1, k + 1, k + 2, k + 3 });
+            }
+            Quad(L0, L1, L2, L3); Quad(R0, R1, R2, R3); Quad(L2, L3, R2, R3); Quad(L0, L2, R0, R2); Quad(L1, L3, R1, R3);
+            var mesh = new Mesh { name = "stair_side" };
+            mesh.SetVertices(v); mesh.SetTriangles(t, 0); mesh.RecalculateNormals(); mesh.RecalculateBounds();
+            var go = new GameObject("袖");
+            go.transform.SetParent(g, false);
+            go.AddComponent<MeshFilter>().sharedMesh = mesh;
+            go.AddComponent<MeshRenderer>().sharedMaterial = m;
+            go.AddComponent<MeshCollider>().sharedMesh = mesh;
+            Box(g, "手すり", (P(a, Vector2.zero, r0 + 0.08f) + P(b, Vector2.zero, r1 + 0.08f)) / 2 + new Vector3(side.x, 0, side.y) * 0f,
+                new Vector3(0.8f, 0.16f, Vector3.Distance(P(a, Vector2.zero, r0), P(b, Vector2.zero, r1))), Vermilion, false,
+                new Vector3(-Mathf.Atan2(r1 - r0, Vector2.Distance(a, b)) * Mathf.Rad2Deg, Mathf.Atan2(dir.x, dir.y) * Mathf.Rad2Deg, 0));
         }
 
         /// <summary>小さな朱の鳥居（千本鳥居用）。ローカルの x 方向にまたぐ。</summary>

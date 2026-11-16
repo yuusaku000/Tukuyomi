@@ -123,9 +123,11 @@ namespace Tsukuyomi.EditorTools
                 var pp = front + side * (-width / 2 + k * width / 8);
                 Cyl(g, "親柱", new Vector3(pp.x, top + 0.5f, pp.y), 0.08f, 1f, Vermilion);
             }
-            // 後ろの本堂
-            var hall = edge - outward * 6f;
-            Buildings.TownHouse(g, new Vector3(hall.x, top, hall.y), yaw, 16f, 9f, 1, 0, false, 3);
+            // 舞台の上の東屋（屋根だけ。道はふさがない）
+            var az = Group(g, "展望台の東屋", new Vector3(c.x, top, c.y), yaw);
+            foreach (float x in new[] { -4f, 4f }) foreach (float z in new[] { -2.5f, 2.5f }) Cyl(az, "柱", new Vector3(x, 1.6f, z), 0.14f, 3.2f, Vermilion);
+            MeshObj(az, "屋根", Roof(11f, 8f, 2.4f, 0.8f), new Vector3(0, 3.2f, 0), RoofCopper);
+            for (int i = 0; i < 2; i++) TeaSeat(az, new Vector3(-2f + i * 4f, 0, 0), 0);
             Lamp(g, new Vector3(c.x, top + 2.5f, c.y), new Color(1f, 0.65f, 0.45f), 18f, 2f);
             return new Vector3(front.x - outward.x * 2, top + 0.1f, front.y - outward.y * 2);
         }
@@ -200,7 +202,9 @@ namespace Tsukuyomi.EditorTools
                 {
                     var dir = (pts[Mathf.Min(pts.Count - 1, i + 1)] - pts[Mathf.Max(0, i - 1)]).normalized;
                     var p = pts[i] + new Vector2(-dir.y, dir.x) * k * 1.6f + new Vector2(R(-0.4f, 0.4f), R(-0.4f, 0.4f));
+                    if (TerrainBuilder.NearStairs(p, 2f) || Town.OnAnyStreet(p, -10f) && false) continue;
                     float y = Island.Height(p.x, p.y) + height + R(-0.4f, 0.4f);
+                    if (Physics.CheckSphere(new Vector3(p.x, y, p.y), 1.3f, ~0, QueryTriggerInteraction.Ignore)) continue;
                     var u = Group(g, "番傘", new Vector3(p.x, y, p.y), R(0, 360));
                     var m = MeshObj(u, "傘", cone, Vector3.zero, Lit("umb_" + ((i + k + 30) % colors.Length), colors[(i + k + 30) % colors.Length], 0.2f, 0f, true));
                     m.transform.localScale = Vector3.one * R(0.7f, 0.9f);
@@ -273,6 +277,7 @@ namespace Tsukuyomi.EditorTools
             }
             if (path.Count < 4) return;
             var g = Group(decoParent, "屋形船", path[0]);
+            g.localScale = Vector3.one * 0.78f; // 橋の下をくぐれる高さ
             var hull = Lit("boat_hull", new Color(0.3f, 0.2f, 0.14f), 0.3f);
             Box(g, "船体", new Vector3(0, 0.15f, 0), new Vector3(2.6f, 0.6f, 7.5f), hull);
             Box(g, "へさき", new Vector3(0, 0.35f, 4f), new Vector3(1.6f, 0.4f, 1.4f), hull, false, new Vector3(-12, 0, 0));

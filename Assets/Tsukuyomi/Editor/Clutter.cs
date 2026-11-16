@@ -155,9 +155,9 @@ namespace Tsukuyomi.EditorTools
                     var dir = (s.pts[i + 1] - s.pts[i - 1]).normalized;
                     var nrm = new Vector2(-dir.y, dir.x);
                     float yaw = Mathf.Atan2(dir.x, dir.y) * Mathf.Rad2Deg;
-                    if (i % 7 == 3 && s.half < 5f)
+                    if (i % 7 == 3 && s.half < 5f && BuildingBothSides(p, nrm, s.half, Island.LevelTop(Mathf.Max(0, s.level))))
                     {
-                        float y = Island.Height(p.x, p.y);
+                        float y = Island.LevelTop(Mathf.Max(0, s.level));
                         var a = p + nrm * (s.half + 0.3f) - dir * 1.5f;
                         var b = p - nrm * (s.half + 0.3f) + dir * 1.5f;
                         if ((i / 7) % 2 == 0) { var t = a; a = b; b = t; }
@@ -203,6 +203,35 @@ namespace Tsukuyomi.EditorTools
                 extras++;
             }
 
+            // 空いた所を小さな庭にする（もみじ・松・植えこみ・石・花）
+            int gardens = 0;
+            var momiji = new[] { Lit("momiji1", new Color(0.85f, 0.25f, 0.12f), 0.1f), Lit("momiji2", new Color(0.95f, 0.5f, 0.15f), 0.1f), Lit("momiji3", new Color(0.75f, 0.12f, 0.15f), 0.1f) };
+            var bush = Lit("bush", new Color(0.22f, 0.42f, 0.22f), 0.1f);
+            var rock = Lit("rock", new Color(0.45f, 0.45f, 0.43f), 0.15f);
+            var flowers = new[] { ColorMat(new Color(1f, 0.6f, 0.75f)), ColorMat(new Color(1f, 0.9f, 0.4f)), ColorMat(new Color(0.75f, 0.6f, 1f)) };
+            for (int k = 0; k < 4000 && gardens < 900; k++)
+            {
+                var c = new Vector2(R(-155, 155), R(5, 312));
+                if (!Town.Free(c, 1.8f) || !Walkable(c, -1) || Town.OnAnyStreet(c, 1.2f)) continue;
+                if (!Town.Flat(c, 2.4f, 2.4f, 0, out float y, 0.3f)) continue;
+                var c3 = new Vector3(c.x, y, c.y);
+                if (!Clear(c3, 1.0f)) continue;
+                var gd = Group(g, "庭", c3, R(0, 360));
+                int kind = Ri(0, 6);
+                if (kind <= 1)
+                {
+                    Cyl(gd, "幹", new Vector3(0, 1.1f, 0), 0.14f, 2.2f, Lit("bark", new Color(0.24f, 0.16f, 0.14f), 0.15f));
+                    for (int i = 0; i < 4; i++) Ball(gd, "もみじ", new Vector3(R(-0.8f, 0.8f), R(2.2f, 3.2f), R(-0.8f, 0.8f)), new Vector3(R(1.6f, 2.4f), R(1.0f, 1.5f), R(1.6f, 2.4f)), momiji[Ri(0, momiji.Length)]);
+                }
+                else if (kind == 2) Pine(gd, Vector3.zero, R(0.6f, 0.9f));
+                else if (kind == 3) { for (int i = 0; i < 4; i++) Ball(gd, "植えこみ", new Vector3(R(-1f, 1f), 0.4f, R(-1f, 1f)), new Vector3(R(0.8f, 1.4f), R(0.6f, 0.9f), R(0.8f, 1.4f)), bush); }
+                else if (kind == 4) { for (int i = 0; i < 3; i++) Ball(gd, "石", new Vector3(R(-1f, 1f), 0.15f, R(-1f, 1f)), new Vector3(R(0.5f, 1.2f), R(0.35f, 0.7f), R(0.5f, 1f)), rock); Toro(gd, new Vector3(0.6f, 0, 0.6f), false, 0.6f); }
+                else { for (int i = 0; i < 10; i++) Ball(gd, "花", new Vector3(R(-1f, 1f), 0.15f, R(-1f, 1f)), Vector3.one * R(0.2f, 0.32f), flowers[Ri(0, flowers.Length)]); Ball(gd, "葉", new Vector3(0, 0.08f, 0), new Vector3(2.2f, 0.15f, 2.2f), bush); }
+                Town.Reserve(c, 1.8f);
+                gardens++;
+            }
+            Debug.Log($"[Tsukuyomi] gardens: {gardens}");
+
             // 広場・大通りの上に浮かぶ看板
             var holo = Group(deco, "浮かぶ看板", Vector3.zero);
             foreach (var s in Town.Streets)
@@ -220,6 +249,18 @@ namespace Tsukuyomi.EditorTools
                 }
             }
             Debug.Log($"[Tsukuyomi] clutter: {props} props, {strings} lantern strings, {walks} walkways, {extras} extras");
+        }
+
+        /// <summary>道の両がわ（4m 以内）に建物の壁があるか（提灯の綱を張れるか）。</summary>
+        static bool BuildingBothSides(Vector2 p, Vector2 nrm, float half, float y)
+        {
+            foreach (float sd in new[] { -1f, 1f })
+            {
+                var o = new Vector3(p.x, y + 3.2f, p.y);
+                var d = new Vector3(nrm.x, 0, nrm.y) * sd;
+                if (!Physics.Raycast(o, d, out var hit, half + 4f, ~0, QueryTriggerInteraction.Ignore)) return false;
+            }
+            return true;
         }
 
         /// <summary>店先の小物のかたまり（1〜4こ）。置いた数を返す。</summary>
