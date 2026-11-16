@@ -440,6 +440,15 @@ namespace Tsukuyomi.EditorTools
             sc.fishMat2 = Holo("holo_fish_pink", new Color(1f, 0.5f, 0.85f), 0.45f, 1.5f, 0.15f);
             sc.mantaMat = Holo("holo_manta", new Color(0.55f, 0.6f, 1f), 0.4f, 1.3f, 0.12f);
             sc.center = new Vector3(0, 0, 130);
+            sc.schools = 12; sc.mantas = 5; // 少しだけ増やした
+            // ときどき現れるめずらしいもの（クジラ・クラゲ・竜宮の使い・流れ星）
+            var rare = sky.AddComponent<RareSky>();
+            rare.whaleMat = Holo("holo_whale", new Color(0.45f, 0.7f, 1f), 0.4f, 1.4f, 0.12f);
+            rare.jellyMat = Holo("holo_jelly", new Color(0.7f, 0.55f, 1f), 0.35f, 1.6f, 0.3f);
+            rare.jellyMat2 = Holo("holo_jelly_pink", new Color(1f, 0.55f, 0.85f), 0.35f, 1.6f, 0.3f);
+            rare.oarMat = Holo("holo_oarfish", new Color(0.85f, 0.9f, 1f), 0.45f, 1.6f, 0.15f);
+            rare.starMat = Glow("glow_star_trail", new Color(1f, 0.9f, 0.6f), 1.2f, 4f);
+            rare.center = new Vector3(0, 0, 140);
 
             var spark = Shaded("spark", "Tsukuyomi/Spark");
             var fw = new GameObject("花火");

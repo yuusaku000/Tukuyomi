@@ -164,7 +164,7 @@ namespace Tsukuyomi
             if (_shotMode || player == null) return;
             var p = player.Position;
             if (player.InWater) return; // 水の中は保存しない（岸にもどされる途中のため）
-            if (Rest.Sitting) { SaveStore.Save(_data); return; } // 座っている間は場所を変えない（ソファの中から始まらないように）
+            if (Rest.Sitting || (SkyShip.I != null && SkyShip.I.OnDeck(p))) { SaveStore.Save(_data); return; } // 遊覧船の上も場所は保存しない // 座っている間は場所を変えない（ソファの中から始まらないように）
             _data.has = true;
             _data.x = p.x; _data.y = p.y; _data.z = p.z; _data.yaw = player.Yaw;
             _data.camYaw = cam.yaw; _data.camPitch = cam.pitch; _data.camDist = cam.distance; _data.firstPerson = cam.firstPerson;

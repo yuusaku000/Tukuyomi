@@ -207,6 +207,7 @@ namespace Tsukuyomi
 
         void ShopKeys(bool usedE)
         {
+            TurnTick();
             if (_menu || _map || _book) return;
             if (!ShopOpen && player != null && !PlayerController.Busy)
             {
@@ -275,16 +276,18 @@ namespace Tsukuyomi
 
             var list = Items(_shop.group);
             float y = r.y + 112;
+            // 品物が多いお店は行を低くして全部入れる
+            float step = Mathf.Min(62f, 590f / Mathf.Max(1, list.Count));
 
             for (int k = 0; k < list.Count; k++)
             {
                 var it = list[k];
-                var row = new Rect(r.x + 20, y, r.width - 40, 58);
+                var row = new Rect(r.x + 20, y, r.width - 40, step - 4);
                 string tag = it.kind == ItemKind.Food ? "" : Wears(it) ? (it.kind == ItemKind.Clothes ? "着ている" : "つけている") : Owns(it) ? "持っている" : "";
                 string slot = it.kind == ItemKind.Accessory ? $"〔{SlotName(it.slot)}〕" : "";
                 Row(row, k == _sel, it.name + (slot.Length > 0 ? "  " : ""), Owns(it) && it.kind != ItemKind.Food ? "―" : $"{Catalog.Yen(it.price)} ふじゅ〜", tag.Length > 0 ? tag : slot, tag.Length > 0 ? new Color(0.5f, 1f, 0.7f) : new Color(1, 1, 1, 0.55f));
                 if (!_confirm && !_busy && GUI.Button(row, GUIContent.none, GUIStyle.none)) Select(k);
-                y += 62;
+                y += step;
             }
 
             var sel = _sel >= 0 && _sel < list.Count ? list[_sel] : null;
@@ -317,6 +320,35 @@ namespace Tsukuyomi
             }
             else if (sel == null) Text(new Rect(r.x + 26, by, 420, 66), "品物をえらぶと試着できます", 20, new Color(1, 1, 1, 0.7f), TextAnchor.MiddleLeft);
             if (Button(new Rect(r.xMax - 250, by, 226, 66), "とじる（Esc）")) CloseShop();
+            if (_shop.kind != ItemKind.Food) TurnButtons(r);
+        }
+
+        /// <summary>人形を回すボタン（A・D や ←・→ でも回せる）。お店と着がえの画面の左に出す。</summary>
+        void TurnButtons(Rect panel)
+        {
+            float cx = (panel.x) / 2, y = H - 190;
+            Text(new Rect(cx - 200, y - 34, 400, 28), "A・D（←・→）でも回せます", 17, new Color(1, 1, 1, 0.7f), TextAnchor.MiddleCenter);
+            var l = new Rect(cx - 170, y, 150, 58); var rr = new Rect(cx + 20, y, 150, 58);
+            Button(l, "◀ 回す", 22); Button(rr, "回す ▶", 22);
+            if (Event.current.type == EventType.Repaint)
+            {
+                bool down = Input.GetMouseButton(0);
+                var mp = Event.current.mousePosition;
+                _turnBtn = down && l.Contains(mp) ? -1 : down && rr.Contains(mp) ? 1 : 0;
+            }
+        }
+
+        int _turnBtn;
+
+        /// <summary>お店・着がえの間、人形をその場で回す（Update から）。</summary>
+        void TurnTick()
+        {
+            if (!ShopOpen || player == null) { _turnBtn = 0; return; }
+            if (_shop != null && _shop.kind == ItemKind.Food) return;
+            float dir = _turnBtn;
+            if (Input.GetKey(KeyCode.A) || Input.GetKey(KeyCode.LeftArrow)) dir -= 1;
+            if (Input.GetKey(KeyCode.D) || Input.GetKey(KeyCode.RightArrow)) dir += 1;
+            if (Mathf.Abs(dir) > 0.01f) player.transform.Rotate(0, Mathf.Sign(dir) * 120f * Time.unscaledDeltaTime, 0);
         }
 
         /// <summary>近くの人の吹き出し（頭の上に、白い吹き出しと黒い文字）。</summary>
@@ -387,6 +419,7 @@ namespace Tsukuyomi
                 Text(new Rect(r.x + 26, r.y + 190, r.width - 52, 120), _wardTab == 0 ? "服は浴衣・振袖・ふだん着のお店で買えます" : "まだ持っていません。\n小間物屋（島のあちこちにあります）で買えます", 20, new Color(1, 1, 1, 0.7f));
             Text(new Rect(r.x + 26, r.yMax - 150, r.width - 52, 60), $"食べたもの：{d.eaten} こ　　服は浴衣・振袖・ふだん着のお店で買えます", 18, new Color(1, 1, 1, 0.7f));
             if (Button(new Rect(r.xMax - 270, r.yMax - 90, 246, 66), "とじる（C / Esc）")) CloseShop();
+            TurnButtons(r);
         }
     }
 }

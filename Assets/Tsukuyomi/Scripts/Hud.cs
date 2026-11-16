@@ -227,7 +227,8 @@ namespace Tsukuyomi
             }
             if (Input.GetKeyDown(KeyCode.Escape))
             {
-                if (ShopOpen) CloseShop();
+                if (_shipAsk != null) { if (!_shipBusy) _shipAsk = null; }
+                else if (ShopOpen) CloseShop();
                 else if (_map) _map = false;
                 else if (_book) _book = false;
                 else if (!_menu && Fishing.Busy) { Fishing.I.Stop(); Toast("竿をしまいました"); }
@@ -239,7 +240,7 @@ namespace Tsukuyomi
             if (Input.GetKeyDown(KeyCode.F12)) TakePhoto();
             bool usedE = ActivityKeys();
             ShopKeys(usedE);
-            Blocked = _menu || _map || ShopOpen || _book;
+            Blocked = _menu || _map || ShopOpen || _book || _shipAsk != null;
 
             if (Blocked)
             {
@@ -427,6 +428,7 @@ namespace Tsukuyomi
             else if (_menu) DrawMenu();
             else if (ShopOpen) DrawShop();
             else if (_book) DrawBook();
+            else if (_shipAsk != null) DrawShipAsk();
             GUI.matrix = Matrix4x4.identity;
         }
 

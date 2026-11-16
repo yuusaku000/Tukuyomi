@@ -12,6 +12,10 @@ namespace Tsukuyomi
         public Vector3[] spots = new Vector3[0];
         public float yaw;
         public bool bothSides;
+        /// <summary>立つときはうしろへ出る（温泉のように、前が水のとき）。</summary>
+        public bool standBehind;
+        /// <summary>座ったときのお知らせ（空なら「座りました」）。</summary>
+        public string sitText = "";
 
         public static readonly List<Seat> All = new List<Seat>();
         void OnEnable() => All.Add(this);

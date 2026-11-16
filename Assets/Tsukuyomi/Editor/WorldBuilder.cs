@@ -27,6 +27,11 @@ namespace Tsukuyomi.EditorTools
         static readonly List<Transform> CrowdPts = new List<Transform>(), WaterPts = new List<Transform>(), ChimePts = new List<Transform>();
         static Transform _festival, _bell;
         static Vector3 _lookoutWarp, _stageWarp;
+        static Transform _lookDeck; // 月見台（遊覧船の空の乗り場）
+        static GameObject _lookGate;
+        static bool _hasOnsen;
+        static Vector3 _onsenC;
+        static float _onsenYaw;
 
         static float L(int i) => Tsukuyomi.Island.LevelTop(i);
         static float Hgt(float x, float z) => Tsukuyomi.Island.Height(x, z);
@@ -64,8 +69,11 @@ namespace Tsukuyomi.EditorTools
             SaveStreetMap();
             CheckLandmarks();
             LandmarksAll(out var studio);
+            ShipBuilder.Build(_env, _deco, _lookDeck, _lookGate); // 空の遊覧船「月の舟」と桟橋・切符売り場
+            _hasOnsen = Onsen.Build(_env, _deco, new Vector2(-74, 199), out _onsenC, out _onsenYaw); // 中段の西の空き地に露天風呂
+            if (_hasOnsen) Marker("温泉のお湯の音", _onsenC, WaterPts);
             Houses();
-            Glitter.Build(_env); // 通りの上の飾り幕・吹き流し・和傘・提灯、町なかの松と桜
+            Glitter.Build(_env, _deco); // 通りの上の飾り幕・吹き流し・和傘・提灯、町なかの松と桜
             int infillSeed = 5000;
             Infill.Run(_env.Find("町並み"), new[] { _env, _deco }, KeepOpen(), new List<(Vector2, float)> { (BambooC, 20f) }, ref infillSeed);
             Clutter.Build(_env, _deco);
@@ -292,9 +300,14 @@ namespace Tsukuyomi.EditorTools
             foreach (float side in new[] { -1f, 1f })
             {
                 float x = side * (w / 2 - 0.1f);
-                Box(g, "高欄", new Vector3(x, G + 0.9f, -31), new Vector3(0.14f, 0.12f, 62f), Vermilion);
-                Box(g, "高欄", new Vector3(x, G + 0.45f, -31), new Vector3(0.1f, 0.1f, 62f), Vermilion);
-                Box(g, "見えない柵", new Vector3(x, G + 0.7f, -31), new Vector3(0.3f, 1.4f, 62f), Vermilion, true).GetComponent<Renderer>().enabled = false;
+                // 東がわは z -40 に遊覧船の桟橋への出口をあける
+                foreach (var (z0, z1) in side > 0 ? new[] { (-62f, -41.8f), (-38.2f, 0f) } : new[] { (-62f, 0f) })
+                {
+                    float zc = (z0 + z1) / 2, zl = z1 - z0;
+                    Box(g, "高欄", new Vector3(x, G + 0.9f, zc), new Vector3(0.14f, 0.12f, zl), Vermilion);
+                    Box(g, "高欄", new Vector3(x, G + 0.45f, zc), new Vector3(0.1f, 0.1f, zl), Vermilion);
+                    Box(g, "見えない柵", new Vector3(x, G + 0.7f, zc), new Vector3(0.3f, 1.4f, zl), Vermilion, true).GetComponent<Renderer>().enabled = false;
+                }
                 Box(g, "光の線", new Vector3(side * (w / 2 - 0.5f), G + 0.06f, -31), new Vector3(0.1f, 0.02f, 61f), GlowCyan);
                 for (int i = 0; i <= 15; i++)
                 {
@@ -579,13 +592,25 @@ namespace Tsukuyomi.EditorTools
             var deckC = edge + dir * 3.5f;
             var deck = Group(g, "月見台", new Vector3(deckC.x, 0, deckC.y));
             Box(deck, "舞台", new Vector3(0, -0.15f, 0), new Vector3(14f, 0.3f, 9f), Wood, true);
+            // 頂上の段とのすき間をなくす：うしろ（御殿のほう）へ床をのばし、段のふちの石垣の上にかぶせる
+            Box(deck, "つなぎの床", new Vector3(0, -0.15f, -7.25f), new Vector3(14f, 0.3f, 6f), Wood, true);
+            Box(deck, "つなぎの梁", new Vector3(0, -0.5f, -4.4f), new Vector3(14.2f, 0.5f, 0.4f), Vermilion);
+            _lookDeck = deck;
             foreach (float x in new[] { -6.8f, 6.8f })
             {
                 Box(deck, "高欄", new Vector3(x, 0.9f, 0), new Vector3(0.12f, 0.12f, 9f), Vermilion);
                 Box(deck, "見えない柵", new Vector3(x, 0.7f, 0), new Vector3(0.3f, 1.4f, 9f), Vermilion, true).GetComponent<Renderer>().enabled = false;
             }
-            Box(deck, "高欄", new Vector3(0, 0.9f, 4.4f), new Vector3(14f, 0.12f, 0.12f), Vermilion);
-            Box(deck, "見えない柵", new Vector3(0, 0.7f, 4.5f), new Vector3(14f, 1.4f, 0.3f), Vermilion, true).GetComponent<Renderer>().enabled = false;
+            // 北の高欄：まん中 4m は遊覧船の乗り口（船が来ていない間は見えない柵でふさぐ）
+            foreach (float x in new[] { -4.5f, 4.5f })
+            {
+                Box(deck, "高欄", new Vector3(x, 0.9f, 4.4f), new Vector3(5f, 0.12f, 0.12f), Vermilion);
+                Box(deck, "見えない柵", new Vector3(x, 0.7f, 4.5f), new Vector3(5f, 1.4f, 0.3f), Vermilion, true).GetComponent<Renderer>().enabled = false;
+            }
+            foreach (float x in new[] { -2f, 2f }) Cyl(deck, "乗り口の柱", new Vector3(x, 1.1f, 4.4f), 0.12f, 2.2f, Vermilion);
+            Box(deck, "乗り口の札", new Vector3(0, 2.1f, 4.4f), new Vector3(4.2f, 0.4f, 0.12f), GlowGold);
+            _lookGate = Box(deck, "乗り口の柵", new Vector3(0, 0.7f, 4.5f), new Vector3(4f, 1.4f, 0.3f), Vermilion, true);
+            _lookGate.GetComponent<Renderer>().enabled = false;
             float below = Island.Height(deckC.x, deckC.y + 3) - top;
             for (float x = -6f; x <= 6f; x += 3f)
                 foreach (float z in new[] { 0f, 4f })
@@ -1356,6 +1381,11 @@ namespace Tsukuyomi.EditorTools
             Z(8, "upper", "上段・五重塔", "UPPER TERRACE", new Vector2(10, 168), new Vector2(110, 90), new Color(0.75f, 0.55f, 0.35f), W(0, 131), 0);
             Z(9, "bamboo", "竹林の小道", "BAMBOO PATH", BambooC, new Vector2(38, 38), new Color(0.4f, 0.75f, 0.4f), W(-38, 150), 45);
             Z(10, "lookout", "懸造りの展望台", "CLIFF LOOKOUT", _lookEdge + _lookOut * 4f, new Vector2(24, 24), new Color(0.85f, 0.5f, 0.3f), _lookoutWarp, Mathf.Atan2(_lookOut.x, _lookOut.y) * Mathf.Rad2Deg, true, 4f);
+            if (_hasOnsen)
+            {
+                var front = _onsenC + Quaternion.Euler(0, _onsenYaw, 0) * new Vector3(0, 0, 9.5f);
+                Z(12, "onsen", "月見の湯", "MOON HOT SPRING", new Vector2(_onsenC.x, _onsenC.z), new Vector2(24, 24), new Color(0.95f, 0.55f, 0.45f), W(front.x, front.z), _onsenYaw + 180f);
+            }
             Z(11, "palace", "月の御殿", "MOON PALACE", new Vector2(0, 204), new Vector2(54, 54), new Color(0.95f, 0.85f, 0.4f), W(0, 184), 0);
         }
     }

@@ -161,7 +161,7 @@ namespace Tsukuyomi
                 if (dist < near || dist > far) continue;
                 float h = Island.Height(at.x, at.y);
                 float gy = Ground(at.x, h + 1f, at.y, h);
-                if (gy < 0.3f || Wet(at.x, at.y, gy)) continue;
+                if (gy < 0.3f || Wet(at.x, at.y, gy) || NoWalkArea.Inside(at.x, at.y)) continue;
                 w.path = path; w.len = _lens[si]; w.s = pick;
                 w.dir = _rng.NextDouble() < 0.5 ? 1 : -1;
                 w.y = w.yT = gy;
@@ -374,6 +374,7 @@ namespace Tsukuyomi
             "plaza" => new[] { "ヤチヨだ！", "大画面きれい〜", "ライブ、ここで見ようかな" },
             "sakura" => new[] { "桜きれい…", "千年も咲いてるんだって", "花びらがふってくる" },
             "fishing" => new[] { "つれるかな", "大物ねらうぞ〜", "茶屋でひと休みしよう", "鹿威しの音、落ち着くね", "今週の番付、だれが一位かな", "蓮の花がきれい" },
+            "onsen" => new[] { "いいお湯〜", "湯けむりがきれい", "ぽかぽかする〜", "温泉のあとは甘味かな" },
             "lookout" => new[] { "いい眺め！", "海がひろ〜い", "ちょっとこわい…" },
             "palace" => new[] { "月の御殿だ…", "大きいね〜", "ここ、てっぺんだよ" },
             "torii" => new[] { "大鳥居、でっかい", "ここから入ってきたの", "海がきらきら" },
@@ -483,11 +484,11 @@ namespace Tsukuyomi
                     w.rayT = near ? 0.15f : vis ? 0.4f : 1f;
                     float gy = Ground(at.x, w.y, at.y, Island.Height(at.x, at.y));
                     // 水に入りそう（橋のわきなど）なら道のまんなかへ寄る。まんなかもだめ・石垣のような段ちがいなら引き返す
-                    bool bad = Wet(at.x, at.y, gy) || Mathf.Abs(gy - w.y) > 0.9f;
+                    bool bad = Wet(at.x, at.y, gy) || Mathf.Abs(gy - w.y) > 0.9f || NoWalkArea.Inside(at.x, at.y);
                     if (bad)
                     {
                         float cy = Ground(pos.x, w.y, pos.y, Island.Height(pos.x, pos.y));
-                        if (!Wet(pos.x, pos.y, cy) && Mathf.Abs(cy - w.y) <= 0.9f) { w.offset *= 0.2f; at = pos; gy = cy; }
+                        if (!Wet(pos.x, pos.y, cy) && Mathf.Abs(cy - w.y) <= 0.9f && !NoWalkArea.Inside(pos.x, pos.y)) { w.offset *= 0.2f; at = pos; gy = cy; }
                         else if (++w.bad > 3)
                         {
                             // 両がわとも行けない（はさまった）：別の通りへ移す

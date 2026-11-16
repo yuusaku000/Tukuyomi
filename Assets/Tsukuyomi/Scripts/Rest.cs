@@ -65,7 +65,7 @@ namespace Tsukuyomi
                 _cam.Snap();
             }
             _sitting = true; _idle = 0; _sitT = 0;
-            Hud.Toast("座りました。ゆっくりしていってね（E・WASD で立つ）");
+            Hud.Toast(string.IsNullOrEmpty(s.sitText) ? "座りました。ゆっくりしていってね（E・WASD で立つ）" : s.sitText);
         }
 
         public void Stand()
@@ -74,8 +74,9 @@ namespace Tsukuyomi
             _sitting = false;
             if (_doll != null) _doll.sit = false;
             var fwd = Quaternion.Euler(0, _yaw, 0) * Vector3.forward;
-            var p = _spot + fwd * 0.85f;
+            var p = _seat != null && _seat.standBehind ? _spot - fwd * 1.6f : _spot + fwd * 0.85f;
             float ground = _spot.y - 0.5f;
+            if (_seat != null && _seat.standBehind) ground = Island.Height(p.x, p.z);
             if (Physics.Raycast(p + Vector3.up * 1.5f, Vector3.down, out var hit, 4f, ~0, QueryTriggerInteraction.Ignore)) ground = hit.point.y;
             float camYaw = _cam != null ? _cam.yaw : _yaw;
             _pc.Teleport(new Vector3(p.x, ground + 0.08f, p.z), _yaw);

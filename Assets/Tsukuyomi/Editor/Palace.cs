@@ -175,9 +175,28 @@ namespace Tsukuyomi.EditorTools
             }
             for (float x = -W / 2 + 1f; x < W / 2; x += 1.25f)
                 foreach (float sd in new[] { -1f, 1f }) Cyl(g, "高欄の小柱", new Vector3(x, upY + 0.45f, sd * (D / 2 - 0.15f)), 0.04f, 0.9f, Vermilion);
-            MeshObj(g, "望楼の屋根", Roof(W + 3.2f, D + 3.2f, 3.8f, 1.1f), new Vector3(0, upY + H2, 0), copper);
-            Box(g, "棟", new Vector3(0, upY + H2 + 3.8f, 0), new Vector3(W * 0.55f, 0.35f, 0.45f), Black);
-            foreach (float sx in new[] { -1f, 1f }) Ball(g, "鴟尾", new Vector3(sx * W * 0.28f, upY + H2 + 4.1f, 0), new Vector3(0.5f, 0.8f, 0.4f), Gold);
+            // 望楼の上の裳階（ひさし）と、もう一階（月見の間）。窓が灯り、まわりに高欄
+            MeshObj(g, "望楼の屋根", Roof(W + 3.2f, D + 3.2f, 1.5f, 0.9f), new Vector3(0, upY + H2, 0), copper);
+            const float W3 = W - 5f, D3 = D - 2.4f, H3 = 3.4f;
+            float y3 = upY + H2 + 1.1f;
+            Box(g, "三階の縁", new Vector3(0, y3 + 0.05f, 0), new Vector3(W3 + 1.6f, 0.2f, D3 + 1.6f), WoodDark);
+            Box(g, "三階", new Vector3(0, y3 + H3 / 2, 0), new Vector3(W3, H3, D3), Buildings.RedLacquer);
+            foreach (float sd in new[] { -1f, 1f })
+            {
+                for (int i = 0; i < 5; i++)
+                    Box(g, "三階の窓", new Vector3(-W3 / 2 + W3 * (i + 0.5f) / 5, y3 + H3 * 0.55f, sd * (D3 / 2 + 0.03f)), new Vector3(W3 / 5 - 0.7f, 1.4f, 0.05f), Buildings.WindowGlow);
+                Box(g, "三階の高欄", new Vector3(0, y3 + 0.7f, sd * (D3 / 2 + 0.75f)), new Vector3(W3 + 1.4f, 0.1f, 0.1f), Vermilion);
+                for (int i = 0; i < 3; i++)
+                    Box(g, "三階の窓", new Vector3(sd * (W3 / 2 + 0.03f), y3 + H3 * 0.55f, -D3 / 2 + D3 * (i + 0.5f) / 3), new Vector3(0.05f, 1.4f, D3 / 3 - 0.6f), Buildings.WindowGlow);
+            }
+            foreach (float sx in new[] { -1f, 1f }) foreach (float sz3 in new[] { -1f, 1f })
+                Cyl(g, "三階の柱", new Vector3(sx * (W3 / 2 + 0.05f), y3 + H3 / 2, sz3 * (D3 / 2 + 0.05f)), 0.15f, H3, Vermilion);
+            Box(g, "三階の梁", new Vector3(0, y3 + H3 - 0.12f, 0), new Vector3(W3 + 0.4f, 0.3f, D3 + 0.4f), Vermilion);
+            for (int i = 0; i < 6; i++) Chochin(g, new Vector3(-W3 / 2 + W3 * (i + 0.5f) / 6, y3 + H3 - 0.5f, -D3 / 2 - 0.9f), i % 2 == 0 ? GlowRed : GlowGold);
+            float yr = y3 + H3;
+            MeshObj(g, "最上階の屋根", Roof(W3 + 3.6f, D3 + 3.4f, 3.6f, 1.2f), new Vector3(0, yr, 0), copper);
+            Box(g, "棟", new Vector3(0, yr + 3.6f, 0), new Vector3((W3 - D3) + 1.2f, 0.35f, 0.45f), Black);
+            foreach (float sx in new[] { -1f, 1f }) Ball(g, "鴟尾", new Vector3(sx * ((W3 - D3) / 2 + 0.6f), yr + 3.95f, 0), new Vector3(0.5f, 0.8f, 0.4f), Gold);
             // 望楼の席：月見のソファと遠眼鏡
             SofaSet(g, new Vector3(-6.5f, upY, 1.0f), 0);
             SofaSet(g, new Vector3(-2.2f, upY, 1.0f), 0, 2.6f);

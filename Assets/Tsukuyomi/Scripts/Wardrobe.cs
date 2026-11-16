@@ -82,6 +82,8 @@ namespace Tsukuyomi
                 }
             }
 
+            ApplyStyle(it);
+
             foreach (var g in _acc.Values) if (g) Destroy(g);
             _acc.Clear();
             _umbrella = false;
@@ -98,6 +100,89 @@ namespace Tsukuyomi
             if (!Eating) doll.holdR = _umbrella ? 1 : 0;
             doll.holdREuler = _umbrella ? new Vector3(-62, 0, -28) : new Vector3(-120, 0, -25);
             if (cam != null) cam.RefreshBody();
+        }
+
+        // ───────── 服の形（巫女装束・ドレス・十二単ふう）─────────
+
+        readonly List<GameObject> _styleObjs = new List<GameObject>();
+        readonly Dictionary<Transform, Vector3> _baseScale = new Dictionary<Transform, Vector3>();
+
+        void Scale(Transform t, Vector3 k)
+        {
+            if (t == null) return;
+            if (!_baseScale.TryGetValue(t, out var b)) { b = t.localScale; _baseScale[t] = b; }
+            t.localScale = Vector3.Scale(b, k);
+        }
+
+        void ApplyStyle(Item it)
+        {
+            foreach (var g in _styleObjs) if (g) Destroy(g);
+            _styleObjs.Clear();
+            var robe = Find(doll.body, "Robe");
+            var sleeves = new List<Transform>();
+            foreach (var t in doll.body.GetComponentsInChildren<Transform>(true)) if (t.name == "Sleeve") sleeves.Add(t);
+            // いったん元の大きさにもどす
+            Scale(robe, Vector3.one);
+            foreach (var sl in sleeves) Scale(sl, Vector3.one);
+            if (it.style == 0) return;
+
+            var body = Holder(doll.body, "服の形"); _styleObjs.Add(body.gameObject);
+            Transform ArmHolder(Transform arm) { var h = Holder(arm, "服の形の袖"); _styleObjs.Add(h.gameObject); return h; }
+
+            switch (it.style)
+            {
+                case 1: // 巫女装束：袴のひだ・胸の紐・大きな白い袖・髪の水引
+                    for (int i = -2; i <= 2; i++)
+                    {
+                        float a = i * 0.32f;
+                        var p = new Vector3(Mathf.Sin(a) * 0.36f, 0.42f, Mathf.Cos(a) * 0.36f);
+                        Part(body, PrimitiveType.Cube, p, new Vector3(0.012f, 0.8f, 0.02f), it.robe2, false, new Vector3(-15f, a * Mathf.Rad2Deg, 0));
+                    }
+                    Part(body, PrimitiveType.Cube, new Vector3(0, 0.84f, 0.19f), new Vector3(0.4f, 0.05f, 0.04f), it.robe2);
+                    foreach (float sx in new[] { -1f, 1f })
+                        Part(body, PrimitiveType.Cube, new Vector3(sx * 0.05f, 0.74f, 0.21f), new Vector3(0.03f, 0.2f, 0.02f), it.cuff, it.glowCuff, new Vector3(0, 0, sx * 12f));
+                    foreach (var sl in sleeves) Scale(sl, new Vector3(1.05f, 1.35f, 1.4f));
+                    var mizu = Holder(doll.head, "水引"); _styleObjs.Add(mizu.gameObject);
+                    mizu.localPosition = new Vector3(0, -0.12f, -0.22f);
+                    Part(mizu, PrimitiveType.Cube, Vector3.zero, new Vector3(0.14f, 0.05f, 0.04f), it.cuff, it.glowCuff);
+                    Part(mizu, PrimitiveType.Cube, new Vector3(0, -0.06f, 0), new Vector3(0.06f, 0.12f, 0.03f), White);
+                    break;
+                case 2: // ドレス：裾を広げて2段のフリル、ふくらんだ肩、背中の大きなリボン
+                    Scale(robe, new Vector3(1.45f, 1f, 1.45f));
+                    Part(body, PrimitiveType.Cylinder, new Vector3(0, 0.05f, 0), new Vector3(1.38f, 0.045f, 1.38f), it.layers != null ? it.layers[0] : White, it.glowCuff);
+                    Part(body, PrimitiveType.Cylinder, new Vector3(0, 0.2f, 0), new Vector3(1.18f, 0.04f, 1.18f), it.robe2);
+                    Part(body, PrimitiveType.Cylinder, new Vector3(0, 0.36f, 0), new Vector3(0.98f, 0.035f, 0.98f), it.layers != null ? it.layers[0] : White, it.glowCuff);
+                    foreach (float sx in new[] { -1f, 1f })
+                    {
+                        Part(body, PrimitiveType.Sphere, new Vector3(sx * 0.25f, 1.2f, 0), new Vector3(0.24f, 0.2f, 0.26f), it.sleeve);
+                        Part(body, PrimitiveType.Cube, new Vector3(sx * 0.13f, 0.98f, -0.22f), new Vector3(0.22f, 0.16f, 0.05f), it.sash, false, new Vector3(0, 0, sx * -18f));
+                        Part(body, PrimitiveType.Cube, new Vector3(sx * 0.06f, 0.78f, -0.23f), new Vector3(0.07f, 0.32f, 0.03f), it.sash, false, new Vector3(0, 0, sx * 10f));
+                    }
+                    Part(body, PrimitiveType.Sphere, new Vector3(0, 0.98f, -0.21f), Vector3.one * 0.09f, it.sash);
+                    break;
+                case 3: // 十二単ふう：裾と袖口に色を重ね、うしろに長い裾をひく
+                    Scale(robe, new Vector3(1.22f, 1f, 1.22f));
+                    var lay = it.layers ?? new[] { it.robe2 };
+                    for (int i = 0; i < lay.Length; i++)
+                    {
+                        float k = 1.18f + i * 0.045f;
+                        Part(body, PrimitiveType.Cylinder, new Vector3(0, 0.025f + (lay.Length - 1 - i) * 0.03f, 0), new Vector3(k, 0.022f, k), lay[i], it.glowCuff && i == lay.Length - 1);
+                    }
+                    for (int i = 0; i < lay.Length; i++)
+                        Part(body, PrimitiveType.Cube, new Vector3(0, 0.02f + i * 0.012f, -0.62f - i * 0.05f), new Vector3(0.75f - i * 0.08f, 0.02f, 0.95f - i * 0.06f), i == 0 ? it.robe : lay[i - 1], false, new Vector3(-4f, 0, 0));
+                    foreach (var sl in sleeves) Scale(sl, new Vector3(1.12f, 1.4f, 1.55f));
+                    foreach (var arm in new[] { doll.armL, doll.armR })
+                    {
+                        if (arm == null) continue;
+                        var h = ArmHolder(arm);
+                        for (int i = 0; i < lay.Length; i++)
+                            Part(h, PrimitiveType.Cube, new Vector3(0, -0.47f - i * 0.035f, 0), new Vector3(0.2f + i * 0.012f, 0.03f, 0.42f + i * 0.02f), lay[i], it.glowCuff && i == lay.Length - 1);
+                    }
+                    // 襟元の重ね
+                    for (int i = 0; i < lay.Length; i++)
+                        Part(body, PrimitiveType.Cube, new Vector3(0, 1.21f - i * 0.02f, 0.13f + i * 0.006f), new Vector3(0.2f - i * 0.025f, 0.05f, 0.03f), lay[i], false, new Vector3(10, 0, 45));
+                    break;
+            }
         }
 
         // ───────── 飾り ─────────

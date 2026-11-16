@@ -9,6 +9,10 @@ namespace Tsukuyomi
     public partial class Hud
     {
         static bool _book;
+        static ShipBooth _shipAsk;
+        static bool _shipBusy;
+        static string _shipMsg;
+        public static bool ShipAskOpen => _shipAsk != null;
         static int _bookTab, _bookSel = -1;
 
         public static void OpenBook(int tab)
@@ -23,12 +27,14 @@ namespace Tsukuyomi
         /// <summary>E と B（お店より先に見る）。E を使ったら true。</summary>
         bool ActivityKeys()
         {
-            if (_menu || _map || ShopOpen || player == null) return false;
+            if (_menu || _map || ShopOpen || _shipAsk != null || player == null) return false;
             if (Input.GetKeyDown(KeyCode.B)) { if (_book) _book = false; else OpenBook(0); return false; }
             if (_book || !Input.GetKeyDown(KeyCode.E) || PlayerController.Fly) return false;
             if (Fishing.Busy) { Fishing.I.Stop(); Toast("竿をしまいました"); return true; }
             if (Rest.Sitting) { Rest.I.Stand(); return true; }
             if (ShopStand.Near(player.Position, 3.2f) != null) return false;
+            var booth = ShipBooth.Near(player.Position, 2.4f);
+            if (booth != null && SkyShip.I != null) { _shipAsk = booth; _shipMsg = SkyShip.I.CanBook(booth.atLookout); _shipBusy = false; RefreshBalance(); return true; }
             if (Rest.I != null && Rest.I.Near(out var s, out int k)) { Rest.I.Sit(s, k); return true; }
             if (RankBoard.Near(player.Position, 2.6f) != null) { OpenBook(1); return true; }
             if (Fishing.I != null && Fishing.I.CanStart) { Fishing.I.Begin(); return true; }
@@ -87,7 +93,26 @@ namespace Tsukuyomi
                     Text(new Rect(r.x, r.y + 22, r.width, 40), "大物番付", 24, new Color(1, 1, 1, al), TextAnchor.MiddleCenter, false, FontStyle.Bold);
                 }
             if (PlayerController.Fly || ShopStand.Near(player.Position, 3.2f) != null) return;
-            if (Rest.I != null && Rest.I.Near(out _, out _)) Prompt("E ▸ すわる");
+            // 遊覧船の切符売り場の看板と、乗っている間の案内
+            if (c != null)
+                foreach (var b in ShipBooth.All)
+                {
+                    var v = b.sign - c.transform.position;
+                    float dist = v.magnitude;
+                    if (dist > 45f || Vector3.Dot(v, c.transform.forward) < 0) continue;
+                    var sp = c.WorldToScreenPoint(b.sign);
+                    float x = sp.x / S, y = (Screen.height - sp.y) / S;
+                    float al = Mathf.Clamp01((45f - dist) / 10f);
+                    var r = new Rect(x - 150, y - 34, 300, 68);
+                    Panel(r, al);
+                    Fill(new Rect(r.x, r.y, 4, r.height), new Color(Gold.r, Gold.g, Gold.b, al));
+                    Text(new Rect(r.x, r.y + 5, r.width, 18), "SKY CRUISE ▸ " + SkyShip.Price + " FUJU", 13, new Color(Cyan.r, Cyan.g, Cyan.b, al), TextAnchor.UpperCenter, true);
+                    Text(new Rect(r.x, r.y + 22, r.width, 40), "遊覧船「月の舟」", 24, new Color(1, 1, 1, al), TextAnchor.MiddleCenter, false, FontStyle.Bold);
+                }
+            if (SkyShip.I != null && SkyShip.I.RiderAboard && !string.IsNullOrEmpty(SkyShip.I.Status))
+                Text(new Rect(W - 640, 110, 600, 26), "遊覧船 ▸ " + SkyShip.I.Status, 18, new Color(Gold.r, Gold.g, Gold.b, 0.9f), TextAnchor.UpperRight);
+            if (ShipBooth.Near(player.Position, 2.4f) != null) Prompt($"E ▸ 遊覧船に乗る（{SkyShip.Price} ふじゅ〜）");
+            else if (Rest.I != null && Rest.I.Near(out _, out _)) Prompt("E ▸ すわる");
             else if (RankBoard.Near(player.Position, 2.6f) != null) Prompt("E ▸ 大物番付を見る");
             else if (f != null && f.CanStart) Prompt("E ▸ 釣りをする");
         }
@@ -158,6 +183,43 @@ namespace Tsukuyomi
             string tags = (res.isNew ? "図鑑に登録！　" : "") + (res.isBest ? "自己ベスト！　" : "") + (res.weekBest && res.weekRank > 0 ? $"今週の番付 {res.weekRank}位" : "");
             if (tags.Length > 0) Text(new Rect(r.x, r.y + 290, r.width, 30), tags, 21, new Color(Pink.r, Pink.g, Pink.b, a), TextAnchor.MiddleCenter);
             Text(new Rect(r.x + 24, r.y + 326, r.width - 48, 60), k.desc, 19, new Color(1, 1, 1, 0.85f * a), TextAnchor.MiddleCenter);
+        }
+
+        // ───────── 遊覧船の切符 ─────────
+
+        void DrawShipAsk()
+        {
+            Fill(new Rect(0, 0, W, H), new Color(0.01f, 0.03f, 0.08f, 0.45f));
+            var r = new Rect(W / 2 - 380, H / 2 - 200, 760, 400);
+            Fill(r, new Color(0.01f, 0.03f, 0.08f, 0.92f));
+            Panel(r);
+            Text(new Rect(r.x, r.y + 22, r.width, 22), "SKY CRUISE", 16, Cyan, TextAnchor.MiddleCenter, true);
+            Text(new Rect(r.x, r.y + 50, r.width, 50), "遊覧船「月の舟」", 38, Color.white, TextAnchor.MiddleCenter, false, FontStyle.Bold);
+            Text(new Rect(r.x + 30, r.y + 110, r.width - 60, 60), _shipAsk.atLookout
+                ? $"月見台まで迎えに来て、空を{SkyShip.Laps}周（約4分）して月見台にもどります。"
+                : $"桟橋からすぐ出航して、空を{SkyShip.Laps}周（約4分）して桟橋にもどります。", 21, new Color(1, 1, 1, 0.85f), TextAnchor.MiddleCenter);
+            Text(new Rect(r.x, r.y + 172, r.width, 40), $"{SkyShip.Price} ふじゅ〜で乗りますか？", 30, Gold, TextAnchor.MiddleCenter);
+            Text(new Rect(r.x, r.y + 214, r.width, 28), _shipMsg ?? BalanceText(), 19, _shipMsg != null ? Pink : new Color(1, 1, 1, 0.7f), TextAnchor.MiddleCenter);
+            if (_shipBusy) { Text(new Rect(r.x, r.y + 290, r.width, 40), "ミニヤチヨにふじゅ〜を送っています…", 22, Gold, TextAnchor.MiddleCenter); return; }
+            bool can = SkyShip.I != null && SkyShip.I.CanBook(_shipAsk.atLookout) == null;
+            if (can && Button(new Rect(r.x + 70, r.y + 280, 290, 70), "はい、乗る")) BuyShip();
+            if (Button(new Rect(r.xMax - 360, r.y + 280, 290, 70), "やめる（Esc）")) _shipAsk = null;
+        }
+
+        void BuyShip()
+        {
+            var booth = _shipAsk;
+            _shipBusy = true;
+            var ticket = new Item { id = "yuransen", name = "遊覧船「月の舟」", price = SkyShip.Price, kind = ItemKind.Food };
+            StartCoroutine(Fuju.Buy(ticket, res =>
+            {
+                _shipBusy = false;
+                if (!res.ok) { _shipMsg = string.IsNullOrEmpty(res.error) ? "払えませんでした" : res.error; return; }
+                _shipAsk = null;
+                if (SkyShip.I == null) return;
+                if (booth.atLookout) SkyShip.I.CallToLookout(); else SkyShip.I.BookAtSea();
+                Toast($"遊覧船の切符を買いました（{SkyShip.Price} ふじゅ〜）　残り {Catalog.Yen(res.fuju)} ふじゅ〜");
+            }));
         }
 
         // ───────── 図鑑と番付 ─────────

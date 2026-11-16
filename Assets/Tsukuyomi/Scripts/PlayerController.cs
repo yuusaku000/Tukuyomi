@@ -88,7 +88,7 @@ namespace Tsukuyomi
             {
                 if (_vy < 0) _vy = -2f;
                 if (!Hud.Blocked && Input.GetKeyDown(KeyCode.Space) && !InWater) _vy = jumpSpeed;
-                if (transform.position.y > 0.6f && !InWater) { _safePos = transform.position; _safeYaw = transform.eulerAngles.y; }
+                if (transform.position.y > 0.6f && !InWater && (SkyShip.I == null || !SkyShip.I.OnDeck(transform.position))) { _safePos = transform.position; _safeYaw = transform.eulerAngles.y; }
             }
             _vy += gravity * Time.deltaTime;
             _cc.Move((_move + Vector3.up * _vy) * Time.deltaTime);
@@ -103,6 +103,18 @@ namespace Tsukuyomi
                 Teleport(_safePos + Vector3.up * 0.2f, _safeYaw);
                 Hud.Toast("水に落ちちゃった！ 岸にもどりました");
             }
+        }
+
+        /// <summary>乗り物（遊覧船）といっしょに動かす：歩く勢いは消さない。</summary>
+        public void Carry(Vector3 delta, float yawDelta)
+        {
+            transform.position += delta;
+            if (Mathf.Abs(yawDelta) > 0.0001f)
+            {
+                transform.Rotate(0, yawDelta, 0, Space.World);
+                if (cam != null) cam.yaw += yawDelta;
+            }
+            Physics.SyncTransforms();
         }
 
         public void Teleport(Vector3 pos, float yaw)

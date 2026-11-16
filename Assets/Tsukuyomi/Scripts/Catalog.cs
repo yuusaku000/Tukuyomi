@@ -21,6 +21,9 @@ namespace Tsukuyomi
         // 服の色（すそ・帯など）。hasTop のときは上半身だけ top の色（袴ふう）
         public Color robe, robe2, sleeve, cuff, sash, accent, top;
         public bool glowCuff, hasTop;
+        // 服の形：0 ふつう・1 巫女装束（袴のひだと大きな袖）・2 和洋折衷のドレス（ひろがる裾とフリル）・3 十二単ふう（重ねた裾と袖・引きずる裾）
+        public int style;
+        public Color[] layers;
         // 食べ物：手に持つ形と色、食べたときのひとこと
         public FoodShape shape;
         public Color c1, c2, c3;
@@ -48,6 +51,30 @@ namespace Tsukuyomi
         /// <summary>袴ふう：上（着物）と下（袴）で色がちがう。</summary>
         static Item Hakama(string shop, string id, string name, int price, string desc, Color top, Color hakama, Color sleeve, Color cuff, Color sash) =>
             new Item { shop = shop, id = id, name = name, price = price, desc = desc, kind = ItemKind.Clothes, robe = hakama, robe2 = Color.Lerp(hakama, Color.black, 0.3f), sleeve = sleeve, cuff = cuff, sash = sash, accent = sash, top = top, hasTop = true };
+
+        /// <summary>巫女装束：白い上と、色の袴。</summary>
+        static Item Miko(string id, string name, int price, string desc, Color top, Color hakama, Color cuff, bool glow = false)
+        {
+            var it = Hakama("fudan", id, name, price, desc, top, hakama, top, cuff, hakama);
+            it.style = 1; it.glowCuff = glow; it.accent = cuff;
+            return it;
+        }
+
+        /// <summary>和洋折衷のドレス：ふわっと広がる裾に、2段のフリル（lace と robe2）。</summary>
+        static Item Dress(string id, string name, int price, string desc, Color robe, Color frill, Color lace, Color sash, bool glow = false)
+        {
+            var it = Clothes("furisode", id, name, price, desc, robe, frill, Color.Lerp(robe, Color.white, 0.2f), lace, sash, lace, glow);
+            it.style = 2; it.layers = new[] { lace };
+            return it;
+        }
+
+        /// <summary>十二単ふう：裾と袖口に色を何枚も重ねる（layers は外から内へ）。</summary>
+        static Item Juni(string id, string name, int price, string desc, Color robe, Color sash, Color[] layers, bool glow = false)
+        {
+            var it = Clothes("furisode", id, name, price, desc, robe, layers[0], robe, layers[layers.Length - 1], sash, layers[1], glow);
+            it.style = 3; it.layers = layers;
+            return it;
+        }
 
         static Item Acc(string id, string name, Slot slot, int price, string desc) =>
             new Item { shop = "komono", id = id, name = name, price = price, desc = desc, kind = ItemKind.Accessory, slot = slot };
@@ -113,6 +140,25 @@ namespace Tsukuyomi
                 C(0.95f, 0.95f, 0.95f), C(0.15f, 0.18f, 0.35f), C(0.95f, 0.95f, 0.95f), C(0.15f, 0.18f, 0.35f), C(0.15f, 0.18f, 0.35f)),
             Hakama("fudan", "jogakusei", "女学生の袴", 3200, "矢絣のむらさきの着物に、えび茶の袴。",
                 C(0.72f, 0.5f, 0.8f), C(0.5f, 0.15f, 0.18f), C(0.78f, 0.58f, 0.85f), C(0.5f, 0.15f, 0.18f), C(0.95f, 0.85f, 0.4f)),
+
+            // ───────── 服：巫女装束（ふだん着の店）─────────
+            Miko("miko", "巫女装束", 3500, "白い小袖に緋袴。神楽殿にお参りするときに。", C(0.97f, 0.97f, 0.97f), C(0.82f, 0.1f, 0.12f), C(0.82f, 0.1f, 0.12f)),
+            Miko("miko_yoru", "夜神楽の巫女装束", 4000, "むらさきの袴に、金色にひかる袖口。", C(0.97f, 0.96f, 0.98f), C(0.38f, 0.16f, 0.48f), C(1f, 0.8f, 0.35f), true),
+            Miko("miko_tsuki", "月の巫女装束", 4000, "紺の袴と、月の光のような空色の袖口。", C(0.93f, 0.95f, 1f), C(0.12f, 0.15f, 0.36f), C(0.55f, 0.85f, 1f), true),
+
+            // ───────── 服：和洋折衷のドレス（振袖と晴れ着の店）─────────
+            Dress("dress_sakura", "桜のドレス着物", 4500, "ふわっと広がる桜色の裾に、白いフリル。", C(1f, 0.72f, 0.82f), C(0.95f, 0.5f, 0.65f), C(1f, 0.98f, 0.98f), C(0.6f, 0.15f, 0.3f)),
+            Dress("dress_sora", "空色のドレス着物", 4800, "空色と白の、すずしげなドレス着物。", C(0.6f, 0.82f, 1f), C(0.35f, 0.55f, 0.9f), C(1f, 1f, 1f), C(0.95f, 0.85f, 0.45f)),
+            Dress("dress_kurobara", "黒薔薇のドレス着物", 5000, "黒い裾に、紅のフリル。夜のツクヨミに。", C(0.08f, 0.07f, 0.1f), C(0.75f, 0.08f, 0.15f), C(0.2f, 0.18f, 0.22f), C(0.75f, 0.08f, 0.15f)),
+            Dress("dress_ruri", "瑠璃のドレス着物", 5500, "深い瑠璃色に、金色にひかるフリル。", C(0.12f, 0.2f, 0.55f), C(0.2f, 0.32f, 0.75f), C(1f, 0.82f, 0.4f), C(1f, 0.82f, 0.4f), true),
+
+            // ───────── 服：十二単ふう（振袖と晴れ着の店）─────────
+            Juni("juni_sakura", "桜がさねの十二単", 6000, "白・薄紅・紅・若葉を重ねた、春のかさね。", C(0.98f, 0.85f, 0.9f), C(0.85f, 0.2f, 0.35f),
+                new[] { C(1f, 0.97f, 0.97f), C(1f, 0.75f, 0.83f), C(0.9f, 0.35f, 0.5f), C(0.55f, 0.75f, 0.4f) }),
+            Juni("juni_momiji", "紅葉がさねの十二単", 6000, "紅・朱・山吹・萌黄を重ねた、秋のかさね。", C(0.7f, 0.12f, 0.12f), C(0.95f, 0.75f, 0.3f),
+                new[] { C(0.95f, 0.45f, 0.15f), C(0.98f, 0.75f, 0.25f), C(0.85f, 0.2f, 0.12f), C(0.55f, 0.6f, 0.2f) }),
+            Juni("juni_tsukikage", "月影がさねの十二単", 6000, "むらさき・藍・銀を重ねた、袖口がひかる夜のかさね。", C(0.3f, 0.2f, 0.45f), C(0.75f, 0.8f, 0.95f),
+                new[] { C(0.85f, 0.88f, 0.98f), C(0.45f, 0.35f, 0.75f), C(0.18f, 0.22f, 0.5f), C(0.6f, 0.85f, 1f) }, true),
 
             // ───────── 飾り（小間物屋。どの支店も同じ）─────────
             Acc("kanzashi", "桜のかんざし", Slot.Head, 1000, "髪にさす、桜の花のかんざし。"),
