@@ -1,0 +1,26 @@
+# Unity が自動で作るもの（入れない）
+/[Ll]ibrary/
+/[Tt]emp/
+/[Oo]bj/
+/[Ll]ogs/
+/[Uu]ser[Ss]ettings/
+/[Bb]uild/
+/[Bb]uilds/
+/dist/
+/MemoryCaptures/
+*.csproj
+*.sln
+*.suo
+*.user
+*.pidb
+*.booproj
+*.unityproj
+.vs/
+.vscode/
+.idea/
+*.pdb
+*.mdb
+*.apk
+*.aab
+crashlytics-build.properties
+sysinfo.txt
