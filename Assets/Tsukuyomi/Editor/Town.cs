@@ -220,6 +220,14 @@ namespace Tsukuyomi.EditorTools
                     prevOk = true;
                     if (i % 2 == 0) Reserve(p, s.half + 0.4f);
                 }
+                if (waterStart >= 0)
+                {
+                    // 道が水の中で終わっている：その場所に川をまっすぐ横切る橋を
+                    var e = s.pts[waterStart];
+                    Island.Channel near = null; float bd = float.MaxValue;
+                    foreach (var c in Island.Channels) { float d = Island.DistToChannel(c, e.x, e.y, out _); if (d < bd) { bd = d; near = c; } }
+                    if (near != null && bd < near.half + 2f) PerpBridge(g, s, near, e, "ends in water");
+                }
                 if (t.Count == 0) continue;
                 var m = new Mesh { name = "street_" + si, indexFormat = IndexFormat.UInt32 };
                 m.SetVertices(v); m.SetUVs(0, uv); m.SetTriangles(t, 0);
@@ -252,7 +260,7 @@ namespace Tsukuyomi.EditorTools
                 var t = Mathf.Clamp01(Vector2.Dot(mid - p0, p1 - p0) / (p1 - p0).sqrMagnitude);
                 if (Vector2.Distance(mid, Vector2.Lerp(p0, p1, t)) <= best + 0.01f) { flow = (p1 - p0).normalized; break; }
             }
-            if (Mathf.Abs(Vector2.Dot(flow, dir)) > 0.7f) { Debug.Log("[Tsukuyomi] bridge skipped (along the river): " + s.name); return; }
+            if (Mathf.Abs(Vector2.Dot(flow, dir)) > 0.7f) { PerpBridge(g, s, ch, s.pts[i0], "along the river"); return; }
             a -= dir * 1.8f; b += dir * 1.8f;
             float ya = Island.SurfaceNoWater(a.x, a.y), yb = Island.SurfaceNoWater(b.x, b.y);
             if (Mathf.Abs(ya - yb) > 0.4f) { Debug.Log("[Tsukuyomi] bridge skipped (waterfall): " + s.name); return; }
@@ -264,7 +272,7 @@ namespace Tsukuyomi.EditorTools
             float span = Vector2.Distance(a, b);
             if (span < 3f || span > 18f) { Debug.Log("[Tsukuyomi] bridge skipped (span " + span.ToString("0.0") + "): " + s.name); return; }
             // 橋をわたった先に、ちゃんと道が続いていること（橋の先が草むら、をなくす）
-            if (!RibbonAt(a - dir * 1.2f) || !RibbonAt(b + dir * 1.2f)) { Debug.Log("[Tsukuyomi] bridge skipped (no road beyond): " + s.name); return; }
+            if (!RibbonAt(a - dir * 1.2f) || !RibbonAt(b + dir * 1.2f)) { PerpBridge(g, s, ch, s.pts[i0], "no road beyond"); return; }
             foreach (var (pa, pb) in BridgesMade) if (Vector2.Distance((pa + pb) / 2, (a + b) / 2) < 5f) return;
             BridgesMade.Add((a, b));
             float y = Mathf.Max(ya, yb);
@@ -272,6 +280,40 @@ namespace Tsukuyomi.EditorTools
             float arch = ch.name == "下町の水路" ? Mathf.Max(2.6f, span * 0.2f) : Mathf.Min(1.5f, span * 0.1f);
             Bridge(g, s.name + "の橋", new Vector3(a.x, y, a.y), new Vector3(b.x, y, b.y), s.half * 2 + 0.6f, arch, 16);
             Reserve((a + b) / 2, span / 2 + 1f);
+        }
+
+        /// <summary>
+        /// 道がななめに川へ入る所・向こう岸に道がない所：その場所で川をまっすぐ横切る短い橋をかけ、両岸の川ぞいの道へつなぐ。
+        /// </summary>
+        static void PerpBridge(Transform g, Street s, Island.Channel ch, Vector2 entry, string why)
+        {
+            Vector2 c = entry; float best = float.MaxValue;
+            for (int k = 0; k < ch.pts.Length - 1; k++)
+            {
+                var p0 = ch.pts[k]; var p1 = ch.pts[k + 1];
+                var q = Vector2.Lerp(p0, p1, Mathf.Clamp01(Vector2.Dot(entry - p0, p1 - p0) / (p1 - p0).sqrMagnitude));
+                float d = Vector2.Distance(q, entry);
+                if (d < best) { best = d; c = q; }
+            }
+            var n = entry - c;
+            if (n.sqrMagnitude < 0.01f) { Debug.Log($"[Tsukuyomi] bridge skipped ({why}, in the water): " + s.name); return; }
+            n.Normalize();
+            var a = c + n * (ch.half + 1.8f); var b = c - n * (ch.half + 1.8f);
+            float ya = Island.SurfaceNoWater(a.x, a.y), yb = Island.SurfaceNoWater(b.x, b.y);
+            for (float t = 0; t <= 1f; t += 0.1f)
+            {
+                var q = Vector2.Lerp(a, b, t);
+                if (Mathf.Abs(Island.SurfaceNoWater(q.x, q.y) - ya) > 0.5f) { Debug.Log($"[Tsukuyomi] bridge skipped ({why}, fall): " + s.name); return; }
+            }
+            if (Mathf.Abs(ya - yb) > 0.4f) { Debug.Log($"[Tsukuyomi] bridge skipped ({why}, fall): " + s.name); return; }
+            if (!RibbonAt(a + n * 1.2f) || !RibbonAt(b - n * 1.2f)) { Debug.Log($"[Tsukuyomi] bridge skipped ({why}, no bank road): " + s.name); return; }
+            foreach (var (pa, pb) in BridgesMade) if (Vector2.Distance((pa + pb) / 2, (a + b) / 2) < 6f) return;   // すぐ近くに橋がある
+            BridgesMade.Add((a, b));
+            float y = Mathf.Max(ya, yb);
+            float arch = ch.name == "下町の水路" ? 2.6f : 1.0f;
+            Bridge(g, s.name + "の橋", new Vector3(a.x, y, a.y), new Vector3(b.x, y, b.y), Mathf.Min(s.half * 2 + 0.6f, 5f), arch, 16);
+            Reserve(c, ch.half + 3f);
+            Debug.Log($"[Tsukuyomi] straight bridge ({why}): " + s.name);
         }
 
         // ───────── 石段 ─────────

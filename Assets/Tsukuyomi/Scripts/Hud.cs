@@ -116,7 +116,7 @@ namespace Tsukuyomi
             var zone = Zone.At(p);
             var lines = new[]
             {
-                $"DEBUG [F3]   ver {Application.version}   fps {_fps:0}   gfx {Quality.Name}   {Screen.width}x{Screen.height}",
+                $"DEBUG [F3]   ver {Application.version}   fps {_fps:0}   gfx {Quality.Name}   {Screen.width}x{Screen.height}" + (PlayerController.Fly ? "   FLY [F4]" : "   飛ぶ [F4]"),
                 $"PLAYER  x {p.x:0.0}   y {p.y:0.00}   z {p.z:0.0}   向き {player.Yaw:0}°",
                 $"CAMERA  yaw {Mathf.Repeat(cam.yaw, 360):0}°   pitch {cam.pitch:0}°   {(cam.firstPerson ? "一人称" : "三人称")}   距離 {cam.distance:0.0}",
                 $"GROUND  地面 {Island.Height(p.x, p.z):0.00}   段 {TerraceName(p.x, p.z)}   水面 {(float.IsNaN(ws) ? "なし" : ws.ToString("0.00"))}   島のふちまで {Island.Inside(p.x, p.z):0.0}m",
@@ -505,7 +505,7 @@ namespace Tsukuyomi
             y += 82;
             if (Button(new Rect(r.x + 90, y, 440, 66), "ログアウト（終わる）")) GameSession.Instance?.Logout();
             Text(new Rect(r.x, r.yMax - 100, r.width, 90),
-                "WASD・矢印 歩く　Shift 走る　Space ジャンプ　V 視点\nマウス 見回す　ホイール 近づく・離れる（いちばん近くで一人称）\nF3 デバッグ表示　F12 写真（メニューの「写真のフォルダを開く」で見られます）",
+                "WASD・矢印 歩く　Shift 走る　Space ジャンプ　V 視点\nマウス 見回す　ホイール 近づく・離れる（いちばん近くで一人称）\nF3 デバッグ表示　F4 飛行（デバッグ）　F12 写真（メニューの「写真のフォルダを開く」で見られます）",
                 17, new Color(1, 1, 1, 0.75f), TextAnchor.UpperCenter);
         }
 

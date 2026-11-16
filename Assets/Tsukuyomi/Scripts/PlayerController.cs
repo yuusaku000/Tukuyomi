@@ -16,6 +16,9 @@ namespace Tsukuyomi
         Vector3 _safePos;
         float _safeYaw;
 
+        /// <summary>デバッグ用の飛行モード（F4）。壁もすりぬける。Space で上、Ctrl / Q で下、Shift で速く。</summary>
+        public static bool Fly;
+
         public Vector3 Position => transform.position;
         public float Yaw => transform.eulerAngles.y;
         public bool InWater => transform.position.y < 0.25f || Island.InWater(transform.position);
@@ -37,6 +40,30 @@ namespace Tsukuyomi
                 if (Input.GetKey(KeyCode.A) || Input.GetKey(KeyCode.LeftArrow)) input.x -= 1;
             }
             input = Vector2.ClampMagnitude(input, 1);
+            if (!Hud.Blocked && !Ts.ShotMode && Input.GetKeyDown(KeyCode.F4))
+            {
+                Fly = !Fly;
+                _cc.enabled = !Fly;
+                _vy = 0;
+                Hud.Toast(Fly ? "飛行モード（F4 でもどる）：Space 上・Ctrl/Q 下・Shift 速く" : "歩きにもどりました");
+            }
+            if (Fly)
+            {
+                float yawF = cam != null ? cam.yaw : 0;
+                var f = Quaternion.Euler(0, yawF, 0) * Vector3.forward;
+                var rgt = Quaternion.Euler(0, yawF, 0) * Vector3.right;
+                float up = 0;
+                if (!Hud.Blocked && !Ts.ShotMode)
+                {
+                    if (Input.GetKey(KeyCode.Space) || Input.GetKey(KeyCode.E)) up += 1;
+                    if (Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.Q)) up -= 1;
+                }
+                float sp = Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift) ? 40f : 12f;
+                transform.position += (f * input.y + rgt * input.x + Vector3.up * up) * sp * Time.deltaTime;
+                transform.rotation = Quaternion.Euler(0, yawF, 0);
+                if (doll != null) doll.speed = 0;
+                return;
+            }
             float camYaw = cam != null ? cam.yaw : 0;
             var fwd = Quaternion.Euler(0, camYaw, 0) * Vector3.forward;
             var right = Quaternion.Euler(0, camYaw, 0) * Vector3.right;
@@ -79,7 +106,7 @@ namespace Tsukuyomi
             if (_cc == null) _cc = GetComponent<CharacterController>();
             _cc.enabled = false;
             transform.SetPositionAndRotation(pos, Quaternion.Euler(0, yaw, 0));
-            _cc.enabled = true;
+            _cc.enabled = !Fly;
             _move = Vector3.zero; _vy = 0;
             _safePos = pos; _safeYaw = yaw;
             if (cam != null) { cam.yaw = yaw; cam.Snap(); }
