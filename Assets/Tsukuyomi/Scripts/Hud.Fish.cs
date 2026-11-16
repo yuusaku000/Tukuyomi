@@ -27,11 +27,12 @@ namespace Tsukuyomi
         /// <summary>E と B（お店より先に見る）。E を使ったら true。</summary>
         bool ActivityKeys()
         {
-            if (_menu || _map || ShopOpen || _shipAsk != null || player == null) return false;
+            if (_menu || _map || ShopOpen || _shipAsk != null || _talk || player == null) return false;
             if (Input.GetKeyDown(KeyCode.B)) { if (_book) _book = false; else OpenBook(0); return false; }
             if (_book || !Input.GetKeyDown(KeyCode.E) || PlayerController.Fly) return false;
             if (Fishing.Busy) { Fishing.I.Stop(); Toast("竿をしまいました"); return true; }
             if (Rest.Sitting) { Rest.I.Stand(); return true; }
+            if (YachiyoNpc.Near(player.Position, 2.8f) != null) { OpenTalk(); return true; }
             if (ShopStand.Near(player.Position, 3.2f) != null) return false;
             var booth = ShipBooth.Near(player.Position, 2.4f);
             if (booth != null && SkyShip.I != null) { _shipAsk = booth; _shipMsg = SkyShip.I.CanBook(booth.atLookout); _shipBusy = false; RefreshBalance(); return true; }
@@ -111,7 +112,8 @@ namespace Tsukuyomi
                 }
             if (SkyShip.I != null && SkyShip.I.RiderAboard && !string.IsNullOrEmpty(SkyShip.I.Status))
                 Text(new Rect(W - 640, 110, 600, 26), "遊覧船 ▸ " + SkyShip.I.Status, 18, new Color(Gold.r, Gold.g, Gold.b, 0.9f), TextAnchor.UpperRight);
-            if (ShipBooth.Near(player.Position, 2.4f) != null) Prompt($"E ▸ 遊覧船に乗る（{SkyShip.Price} ふじゅ〜）");
+            if (YachiyoNpc.Near(player.Position, 2.8f) != null) Prompt("E ▸ ヤチヨに話しかける");
+            else if (ShipBooth.Near(player.Position, 2.4f) != null) Prompt($"E ▸ 遊覧船に乗る（{SkyShip.Price} ふじゅ〜）");
             else if (Rest.I != null && Rest.I.Near(out _, out _)) Prompt("E ▸ すわる");
             else if (RankBoard.Near(player.Position, 2.6f) != null) Prompt("E ▸ 大物番付を見る");
             else if (f != null && f.CanStart) Prompt("E ▸ 釣りをする");

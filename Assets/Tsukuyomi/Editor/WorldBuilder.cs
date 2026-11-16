@@ -291,6 +291,26 @@ namespace Tsukuyomi.EditorTools
             }
             Toro(g, new Vector3(-6.5f, G, -64.5f), true);
             Toro(g, new Vector3(6.5f, G, -64.5f), true);
+            // ヤチヨ（話しかけると、夜にしてくれたりライブにつないでくれたりする）
+            {
+                var yp = new Vector3(-3.6f, G, -64.8f);
+                var yr = new GameObject("ヤチヨ").transform;
+                yr.SetParent(_deco, false);
+                yr.SetPositionAndRotation(yp, Quaternion.Euler(0, 160f, 0));
+                var doll = Doll.Build("ヤチヨの人形", DollLook.Yachiyo, ColorMat, yr);
+                doll.root.transform.localScale = Vector3.one * 0.95f;
+                var ring = Group(_deco, "ヤチヨの光の輪", yp + Vector3.up * 0.03f);
+                for (int i = 0; i < 16; i++)
+                {
+                    float a = i * Mathf.PI * 2 / 16;
+                    var seg = Box(ring, "輪", new Vector3(Mathf.Cos(a) * 0.9f, 0, Mathf.Sin(a) * 0.9f), new Vector3(0.34f, 0.02f, 0.06f), i % 2 == 0 ? GlowPink : GlowCyan);
+                    seg.transform.localRotation = Quaternion.Euler(0, -a * Mathf.Rad2Deg + 90f, 0);
+                }
+                var npc = yr.gameObject.AddComponent<YachiyoNpc>();
+                npc.stand = yp + Quaternion.Euler(0, 160f, 0) * Vector3.forward * 1.3f;
+                npc.baseYaw = 160f;
+                npc.ring = ring;
+            }
             Box(g, "光の線", new Vector3(0, G + 0.02f, -68), new Vector3(0.12f, 0.02f, 11f), GlowCyan);
             Box(g, "光の線", new Vector3(0, G + 0.02f, -68), new Vector3(15f, 0.02f, 0.12f), GlowCyan);
 

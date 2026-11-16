@@ -61,6 +61,16 @@ namespace Tsukuyomi
                 _offset = DateTime.Today + want - DateTime.Now;
         }
 
+        /// <summary>現実の時刻からのずれ（ヤチヨに「夜にして」と頼んだときなど）。</summary>
+        public static TimeSpan Offset
+        {
+            get { var _ = Now; return _offset ?? TimeSpan.Zero; }
+            set => _offset = value;
+        }
+
+        /// <summary>時刻を動かしている最中（鐘や自動の遊覧船を鳴らさない・出さない）。</summary>
+        public static bool Shifting;
+
         /// <summary>現実の時刻（--time でずらせる）。</summary>
         public static DateTime Now
         {

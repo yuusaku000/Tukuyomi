@@ -100,6 +100,7 @@ namespace Tsukuyomi
                 { s.pitch = Random.Range(0.97f, 1.03f); s.PlayOneShot(_chimeClips[Random.Range(0, _chimeClips.Length)], Random.Range(0.4f, 1f) * amb); }
             }
             // 毎正時の鐘
+            if (now.Hour != _lastHour && Ts.Shifting) _lastHour = now.Hour; // 時刻を動かしている間は鳴らさない
             if (now.Hour != _lastHour)
             {
                 _lastHour = now.Hour;

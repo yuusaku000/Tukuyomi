@@ -236,7 +236,8 @@ namespace Tsukuyomi
             }
             if (Input.GetKeyDown(KeyCode.Escape))
             {
-                if (_shipAsk != null) { if (!_shipBusy) _shipAsk = null; }
+                if (_talk) CloseTalk();
+                else if (_shipAsk != null) { if (!_shipBusy) _shipAsk = null; }
                 else if (ShopOpen) CloseShop();
                 else if (_map) _map = false;
                 else if (_book) _book = false;
@@ -250,7 +251,7 @@ namespace Tsukuyomi
             if (Input.GetKeyDown(KeyCode.F12)) TakePhoto();
             bool usedE = ActivityKeys();
             ShopKeys(usedE);
-            Blocked = _menu || _map || ShopOpen || _book || _shipAsk != null;
+            Blocked = _menu || _map || ShopOpen || _book || _shipAsk != null || _talk;
 
             if (Blocked)
             {
@@ -442,6 +443,7 @@ namespace Tsukuyomi
             else if (ShopOpen) DrawShop();
             else if (_book) DrawBook();
             else if (_shipAsk != null) DrawShipAsk();
+            else if (_talk) DrawTalk();
             GUI.matrix = Matrix4x4.identity;
         }
 

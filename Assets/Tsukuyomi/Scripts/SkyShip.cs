@@ -44,7 +44,8 @@ namespace Tsukuyomi
         }
         readonly Queue<Leg> _legs = new Queue<Leg>();
         Leg _cur;
-        bool _paidRider, _riderOn; // _riderOn：空を飛んでいる間に甲板にいた
+        bool _paidRider, _riderOn;
+        float _bank; // _riderOn：空を飛んでいる間に甲板にいた
         int _lastAutoSlot = -1;
         PlayerController _pc;
         Matrix4x4 _prev;
@@ -285,6 +286,13 @@ namespace Tsukuyomi
                 }
             }
             pts.Add(J);
+            // 角をまるめる（急に曲がらないよう、水平の位置を何回かならす。はしの点はそのまま）
+            for (int pass = 0; pass < 40; pass++)
+                for (int i = 1; i < pts.Count - 1; i++)
+                {
+                    var a = pts[i - 1]; var b = pts[i + 1]; var m = pts[i];
+                    pts[i] = new Vector3(m.x * 0.5f + (a.x + b.x) * 0.25f, m.y, m.z * 0.5f + (a.z + b.z) * 0.25f);
+                }
             // 下の物より clearance 以上あけて、上り下りはなめらかに（前もって上がる）
             var h = new float[pts.Count];
             for (int i = 0; i < pts.Count; i++) h[i] = Mathf.Max(pts[i].y, Highest(pts[i]) + clearance);
@@ -314,6 +322,7 @@ namespace Tsukuyomi
             // 自動の1周（毎時0分・30分）
             var now = Ts.Now;
             int slot = now.Hour * 2 + now.Minute / 30;
+            if (Ts.Shifting) _lastAutoSlot = slot; // 夜にしてもらっている間に自動で飛び立たない
             if (slot != _lastAutoSlot && !Busy)
             {
                 if (RiderAboard) { if (!Ts.ShotMode) Hud.Toast("遊覧船に乗るときは、桟橋の切符売り場でどうぞ（500 ふじゅ〜）"); _lastAutoSlot = slot; }
@@ -331,14 +340,16 @@ namespace Tsukuyomi
                 if (_cur.pos != null)
                 {
                     var p = _cur.pos(k);
-                    var ahead = _cur.pos(Mathf.Min(1f, k + 0.01f)) - p;
+                    // 少し先（約3秒先）を見て向きを決め、1秒に 9° までしか曲がらない（急に向きを変えない）
+                    float look = Mathf.Min(1f, k + Mathf.Clamp(3f / Mathf.Max(1f, _cur.dur), 0.002f, 0.08f));
+                    var ahead = _cur.pos(look) - p;
                     ahead.y = 0;
-                    float yaw = transform.eulerAngles.y;
-                    if (ahead.sqrMagnitude > 1e-5f) yaw = Mathf.Atan2(ahead.x, ahead.z) * Mathf.Rad2Deg;
-                    // 着く前の数秒で、止まるときの向きにそろえる
-                    float bank = 0;
-                    var rot = Quaternion.Slerp(transform.rotation, Quaternion.Euler(0, yaw, bank), 1 - Mathf.Exp(-2.5f * dt));
-                    transform.SetPositionAndRotation(p, rot);
+                    float cur = transform.eulerAngles.y, yaw = cur;
+                    if (ahead.sqrMagnitude > 0.04f) yaw = Mathf.Atan2(ahead.x, ahead.z) * Mathf.Rad2Deg;
+                    float ny = Mathf.MoveTowardsAngle(cur, yaw, 9f * dt);
+                    // 曲がるときは少しだけ内がわへかたむく
+                    _bank = Mathf.Lerp(_bank, Mathf.Clamp(-Mathf.DeltaAngle(cur, ny) / Mathf.Max(dt, 1e-4f) * 0.35f, -4f, 4f), 1 - Mathf.Exp(-1.5f * dt));
+                    transform.SetPositionAndRotation(p, Quaternion.Euler(0, ny, _bank));
                 }
                 if (_cur.t >= _cur.dur)
                 {
@@ -356,7 +367,7 @@ namespace Tsukuyomi
             if (_cur != null && _cur.pos == null)
             {
                 float want = where == Where.Look ? lookYaw : seaYaw;
-                transform.rotation = Quaternion.Slerp(transform.rotation, Quaternion.Euler(0, want, 0), 1 - Mathf.Exp(-3f * dt));
+                transform.rotation = Quaternion.Euler(0, Mathf.MoveTowardsAngle(transform.eulerAngles.y, want, 9f * dt), 0);
             }
 
             // 甲板の人をいっしょに動かす
