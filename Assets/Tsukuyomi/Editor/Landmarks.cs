@@ -55,6 +55,8 @@ namespace Tsukuyomi.EditorTools
                 var p = center + Random2() * radius;
                 float off = Vector2.Dot(p - center, side);
                 if (Mathf.Abs(off) < 2.2f) continue; // 小道
+                if (Town.OnAnyStreet(p, 0.8f) || Island.NearestWater(p.x, p.y) < 1.5f) continue;
+                if (Mathf.Abs(Island.TerraceHeight(p.x, p.y) - Island.LevelTop(2)) > 0.2f) continue;
                 float h = R(9f, 15f);
                 float y = Island.Height(p.x, p.y);
                 var s = Cyl(g, "竹", new Vector3(p.x, y + h / 2, p.y), R(0.07f, 0.12f), h, stalk);
@@ -67,6 +69,7 @@ namespace Tsukuyomi.EditorTools
                 foreach (float sd in new[] { -1f, 1f })
                 {
                     var q = p + side * sd * 1.9f;
+                    if (Town.OnAnyStreet(q, 0.3f)) continue;
                     var b = Group(g, "竹の灯り", new Vector3(q.x, Island.Height(q.x, q.y), q.y));
                     Cyl(b, "柄", new Vector3(0, 0.4f, 0), 0.08f, 0.8f, stalk);
                     Cyl(b, "灯", new Vector3(0, 0.9f, 0), 0.12f, 0.25f, GlowWarm);

@@ -18,7 +18,7 @@ namespace Tsukuyomi.EditorTools
         public struct Lot { public Vector3 pos; public float rotY, w, d; public bool facing; }
         public static readonly List<Lot> Lots = new List<Lot>();
 
-        public static void Reset() { Taken.Clear(); Lots.Clear(); }
+        public static void Reset() { Taken.Clear(); Lots.Clear(); BridgesMade.Clear(); }
 
         public static void Reserve(Vector2 c, float r) => Taken.Add((c, r));
 
@@ -70,6 +70,15 @@ namespace Tsukuyomi.EditorTools
             return Mathf.Abs(h - want) < 0.25f && Island.Inside(p.x, p.y) > 2f;
         }
 
+        /// <summary>p がどこかの通りの石畳の上（margin だけ広げて）にあるか。灯籠やのぼりを道に置かないため。</summary>
+        public static bool OnAnyStreet(Vector2 p, float margin)
+        {
+            foreach (var s in Streets)
+                for (int i = 0; i < s.pts.Count; i++)
+                    if ((s.pts[i] - p).sqrMagnitude < (s.half + margin) * (s.half + margin)) return true;
+            return false;
+        }
+
         public static void AddStreet(string name, IEnumerable<Vector2> pts, float half, int level)
         {
             var arr = new List<Vector2>(pts).ToArray();
@@ -105,18 +114,13 @@ namespace Tsukuyomi.EditorTools
                     bool water = Island.NearestWater(p.x, p.y) < 0.6f;
                     bool ok = OnLevel(p, s.level) && !water;
                     // 水の上：橋の始まりと終わりを覚えておく
-                    if (water && OnLevel(p, s.level) || water && s.level < 0)
+                    if (water)
                     {
                         if (waterStart < 0) waterStart = Mathf.Max(0, i - 1);
                     }
                     else if (waterStart >= 0)
                     {
-                        var a = s.pts[waterStart]; var b = s.pts[Mathf.Min(s.pts.Count - 1, i)];
-                        var dir = (b - a).normalized;
-                        a -= dir * 1.5f; b += dir * 1.5f;
-                        var a3 = new Vector3(a.x, Island.SurfaceNoWater(a.x, a.y), a.y);
-                        var b3 = new Vector3(b.x, Island.SurfaceNoWater(b.x, b.y), b.y);
-                        Bridge(g, s.name + "の橋", a3, b3, s.half * 2 + 0.6f, Mathf.Min(1.6f, Vector2.Distance(a, b) * 0.12f), 10);
+                        TryBridge(g, s, waterStart, Mathf.Min(s.pts.Count - 1, i));
                         waterStart = -1;
                     }
                     if (!ok) { prevOk = false; continue; }
@@ -144,63 +148,115 @@ namespace Tsukuyomi.EditorTools
             }
         }
 
+        static readonly List<(Vector2 a, Vector2 b)> BridgesMade = new List<(Vector2, Vector2)>();
+
+        /// <summary>通りが水を渡る所に橋をかける。まっすぐ渡れて、両岸の高さが同じで、近くに別の橋がないときだけ。</summary>
+        static void TryBridge(Transform g, Street s, int i0, int i1)
+        {
+            var a = s.pts[i0]; var b = s.pts[i1];
+            var dir = (b - a); float len = dir.magnitude;
+            if (len < 0.5f) return;
+            dir /= len;
+            // 渡る水の流れの向き
+            Island.Channel ch = null; float best = float.MaxValue;
+            var mid = (a + b) / 2;
+            foreach (var c in Island.Channels) { float d = Island.DistToChannel(c, mid.x, mid.y, out _); if (d < best) { best = d; ch = c; } }
+            if (ch == null || best > ch.half + 1f) return; // 池などは渡らない
+            var flow = Vector2.zero;
+            for (int k = 0; k < ch.pts.Length - 1; k++)
+            {
+                var p0 = ch.pts[k]; var p1 = ch.pts[k + 1];
+                var t = Mathf.Clamp01(Vector2.Dot(mid - p0, p1 - p0) / (p1 - p0).sqrMagnitude);
+                if (Vector2.Distance(mid, Vector2.Lerp(p0, p1, t)) <= best + 0.01f) { flow = (p1 - p0).normalized; break; }
+            }
+            if (Mathf.Abs(Vector2.Dot(flow, dir)) > 0.6f) return;           // 斜めすぎる（川ぞいを走る）
+            a -= dir * 1.8f; b += dir * 1.8f;
+            float ya = Island.SurfaceNoWater(a.x, a.y), yb = Island.SurfaceNoWater(b.x, b.y);
+            if (Mathf.Abs(ya - yb) > 0.4f) return;                           // 滝のところ
+            float span = Vector2.Distance(a, b);
+            if (span < 4f || span > 20f) return;
+            foreach (var (pa, pb) in BridgesMade) if (Vector2.Distance((pa + pb) / 2, (a + b) / 2) < 10f) return;
+            BridgesMade.Add((a, b));
+            float y = Mathf.Max(ya, yb);
+            Bridge(g, s.name + "の橋", new Vector3(a.x, y, a.y), new Vector3(b.x, y, b.y), s.half * 2 + 0.6f, Mathf.Min(1.5f, span * 0.1f), 10);
+            Reserve((a + b) / 2, span / 2 + 1f);
+        }
+
         // ───────── 石段 ─────────
 
+        public struct StairInfo { public bool ok; public Vector2 bottom, top; public float width; }
+
         /// <summary>
-        /// start から dir の方へ進んで、最初の崖に石段をかける。torii なら千本鳥居。戻り値は上りきった場所。
+        /// start から dir の方へ進んで、最初の崖に石段をかける。torii なら千本鳥居。
+        /// 下と上におどり場をつけて、地面とすきまなくつなぐ。水にかかるなら作らない（ok = false）。
         /// </summary>
-        public static Vector2 Stairs(Transform parent, string name, Vector2 start, Vector2 dir, float width, bool torii, Material stone)
+        public static StairInfo Stairs(Transform parent, string name, Vector2 start, Vector2 dir, float width, bool torii, Material stone)
         {
             dir.Normalize();
+            var none = new StairInfo { ok = false, bottom = start, top = start, width = width };
             float h0 = Island.TerraceHeight(start.x, start.y);
             float tEdge = -1;
-            for (float t = 0; t < 60; t += 0.1f)
+            for (float t = 0; t < 80; t += 0.1f)
             {
                 var p = start + dir * t;
-                if (Island.TerraceHeight(p.x, p.y) > h0 + 0.5f) { tEdge = t; break; }
+                if (Island.TerraceHeight(p.x, p.y) > h0 + 0.3f) { tEdge = t; break; }
             }
-            if (tEdge < 0) { Debug.LogWarning("[Tsukuyomi] stairs: no cliff for " + name); return start; }
-            var topP = start + dir * (tEdge + 3f);
+            if (tEdge < 0) { Debug.LogWarning("[Tsukuyomi] stairs: no cliff for " + name); return none; }
+            var topP = start + dir * (tEdge + 4f);
             float h1 = Island.TerraceHeight(topP.x, topP.y);
             float rise = h1 - h0;
+            if (rise < 2f) return none;
             int n = Mathf.CeilToInt(rise / 0.3f);
             const float run = 0.45f;
-            float tTop = tEdge + 0.9f;
+            float tTop = tEdge + 1.8f;                // いちばん上の段は、崖を上りきった平らな所にかかる
+            float tBottom = tTop - n * run;
+            var side = new Vector2(dir.y, -dir.x);
+            // 水・島の外にかかるなら作らない
+            for (float t = tBottom - 2f; t <= tTop + 2f; t += 1f)
+                foreach (float sd in new[] { -1f, 0f, 1f })
+                {
+                    var q = start + dir * t + side * sd * (width / 2 + 0.8f);
+                    if (Island.NearestWater(q.x, q.y) < 0.8f || Island.Inside(q.x, q.y) < 2f) { Debug.LogWarning("[Tsukuyomi] stairs over water: " + name); return none; }
+                }
             var g = Group(parent, name, Vector3.zero);
             float yaw = Mathf.Atan2(dir.x, dir.y) * Mathf.Rad2Deg;
-            var side = new Vector2(dir.y, -dir.x);
+            float bottomY = h0 - 1.2f;
             for (int i = 0; i < n; i++)
             {
                 float top = h0 + (i + 1) * rise / n;
                 float tc = tTop - (n - i) * run + run / 2;
                 var c = start + dir * tc;
-                float bottom = h0 - 0.6f;
-                Box(g, "段", new Vector3(c.x, (top + bottom) / 2, c.y), new Vector3(width, top - bottom, run + 0.03f), stone, true, new Vector3(0, yaw, 0));
-                // 両わきの石の手すり
+                Box(g, "段", new Vector3(c.x, (top + bottomY) / 2, c.y), new Vector3(width, top - bottomY, run + 0.03f), stone, true, new Vector3(0, yaw, 0));
                 foreach (float sd in new[] { -1f, 1f })
                 {
                     var e = c + side * sd * (width / 2 + 0.35f);
-                    Box(g, "袖", new Vector3(e.x, (top + 0.7f + bottom) / 2, e.y), new Vector3(0.7f, top + 0.7f - bottom, run + 0.03f), stone, true, new Vector3(0, yaw, 0));
+                    Box(g, "袖", new Vector3(e.x, (top + 0.7f + bottomY) / 2, e.y), new Vector3(0.7f, top + 0.7f - bottomY, run + 0.03f), stone, true, new Vector3(0, yaw, 0));
                 }
                 if (torii && i % 3 == 1)
                 {
-                    float s = width / 14f;
                     var tg = Group(g, "鳥居", new Vector3(c.x, top, c.y), yaw + 90);
                     MiniTorii(tg, width + 0.4f, 3.6f + width * 0.15f);
                 }
-                if (i % 6 == 0) Reserve(c, width / 2 + 0.8f);
+                if (i % 4 == 0) Reserve(c, width / 2 + 0.9f);
             }
-            // 上と下に灯籠
-            var bottomC = start + dir * (tTop - n * run - 1f);
-            var topC = start + dir * (tTop + 1.2f);
+            // 上のおどり場（平らな地面にしっかりのせる）
+            var land = start + dir * (tTop + 1.2f);
+            Box(g, "上のおどり場", new Vector3(land.x, (h1 + h1 - 1.5f) / 2 + 0.01f, land.y), new Vector3(width + 1.4f, 1.5f, 2.4f), stone, true, new Vector3(0, yaw, 0));
+            // 下のおどり場
+            var landB = start + dir * (tBottom - 1f);
+            Box(g, "下のおどり場", new Vector3(landB.x, h0 - 0.55f + 0.01f, landB.y), new Vector3(width + 1.4f, 1.1f, 2f), stone, true, new Vector3(0, yaw, 0));
+            var topC = start + dir * (tTop + 2.6f);
+            var bottomC = start + dir * (tBottom - 2.2f);
             foreach (float sd in new[] { -1f, 1f })
             {
-                Toro(g, At(bottomC + side * sd * (width / 2 + 1.6f)), true, 0.9f);
-                Toro(g, At(topC + side * sd * (width / 2 + 1.6f)), false, 0.9f);
+                var lb = landB + side * sd * (width / 2 + 1.3f);
+                var lt = land + side * sd * (width / 2 + 1.3f);
+                Toro(g, new Vector3(lb.x, h0, lb.y), sd > 0, 0.85f);
+                Toro(g, new Vector3(lt.x, h1, lt.y), false, 0.85f);
             }
-            Reserve(bottomC, width / 2 + 2f);
-            Reserve(topC, width / 2 + 2f);
-            return topC;
+            Reserve(landB, width / 2 + 2f);
+            Reserve(land, width / 2 + 2f);
+            return new StairInfo { ok = true, bottom = bottomC, top = topC, width = width };
         }
 
         /// <summary>小さな朱の鳥居（千本鳥居用）。ローカルの x 方向にまたぐ。</summary>

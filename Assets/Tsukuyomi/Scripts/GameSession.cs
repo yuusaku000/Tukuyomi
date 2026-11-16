@@ -81,6 +81,14 @@ namespace Tsukuyomi
                 var p = item.Split('|');
                 var z = Zone.Find(p[0]);
                 if (z != null) z.WarpTo(player, cam);
+                else if (p[0].StartsWith("@"))
+                {
+                    var xz = p[0].Substring(1).Split(',');
+                    float x = float.Parse(xz[0], CultureInfo.InvariantCulture), zz = float.Parse(xz[1], CultureInfo.InvariantCulture);
+                    float ground = Island.Height(x, zz);
+                    if (Physics.Raycast(new Vector3(x, 200, zz), Vector3.down, out var hit, 400, ~0, QueryTriggerInteraction.Ignore)) ground = hit.point.y;
+                    player.Teleport(new Vector3(x, ground + 0.1f, zz), 0);
+                }
                 if (p.Length > 1 && p[1].Length > 0) Ts.SetTime(p[1]);
                 if (p.Length > 2) ApplyCam(p[2]);
                 Hud.OpenMap(p.Length > 3 && p[3] == "map");
@@ -90,7 +98,7 @@ namespace Tsukuyomi
                 int f0 = Time.frameCount; float t0 = Time.realtimeSinceStartup;
                 yield return new WaitForSeconds(1f);
                 Debug.Log($"[Tour] {p[0]} fps={(Time.frameCount - f0) / (Time.realtimeSinceStartup - t0):0}");
-                ScreenCapture.CaptureScreenshot(Path.Combine(dir, $"{i:00}_{p[0]}.png"));
+                ScreenCapture.CaptureScreenshot(Path.Combine(dir, $"{i:00}_{p[0].Replace("@", "at").Replace(",", "_")}.png"));
                 yield return new WaitForSeconds(0.8f);
                 i++;
             }

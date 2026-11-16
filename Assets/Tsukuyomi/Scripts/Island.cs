@@ -47,10 +47,10 @@ namespace Tsukuyomi
 
         /// <summary>千年桜の丘（中段の西）。</summary>
         public static readonly Vector2 HillCenter = new Vector2(-74, 150);
-        public const float HillRadius = 26f, HillHeight = 7f;
+        public const float HillRadius = 18f, HillHeight = 6f;
 
         /// <summary>釣り堀（中段の南西）。</summary>
-        public static readonly Rect Pond = new Rect(-70, 86, 28, 16);
+        public static readonly Rect Pond = new Rect(-52, 105, 24, 14);
         public const float PondDepth = 1.6f;
 
         public class Channel
@@ -62,30 +62,27 @@ namespace Tsukuyomi
 
         public static readonly Channel[] Channels =
         {
+            // 天の川：頂上の近くで湧いて、上段・中段のふちで滝になり、西の海へ出る
             new Channel
             {
                 name = "天の川", half = 3.2f, depth = 1.9f,
                 pts = new[]
                 {
                     new Vector2(-12, 212), new Vector2(-26, 206), new Vector2(-40, 197), new Vector2(-52, 188), new Vector2(-64, 180),
-                    new Vector2(-80, 176), new Vector2(-94, 170), new Vector2(-104, 160), new Vector2(-114, 150),
-                    new Vector2(-124, 136), new Vector2(-131, 116), new Vector2(-133, 94), new Vector2(-127, 72),
-                    new Vector2(-112, 50), new Vector2(-90, 34), new Vector2(-62, 27),
+                    new Vector2(-80, 175), new Vector2(-95, 168), new Vector2(-108, 160), new Vector2(-122, 156),
+                    new Vector2(-140, 157), new Vector2(-170, 160),
                 },
             },
+            // 下町の水路：西の海から入って、南の下町をぬけ、東の海へ出る（屋形船が通る）
             new Channel
             {
-                name = "東の水路", half = 4f, depth = 1.9f,
+                name = "下町の水路", half = 4f, depth = 1.9f,
                 pts = new[]
                 {
-                    new Vector2(-62, 27), new Vector2(-30, 28), new Vector2(0, 29), new Vector2(30, 28), new Vector2(60, 26),
-                    new Vector2(90, 34), new Vector2(114, 52), new Vector2(130, 74), new Vector2(150, 92), new Vector2(172, 100),
+                    new Vector2(-172, 62), new Vector2(-140, 54), new Vector2(-112, 40), new Vector2(-84, 31), new Vector2(-50, 27),
+                    new Vector2(-20, 28), new Vector2(0, 29), new Vector2(30, 28), new Vector2(60, 27), new Vector2(90, 33),
+                    new Vector2(112, 48), new Vector2(132, 70), new Vector2(150, 88), new Vector2(174, 98),
                 },
-            },
-            new Channel
-            {
-                name = "南の水路", half = 4f, depth = 1.9f,
-                pts = new[] { new Vector2(-62, 27), new Vector2(-60, 12), new Vector2(-58, -4), new Vector2(-56, -24) },
             },
         };
 

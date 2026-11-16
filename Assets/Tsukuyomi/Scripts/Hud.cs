@@ -36,7 +36,7 @@ namespace Tsukuyomi
         {
             try
             {
-                var dir = System.IO.Path.Combine(System.Environment.GetFolderPath(System.Environment.SpecialFolder.MyPictures), "Tsukuyomi");
+                var dir = PhotoDir;
                 System.IO.Directory.CreateDirectory(dir);
                 var path = System.IO.Path.Combine(dir, "tsukuyomi_" + System.DateTime.Now.ToString("yyyyMMdd_HHmmss") + ".png");
                 ScreenCapture.CaptureScreenshot(path);
@@ -45,6 +45,9 @@ namespace Tsukuyomi
             }
             catch (System.Exception e) { Toast("写真を保存できませんでした: " + e.Message); }
         }
+        /// <summary>写真の置き場所。ピクチャはウイルスバスターのフォルダ保護で止められるので、保存データと同じ AppData にする。</summary>
+        public static string PhotoDir => System.IO.Path.Combine(Ts.DataDir, "photos");
+
         string _photoMsg;
         float _photoT;
 
@@ -456,7 +459,7 @@ namespace Tsukuyomi
         void DrawMenu()
         {
             Fill(new Rect(0, 0, W, H), new Color(0.01f, 0.03f, 0.08f, 0.55f));
-            var r = new Rect(W / 2 - 310, H / 2 - 400, 620, 800);
+            var r = new Rect(W / 2 - 310, H / 2 - 450, 620, 900);
             Panel(r);
             Text(new Rect(r.x, r.y + 24, r.width, 24), "SYSTEM MENU", 18, Cyan, TextAnchor.MiddleCenter, true);
             Text(new Rect(r.x, r.y + 50, r.width, 70), "ツクヨミ", 54, Color.white, TextAnchor.MiddleCenter, false, FontStyle.Bold);
@@ -472,9 +475,11 @@ namespace Tsukuyomi
             y += 82;
             if (Button(new Rect(r.x + 90, y, 440, 66), $"画質：{Quality.Name}（押すと切りかえ）")) Quality.Next();
             y += 82;
+            if (Button(new Rect(r.x + 90, y, 440, 66), "写真のフォルダを開く")) { System.IO.Directory.CreateDirectory(PhotoDir); Application.OpenURL("file:///" + PhotoDir.Replace('\\', '/')); }
+            y += 82;
             if (Button(new Rect(r.x + 90, y, 440, 66), "ログアウト（終わる）")) GameSession.Instance?.Logout();
             Text(new Rect(r.x, r.yMax - 100, r.width, 90),
-                "WASD・矢印 歩く　Shift 走る　Space ジャンプ　V 視点\nマウス 見回す　ホイール 近づく・離れる（いちばん近くで一人称）\nF3 デバッグ表示　F12 写真（ピクチャ\\Tsukuyomi に保存）",
+                "WASD・矢印 歩く　Shift 走る　Space ジャンプ　V 視点\nマウス 見回す　ホイール 近づく・離れる（いちばん近くで一人称）\nF3 デバッグ表示　F12 写真（メニューの「写真のフォルダを開く」で見られます）",
                 17, new Color(1, 1, 1, 0.75f), TextAnchor.UpperCenter);
         }
 
@@ -505,6 +510,24 @@ namespace Tsukuyomi
             Fill(ToMap(new Rect(-3.5f, -74, 7, 74)), new Color(0.85f, 0.3f, 0.22f));
             Fill(ToMap(new Rect(-8, -74, 16, 12)), new Color(0.85f, 0.3f, 0.22f));
             Fill(ToMap(new Rect(-2.5f, -100, 5, 26)), new Color(Cyan.r, Cyan.g, Cyan.b, 0.8f));
+            // 道
+            var sm = StreetMap.I;
+            if (sm != null && sm.points != null)
+            {
+                int idx = 0;
+                for (int si = 0; si < sm.counts.Length; si++)
+                {
+                    float wpx = Mathf.Max(2f, sm.halves[si] * 2 * m.width / (worldMax.x - worldMin.x));
+                    for (int k = 0; k < sm.counts[si]; k += 2)
+                    {
+                        var q = sm.points[idx + k];
+                        if (Island.NearestWater(q.x, q.y) < 0.5f || Mathf.Abs(Island.TerraceHeight(q.x, q.y) - Island.Height(q.x, q.y)) > 0.5f && Island.NearestWater(q.x, q.y) > 3f) continue;
+                        var mp = ToMapP(new Vector3(q.x, 0, q.y));
+                        Fill(new Rect(mp.x - wpx / 2, mp.y - wpx / 2, wpx, wpx), new Color(0.95f, 0.9f, 0.75f, 0.85f));
+                    }
+                    idx += sm.counts[si];
+                }
+            }
 
             Zone hover = null;
             foreach (var z in Zone.All)

@@ -61,6 +61,8 @@ namespace Tsukuyomi.EditorTools
             Streets();
             StairsAll();
             Town.BuildStreets(_env, Parts.Paving);
+            SaveStreetMap();
+            CheckLandmarks();
             LandmarksAll(out var studio);
             Houses();
             Clutter.Build(_env, _deco);
@@ -307,21 +309,21 @@ namespace Tsukuyomi.EditorTools
 
         // ───────────────────────── 場所取り・通り・石段 ─────────────────────────
 
-        static readonly Vector2 PlazaC = new Vector2(66, 142);
+        static readonly Vector2 PlazaC = new Vector2(40, 100);
         static readonly Vector2 PagodaC = new Vector2(36, 198);
         static readonly Vector2 BambooC = new Vector2(-28, 160);
-        static readonly Vector2 KaguraC = new Vector2(28, 152);
-        static readonly Vector2 BellC = new Vector2(-24, 138);
-        static readonly Vector2 WisteriaC = new Vector2(-28, 114);
+        static readonly Vector2 KaguraC = new Vector2(23, 158);
+        static readonly Vector2 BellC = new Vector2(-11, 157);
+        static readonly Vector2 WisteriaC = new Vector2(20, 94);
         static Vector2 _lookEdge, _lookOut;
 
         static void ReserveLandmarks()
         {
-            Town.Reserve(PlazaC, 21f);
-            Town.Reserve(new Vector2(88, 142), 10f);
+            Town.Reserve(PlazaC, 16f);
+            Town.Reserve(new Vector2(60, 100), 9f);
             Town.Reserve(Island.HillCenter, Island.HillRadius + 2f);
             Town.Reserve(Island.Pond.center, 17f);
-            Town.Reserve(new Vector2(-56, 110), 8f);
+            Town.Reserve(new Vector2(-40, 126), 8f);
             Town.Reserve(PagodaC, 9f);
             Town.Reserve(BambooC, 14f);
             Town.Reserve(KaguraC, 8f);
@@ -337,70 +339,102 @@ namespace Tsukuyomi.EditorTools
             Town.Reserve(_lookEdge - dir * 6f, 10f);
             Town.Reserve(new Vector2(74, 44), 14f); // 風鈴の回廊
             // ワープした場所の目の前に家が来ないように
-            foreach (var p in new[] { new Vector2(0, 12), new Vector2(0, 52), new Vector2(50, 142), new Vector2(-37, 94), new Vector2(-74, 121), new Vector2(0, 131), new Vector2(-38, 150), new Vector2(0, 184) })
+            foreach (var p in new[] { new Vector2(0, 12), new Vector2(0, 52), new Vector2(24, 100), new Vector2(-40, 100), new Vector2(-74, 127), new Vector2(0, 131), new Vector2(-38, 150), new Vector2(0, 184) })
                 Town.Reserve(p, 5f);
         }
 
+        static Material StairStone => Lit("stair_stone", new Color(0.62f, 0.6f, 0.56f), 0.15f);
+        static Transform _stairs;
+
+        static Vector2 Dir(float deg) => new Vector2(Mathf.Cos(deg * Mathf.Deg2Rad), Mathf.Sin(deg * Mathf.Deg2Rad));
+
+        /// <summary>
+        /// 道と石段を、つながった網にする。
+        ///   大通り：大門 → 水路の橋 → 大石段 → 月見商店街 → 千本鳥居の石段 → 上段の参道 → 御殿への石段 → 頂上
+        ///   環状通り：下町・中段・上段に1本ずつ
+        ///   放射の路地：下段の環状通り → 石段 → 上段の環状通り（行き止まりにならないよう、かならず石段でつなぐ）
+        /// </summary>
         static void Streets()
         {
+            _stairs = Group(_env, "石段", Vector3.zero);
             var c0 = Island.Center;
-            Town.AddStreet("大門通り", new[] { new Vector2(0, 2), new Vector2(0, 36) }, 4f, 0);
-            Town.AddStreet("下町の環状通り", Town.Ring(c0, a => Island.EdgeRadius(a) - 13f, -88f, 268f, 2.5f), 3f, 0);
-            foreach (float deg in new[] { -60f, -120f, -25f, -155f, 25f, 155f, 60f, 120f })
+            var L1 = Island.Levels[0]; var L2 = Island.Levels[1];
+
+            // 環状通り
+            Town.AddStreet("下町の環状通り", Town.Ring(c0, a => Island.EdgeRadius(a) - 13f, 0f, 360f, 2.5f), 3f, 0);
+            Town.AddStreet("中段の環状通り", Town.Ring(L1.c, a => L1.RadiusAt(a) - 10f, 0f, 360f, 2.5f), 3.2f, 1);
+            Town.AddStreet("上段の環状通り", Town.Ring(L2.c, a => L2.RadiusAt(a) - 11f, 0f, 360f, 3f), 2.6f, 2);
+
+            // 大通り（南から頂上まで）
+            var s1 = Town.Stairs(_stairs, "大石段", new Vector2(0, 34.2f), Vector2.up, 8f, false, StairStone);
+            Town.AddStreet("大門通り", new[] { new Vector2(0, 2), s1.bottom }, 4f, 0);
+            var s2 = Town.Stairs(_stairs, "千本鳥居の石段", new Vector2(0, 98), Vector2.up, 4.5f, true, StairStone);
+            Town.AddStreet("月見商店街", new[] { s1.top, s2.bottom }, 6f, 1);
+            var s3 = Town.Stairs(_stairs, "御殿への石段", new Vector2(0, 150), Vector2.up, 6f, false, StairStone);
+            Town.AddStreet("上段の参道", new[] { s2.top, s3.bottom }, 4f, 2);
+            Town.AddStreet("頂上の参道", new[] { s3.top, new Vector2(0, 196) }, 5f, 3);
+
+            // 下町 → 中段（放射の路地と石段）。池・丘・広場の向きはさける
+            int k = 0;
+            foreach (float deg in new[] { -160f, -105f, -72f, -45f, 8f, 35f, 62f, 95f, 122f, 150f, 230f })
             {
-                float a = deg * Mathf.Deg2Rad;
-                var d = new Vector2(Mathf.Cos(a), Mathf.Sin(a));
-                float r = Island.EdgeRadius(a);
-                Town.AddStreet("下町の路地", new[] { c0 + d * (r - 13f), c0 + d * (r - 48f) }, 2.2f, 0);
+                var d = Dir(deg);
+                float r1 = L1.RadiusAt(deg * Mathf.Deg2Rad);
+                var foot = L1.c + d * (r1 + 13f);
+                if (Island.Inside(foot.x, foot.y) < 6f) foot = L1.c + d * (r1 + 9f);
+                // 下町の環状通りからの路地
+                var fromC0 = foot - c0;
+                var ring0 = c0 + fromC0.normalized * (Island.EdgeRadius(Mathf.Atan2(fromC0.y, fromC0.x)) - 13f);
+                var st = Town.Stairs(_stairs, "下町からの石段" + k, foot, -d, k % 3 == 1 ? 4f : 5f, k % 4 == 2, StairStone);
+                if (!st.ok) { k++; continue; }
+                if (Vector2.Distance(ring0, st.bottom) > 2f) Town.AddStreet("下町の路地" + k, new[] { ring0, st.bottom }, 2.2f, 0);
+                var ring1 = L1.c + d * (r1 - 10f);
+                if (Vector2.Distance(st.top, ring1) > 1.5f) Town.AddStreet("中段の路地" + k, new[] { st.top, ring1 }, 2.2f, 1);
+                k++;
             }
-            var L1 = Island.Levels[0];
-            Town.AddStreet("月見商店街", new[] { new Vector2(0, 50), new Vector2(0, 100) }, 6f, 1);
-            Town.AddStreet("中段の環状通り", Town.Ring(L1.c, a => L1.RadiusAt(a) - 14f, 0, 360f, 2.5f), 3.2f, 1);
+
+            // 中段 → 上段
+            foreach (float deg in new[] { -10f, 60f, 120f, 170f })
+            {
+                var d = Dir(deg);
+                float r2 = L2.RadiusAt(deg * Mathf.Deg2Rad);
+                var foot = L2.c + d * (r2 + 16f);
+                var st = Town.Stairs(_stairs, "上段への石段" + k, foot, -d, 4f, k % 2 == 0, StairStone);
+                if (!st.ok) { k++; continue; }
+                // 中段の環状通りから石段の下まで
+                var fromC1 = foot - L1.c;
+                var ring1 = L1.c + fromC1.normalized * (L1.RadiusAt(Mathf.Atan2(fromC1.y, fromC1.x)) - 10f);
+                Town.AddStreet("中段から上段への路地" + k, new[] { ring1, st.bottom }, 2.2f, 1);
+                var ring2 = L2.c + d * (r2 - 11f);
+                Town.AddStreet("上段の路地" + k, new[] { st.top, ring2 }, 2.2f, 2);
+                k++;
+            }
+
+            // 中段の横の通り（商店街と環状通りをつなぐ）
             Town.AddStreet("東西通り", new[] { new Vector2(-100, 78), new Vector2(-40, 80), new Vector2(0, 80), new Vector2(40, 80), new Vector2(100, 78) }, 3f, 1);
-            for (int k = 0; k < 12; k++)
-            {
-                float a = (k * 30f + 15f) * Mathf.Deg2Rad;
-                var d = new Vector2(Mathf.Cos(a), Mathf.Sin(a));
-                float r = L1.RadiusAt(a);
-                var bend = new Vector2(-d.y, d.x) * R(-6f, 6f);
-                Town.AddStreet("中段の路地", new[] { L1.c + d * (r - 4f), L1.c + d * (r - 22f) + bend, L1.c + d * (r - 40f) }, 2.1f, 1);
-            }
-            Town.AddStreet("北の通り", new[] { new Vector2(-95, 205), new Vector2(-50, 230), new Vector2(0, 250), new Vector2(50, 230), new Vector2(95, 205) }, 3f, 1);
-            Town.AddStreet("広場への道", new[] { new Vector2(6, 100), new Vector2(30, 112), new Vector2(50, 130) }, 2.6f, 1);
-            Town.AddStreet("桜への道", new[] { new Vector2(-6, 96), new Vector2(-30, 102), new Vector2(-48, 120) }, 2.6f, 1);
-            var L2 = Island.Levels[1];
-            Town.AddStreet("上段の参道", new[] { new Vector2(0, 123), new Vector2(0, 152) }, 4f, 2);
-            Town.AddStreet("上段の環状通り", Town.Ring(L2.c, a => L2.RadiusAt(a) - 11f, 0, 360f, 3f), 2.6f, 2);
-            for (int k = 0; k < 6; k++)
-            {
-                float a = (k * 60f + 30f) * Mathf.Deg2Rad;
-                var d = new Vector2(Mathf.Cos(a), Mathf.Sin(a));
-                float r = L2.RadiusAt(a);
-                Town.AddStreet("上段の路地", new[] { L2.c + d * (r - 3f), L2.c + d * (r - 25f) }, 2f, 2);
-            }
-            Town.AddStreet("頂上の参道", new[] { new Vector2(0, 181), new Vector2(0, 196) }, 5f, 3);
         }
 
-        static void StairsAll()
+        static void StairsAll() { }
+
+        static void SaveStreetMap()
         {
-            var stone = Lit("stair_stone", new Color(0.62f, 0.6f, 0.56f), 0.15f);
-            var st = Group(_env, "石段", Vector3.zero);
-            Town.Stairs(st, "大石段", new Vector2(0, 34.2f), Vector2.up, 8f, false, stone);
-            Town.Stairs(st, "千本鳥居の石段", new Vector2(0, 98), Vector2.up, 4.5f, true, stone);
-            Town.Stairs(st, "御殿への石段", new Vector2(0, 150), Vector2.up, 6f, false, stone);
-            void Radial(Island.Level L, float deg, float width, bool torii, string name)
+            var go = new GameObject("道の地図");
+            var sm = go.AddComponent<StreetMap>();
+            var pts = new List<Vector2>(); var counts = new List<int>(); var halves = new List<float>();
+            foreach (var s in Town.Streets)
             {
-                float a = deg * Mathf.Deg2Rad;
-                var d = new Vector2(Mathf.Cos(a), Mathf.Sin(a));
-                var start = L.c + d * (L.RadiusAt(a) + 13f);
-                Town.Stairs(st, name, start, -d, width, torii, stone);
+                pts.AddRange(s.pts); counts.Add(s.pts.Count); halves.Add(s.half);
             }
-            Radial(Island.Levels[0], 0f, 5f, false, "東の石段");
-            Radial(Island.Levels[0], 160f, 5f, false, "北西の石段");
-            Radial(Island.Levels[0], 205f, 4f, true, "西の鳥居の石段");
-            Radial(Island.Levels[1], -10f, 4f, false, "上段東の石段");
-            Radial(Island.Levels[1], 215f, 3.6f, true, "上段西の鳥居の石段");
-            Radial(Island.Levels[1], 90f, 4f, false, "上段北の石段");
+            sm.points = pts.ToArray(); sm.counts = counts.ToArray(); sm.halves = halves.ToArray();
+        }
+
+        /// <summary>名所の場所に道が通っていないか（通っていたらログに出す）。</summary>
+        static void CheckLandmarks()
+        {
+            foreach (var (name, c, r) in new[] {
+                ("広場", PlazaC, 14f), ("五重塔", PagodaC, 7f), ("竹林の中心", BambooC, 4f), ("神楽殿", KaguraC, 6f), ("鐘楼", BellC, 4.5f),
+                ("藤棚", WisteriaC, 3f), ("千年桜", Island.HillCenter, 10f), ("釣り堀", Island.Pond.center, 14f), ("茶屋", new Vector2(-40, 127), 7f) })
+                if (Town.OnAnyStreet(c, r)) Debug.LogWarning($"[Tsukuyomi] street crosses landmark: {name}");
         }
 
         // ───────────────────────── 名所 ─────────────────────────
@@ -411,13 +445,13 @@ namespace Tsukuyomi.EditorTools
             var g = Group(_env, "名所", Vector3.zero);
 
             // 大画面広場
-            Box(g, "広場の石畳", new Vector3(PlazaC.x, l1 + 0.04f, PlazaC.y), new Vector3(36f, 0.08f, 36f), Parts.Paving);
-            ScreenHall(g, new Vector3(88, l1, 142), out studio);
+            Box(g, "広場の石畳", new Vector3(PlazaC.x, l1 + 0.04f, PlazaC.y), new Vector3(30f, 0.08f, 30f), Parts.Paving);
+            ScreenHall(g, new Vector3(60, l1, 100), out studio);
             for (int i = 0; i < 8; i++)
             {
                 float a = (i / 8f) * Mathf.PI * 2;
-                var p = PlazaC + new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * 16.5f;
-                if (p.x > PlazaC.x + 10) continue;
+                var p = PlazaC + new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * 12.5f;
+                if (p.x > PlazaC.x + 8 || p.x < PlazaC.x - 10) continue; // 東は大画面、西はワープして来る所
                 Buildings.Yatai(g, new Vector3(p.x, l1, p.y), Mathf.Atan2(-Mathf.Cos(a), -Mathf.Sin(a)) * Mathf.Rad2Deg, i);
             }
             for (int i = 0; i < 4; i++)
@@ -445,19 +479,19 @@ namespace Tsukuyomi.EditorTools
                     ColorMat(i % 3 == 0 ? new Color(1f, 0.45f, 0.15f) : i % 3 == 1 ? new Color(0.95f, 0.95f, 0.9f) : new Color(0.9f, 0.2f, 0.15f)));
                 koi.transform.localRotation = Quaternion.Euler(0, R(0, 360), 0);
             }
-            Buildings.TownHouse(g, new Vector3(-56, Hgt(-56, 110), 110), 180, 14f, 7.5f, 1, 0, true, 5).name = "茶屋";
-            for (int i = 0; i < 3; i++) TeaSeat(g, new Vector3(-62 + i * 6, l1, 104.5f), 0);
+            Buildings.TownHouse(g, new Vector3(-40, Hgt(-40, 127), 127), 180, 14f, 7.5f, 1, 0, true, 5).name = "茶屋";
+            for (int i = 0; i < 3; i++) TeaSeat(g, new Vector3(-46 + i * 6, l1, 121.5f), 0);
             for (int i = 0; i < 4; i++) Toro(g, new Vector3(pond.center.x + (i % 2 == 0 ? -1 : 1) * (pond.width / 2 + 2f), l1, pond.center.y + (i < 2 ? -1 : 1) * (pond.height / 2 + 2f)), true, 0.8f);
 
             // 千年桜の丘
             var hc = Island.HillCenter;
             float hillTop = Island.TerraceHeight(hc.x, hc.y);
-            Sakura(g, new Vector3(hc.x, hillTop - 0.4f, hc.y), 2.2f, true);
+            Sakura(g, new Vector3(hc.x, hillTop - 0.4f, hc.y), 1.9f, true);
             Lamp(g, new Vector3(hc.x, hillTop + 4f, hc.y), new Color(1f, 0.65f, 0.8f), 30f, 3f);
             for (int i = 0; i < 18; i++)
             {
                 float a = i * Mathf.PI * 2 / 18;
-                var p = hc + new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * 19f;
+                var p = hc + new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * 13f;
                 var b = Group(g, "ぼんぼり", new Vector3(p.x, Island.TerraceHeight(p.x, p.y), p.y));
                 Cyl(b, "柄", new Vector3(0, 0.8f, 0), 0.05f, 1.6f, WoodDark);
                 Cyl(b, "火袋", new Vector3(0, 1.85f, 0), 0.22f, 0.6f, GlowSakura);
@@ -465,8 +499,9 @@ namespace Tsukuyomi.EditorTools
             for (int i = 0; i < 7; i++)
             {
                 float a = i * Mathf.PI * 2 / 7 + 0.3f;
-                var p = hc + new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * 31f;
+                var p = hc + new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * 23f;
                 if (Island.NearestWater(p.x, p.y) < 4 || Mathf.Abs(Island.TerraceHeight(p.x, p.y) - l1) > 0.3f) continue;
+                if (Town.OnAnyStreet(p, 3f)) continue;
                 Sakura(g, new Vector3(p.x, l1, p.y), 0.8f, false);
             }
             Petals(new Vector3(hc.x, hillTop + 16f, hc.y));
@@ -494,12 +529,12 @@ namespace Tsukuyomi.EditorTools
 
             // 屋形船
             for (int i = 0; i < 3; i++) Landmarks.Yakatabune(_deco, Island.Channels[1], 20f + i * 70f, i);
-            Landmarks.Yakatabune(_deco, Island.Channels[0], 40f, 3);
 
             // 大通りののぼり
-            for (float z = 52; z < 104; z += 7f)
-                foreach (float x in new[] { -5.4f, 5.4f })
-                    Buildings.Nobori(_deco, new Vector3(x, l1, z), x < 0 ? 90 : -90, (int)z);
+            for (float z = 54; z < 100; z += 7f)
+                foreach (float x in new[] { -6.5f, 6.5f })
+                    if (!Town.OnAnyStreet(new Vector2(x, z), 0.2f) || Mathf.Abs(x) > 6.2f)
+                        Buildings.Nobori(_deco, new Vector3(x, l1, z), x < 0 ? 90 : -90, (int)z);
             Marker("商店街のざわめき", new Vector3(0, l1 + 2, 78), CrowdPts);
             Marker("下町のざわめき", new Vector3(0, G + 2, 20), CrowdPts);
             Marker("上段のざわめき", new Vector3(0, l2 + 2, 140), CrowdPts);
@@ -592,6 +627,7 @@ namespace Tsukuyomi.EditorTools
 
         static void Houses()
         {
+            Physics.SyncTransforms();
             var g = Group(_env, "町並み", Vector3.zero);
             int seed = 0;
             int along = Town.FillAlongStreets(g, (s, i, c, y, rot, w, d) =>
@@ -637,9 +673,12 @@ namespace Tsukuyomi.EditorTools
                     if (Island.NearestWater(p.x, p.y) < 2f || Island.Inside(p.x, p.y) < 3f) continue;
                     if (Mathf.Abs(Island.TerraceHeight(p.x, p.y) - L(Mathf.Max(0, s.level))) > 0.2f) continue;
                     var dir = (s.pts[i + 1] - s.pts[i - 1]).normalized;
-                    var side = new Vector2(-dir.y, dir.x) * (s.half - 0.5f) * ((i / 9) % 2 == 0 ? 1 : -1);
+                    var side = new Vector2(-dir.y, dir.x) * (s.half + 0.45f) * ((i / 9) % 2 == 0 ? 1 : -1);
                     var q = p + side;
-                    Toro(g, new Vector3(q.x, Hgt(q.x, q.y), q.y), i % 27 == 4, 0.75f);
+                    if (Town.OnAnyStreet(q, 0.15f) || Island.NearestWater(q.x, q.y) < 1.5f) continue;
+                    var q3 = new Vector3(q.x, Hgt(q.x, q.y), q.y);
+                    if (Physics.CheckSphere(q3 + Vector3.up * 0.8f, 0.4f)) continue;
+                    Toro(g, q3, i % 27 == 4, 0.75f);
                 }
                 if (s.name == "月見商店街" || s.name == "大門通り")
                     for (int i = 3; i < s.pts.Count - 3; i += 6)
@@ -750,9 +789,9 @@ namespace Tsukuyomi.EditorTools
             Z(2, "corridor", "海の回廊", "SEA CORRIDOR", new Vector2(0, -30), new Vector2(16, 60), new Color(0.8f, 0.4f, 0.3f), new Vector3(0, G + 0.1f, -40), 0, false);
             Z(3, "shitamachi", "水路の下町", "CANAL TOWN", new Vector2(0, 26), new Vector2(240, 46), new Color(0.4f, 0.65f, 0.85f), W(0, 12), 0);
             Z(4, "shopping", "月見商店街", "MOONLIGHT ARCADE", new Vector2(0, 78), new Vector2(60, 62), new Color(0.95f, 0.6f, 0.3f), W(0, 52), 0);
-            Z(5, "plaza", "大画面広場", "SCREEN PLAZA", PlazaC, new Vector2(46, 46), new Color(0.9f, 0.4f, 0.7f), W(50, 142), 90, true, -6f);
-            Z(6, "fishing", "釣り堀と茶屋", "FISHING POND", Island.Pond.center + new Vector2(0, 4), new Vector2(40, 36), new Color(0.3f, 0.7f, 0.6f), W(-37, 94), -90);
-            Z(7, "sakura", "千年桜の丘", "THOUSAND-YEAR SAKURA", Island.HillCenter, new Vector2(64, 64), new Color(1f, 0.6f, 0.75f), W(-74, 121), 0, true, -16f);
+            Z(5, "plaza", "大画面広場", "SCREEN PLAZA", PlazaC, new Vector2(40, 34), new Color(0.9f, 0.4f, 0.7f), W(24, 100), 90, true, -6f);
+            Z(6, "fishing", "釣り堀と茶屋", "FISHING POND", Island.Pond.center + new Vector2(0, 4), new Vector2(36, 34), new Color(0.3f, 0.7f, 0.6f), W(-40, 100), 0);
+            Z(7, "sakura", "千年桜の丘", "THOUSAND-YEAR SAKURA", Island.HillCenter, new Vector2(48, 48), new Color(1f, 0.6f, 0.75f), W(-74, 127), 0, true, -16f);
             Z(8, "upper", "上段・五重塔", "UPPER TERRACE", new Vector2(10, 168), new Vector2(110, 90), new Color(0.75f, 0.55f, 0.35f), W(0, 131), 0);
             Z(9, "bamboo", "竹林の小道", "BAMBOO PATH", BambooC, new Vector2(28, 28), new Color(0.4f, 0.75f, 0.4f), W(-38, 150), 45);
             Z(10, "lookout", "懸造りの展望台", "CLIFF LOOKOUT", _lookEdge + _lookOut * 4f, new Vector2(24, 24), new Color(0.85f, 0.5f, 0.3f), _lookoutWarp, Mathf.Atan2(_lookOut.x, _lookOut.y) * Mathf.Rad2Deg, true, 4f);
