@@ -66,7 +66,7 @@ namespace Tsukuyomi.EditorTools
             LandmarksAll(out var studio);
             Houses();
             int infillSeed = 5000;
-            Infill.Run(_env.Find("町並み"), new[] { _env, _deco }, KeepOpen(), ref infillSeed);
+            Infill.Run(_env.Find("町並み"), new[] { _env, _deco }, KeepOpen(), new List<(Vector2, float)> { (BambooC, 20f) }, ref infillSeed);
             Clutter.Build(_env, _deco);
             Waterfalls();
             Seaside();
@@ -463,6 +463,26 @@ namespace Tsukuyomi.EditorTools
                 float r = L2.RadiusAt(a);
                 n += Town.AddLanes("上段の横路地", new List<Vector2> { L2.c + d * (r - 11f), L2.c + d * (r - 26f) }, 1.4f, 2, ToRing2);
             }
+            // 川ぞい・水路ぞいの道：両岸に。段ごとに切り、切れた端は環状通りへつなぐ
+            foreach (var ch in Island.Channels)
+            {
+                var cp = Island.Resample(ch.pts, 2f);
+                foreach (float side in new[] { -1f, 1f })
+                {
+                    var bank = new List<Vector2>();
+                    for (int i = 0; i < cp.Count; i++)
+                    {
+                        var d = (cp[Mathf.Min(i + 1, cp.Count - 1)] - cp[Mathf.Max(i - 1, 0)]).normalized;
+                        bank.Add(cp[i] + new Vector2(-d.y, d.x) * side * (ch.half + 2.7f));
+                    }
+                    n += Town.AddLanes(ch.name + "ぞいの道" + (side > 0 ? "L" : "R"), bank, 1.5f, 0, ToRing0);
+                    if (ch.name == "天の川")
+                    {
+                        n += Town.AddLanes(ch.name + "ぞいの道" + (side > 0 ? "L" : "R") + "中", bank, 1.5f, 1, ToRing1);
+                        n += Town.AddLanes(ch.name + "ぞいの道" + (side > 0 ? "L" : "R") + "上", bank, 1.4f, 2, ToRing2);
+                    }
+                }
+            }
             Debug.Log($"[Tsukuyomi] lanes: {n} pieces");
         }
 
@@ -555,7 +575,18 @@ namespace Tsukuyomi.EditorTools
             float below = Island.Height(deckC.x, deckC.y + 3) - top;
             for (float x = -6f; x <= 6f; x += 3f)
                 foreach (float z in new[] { 0f, 4f })
-                    Cyl(deck, "脚", new Vector3(x, below / 2, z), 0.3f, -below, Wood);
+                {
+                    var foot = deckC + new Vector2(x, z);
+                    float fy = Island.Height(foot.x, foot.y) - top;
+                    if (Town.OnAnyStreet(foot, 1.2f) || TerrainBuilder.NearStairs(foot, 1f))
+                    {
+                        // 道の上は柱を立てず、崖へ斜めの方杖でささえる
+                        var brace = Box(deck, "方杖", new Vector3(x, -2.2f, z / 2 - 1.2f), new Vector3(0.25f, 0.25f, 5.4f), Wood);
+                        brace.transform.localEulerAngles = new Vector3(-40f, 0, 0);
+                        continue;
+                    }
+                    Cyl(deck, "脚", new Vector3(x, fy / 2, z), 0.3f, -fy, Wood);
+                }
             // 上空の月の輪（AR）
             var ring = Group(_deco, "月の輪", new Vector3(c.x, top + 26f, c.y + 4));
             for (int i = 0; i < 36; i++)
@@ -1003,18 +1034,7 @@ namespace Tsukuyomi.EditorTools
             return list;
         }
 
-        /// <summary>長方形の足もとに道がかかっているか。</summary>
-        static bool OnRoad(Vector2 c, float w, float d, float rotY)
-        {
-            var rot = Quaternion.Euler(0, rotY, 0);
-            for (float x = -w / 2; x <= w / 2 + 0.01f; x += 1f)
-                for (float z = -d / 2; z <= d / 2 + 0.01f; z += 1f)
-                {
-                    var o = rot * new Vector3(x, 0, z);
-                    if (Town.OnAnyStreet(c + new Vector2(o.x, o.z), 0.3f)) return true;
-                }
-            return false;
-        }
+        static bool OnRoad(Vector2 c, float w, float d, float rotY) => Town.OnRoad(c, w, d, rotY);
 
         /// <summary>海ぞい：下町の環状通りの海がわに、ところどころ通りを向いた小さな店（遊歩道は残す）。</summary>
         static int SeaHouses(Transform g, ref int seed)
@@ -1100,14 +1120,35 @@ namespace Tsukuyomi.EditorTools
             var s = Town.Streets.Find(x => x.name == "下町の環状通り");
             if (s == null) return 0;
             int n = 0;
-            for (int i = 3; i < s.pts.Count - 3; i += 7)
+            int k = 0;
+            for (int i = 3; i < s.pts.Count - 3; i += 11)
             {
                 var p = s.pts[i];
                 var outward = (p - Island.Center).normalized;
                 var c = p + outward * (s.half + 1.8f);
                 if (OnRoad(c, 2.8f, 1.6f, 0) || Island.NearestWater(c.x, c.y) < 3f || Island.Inside(c.x, c.y) < 3.5f) continue;
                 if (Physics.CheckSphere(new Vector3(c.x, Hgt(c.x, c.y) + 1.8f, c.y), 1.4f, ~0, QueryTriggerInteraction.Ignore)) continue;
-                Buildings.Yatai(g, new Vector3(c.x, G, c.y), Mathf.Atan2(-outward.x, -outward.y) * Mathf.Rad2Deg, seed++);
+                float yaw = Mathf.Atan2(-outward.x, -outward.y) * Mathf.Rad2Deg;
+                var c3 = new Vector3(c.x, G, c.y);
+                int kind = (k++) % 5;
+                if (kind == 0 || kind == 3) Buildings.Yatai(g, c3, yaw, seed++);
+                else if (kind == 1) TeaSeat(g, c3, yaw);
+                else if (kind == 2)
+                {
+                    var rack = Group(g, "干物の台", c3, yaw);
+                    Box(rack, "台", new Vector3(0, 0.45f, 0), new Vector3(2.4f, 0.1f, 1.2f), Wood, true);
+                    foreach (float x in new[] { -1.1f, 1.1f }) foreach (float z in new[] { -0.5f, 0.5f }) Box(rack, "脚", new Vector3(x, 0.2f, z), new Vector3(0.08f, 0.4f, 0.08f), WoodDark);
+                    for (int f = 0; f < 6; f++) Ball(rack, "干物", new Vector3(-0.9f + f * 0.36f, 0.53f, 0), new Vector3(0.18f, 0.05f, 0.7f), Lit("himono", new Color(0.75f, 0.55f, 0.35f), 0.2f));
+                    for (int b = 0; b < 2; b++) Cyl(rack, "樽", new Vector3(1.8f, 0.45f, -0.4f + b * 0.8f), 0.32f, 0.9f, Wood, true);
+                }
+                else
+                {
+                    var stand = Group(g, "物売りの台", c3, yaw);
+                    Box(stand, "ござ", new Vector3(0, 0.02f, 0), new Vector3(2.4f, 0.04f, 1.6f), Lit("goza", new Color(0.7f, 0.62f, 0.4f), 0.1f));
+                    for (int f = 0; f < 5; f++) Ball(stand, "品物", new Vector3(-0.9f + f * 0.45f, 0.15f, R(-0.3f, 0.3f)), Vector3.one * R(0.2f, 0.35f), ColorMat(Color.HSVToRGB(R(0f, 1f), 0.5f, 0.9f)));
+                    Cyl(stand, "傘の柄", new Vector3(0.9f, 1.1f, 0.5f), 0.04f, 2.2f, WoodDark);
+                    Cyl(stand, "傘", new Vector3(0.9f, 2.2f, 0.5f), 1.1f, 0.08f, ColorMat(new Color(0.8f, 0.2f, 0.2f)));
+                }
                 Town.Reserve(c, 1.8f);
                 n++;
             }

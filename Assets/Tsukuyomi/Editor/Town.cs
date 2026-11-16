@@ -96,6 +96,19 @@ namespace Tsukuyomi.EditorTools
             return false;
         }
 
+        /// <summary>長方形（中心 c・幅 w・奥行 d・向き rotY）の足もとに道がかかっているか。</summary>
+        public static bool OnRoad(Vector2 c, float w, float d, float rotY)
+        {
+            var rot = Quaternion.Euler(0, rotY, 0);
+            for (float x = -w / 2; x <= w / 2 + 0.01f; x += 1f)
+                for (float z = -d / 2; z <= d / 2 + 0.01f; z += 1f)
+                {
+                    var o = rot * new Vector3(x, 0, z);
+                    if (OnAnyStreet(c + new Vector2(o.x, o.z), 0.2f)) return true;
+                }
+            return false;
+        }
+
         public static void AddStreet(string name, IEnumerable<Vector2> pts, float half, int level)
         {
             var arr = new List<Vector2>(pts).ToArray();
@@ -113,6 +126,7 @@ namespace Tsukuyomi.EditorTools
                 if (!OnLevel(p, level)) return false;
                 if (Island.NearestWater(p.x, p.y) < half + 1f && Island.PondDistance(p.x, p.y) < half + 1.5f) return false;
                 foreach (var (c, r) in Landmarks) if (Vector2.Distance(c, p) < r + half + 1f) return false;
+                if (TerrainBuilder.NearStairs(p, half + 0.8f)) return false;   // 石段を横切らない（石段が道をふさいでいた）
                 return true;
             }
             int pieces = 0;
@@ -195,7 +209,8 @@ namespace Tsukuyomi.EditorTools
                     var side = new Vector2(-dirv.y, dirv.x) * s.half;
                     var l = p + side; var r = p - side;
                     float sy = s.level >= 0 && !hill ? Island.LevelTop(s.level) + lift : H(p) + lift;
-                    v.Add(new Vector3(l.x, sy, l.y)); v.Add(new Vector3(r.x, sy, r.y));
+                    bool follow = hill || s.level < 0;   // 斜面では左右それぞれ地面の高さに（道が浮かないように）
+                    v.Add(new Vector3(l.x, follow ? H(l) + lift : sy, l.y)); v.Add(new Vector3(r.x, follow ? H(r) + lift : sy, r.y));
                     uv.Add(new Vector2(0, along / 3f)); uv.Add(new Vector2(s.half * 2 / 3f, along / 3f));
                     if (prevOk)
                     {
@@ -413,7 +428,7 @@ namespace Tsukuyomi.EditorTools
                         var face = -normal;
                         float rotY = Mathf.Atan2(face.x, face.y) * Mathf.Rad2Deg;
                         float rr = Mathf.Max(w, d) * 0.5f;
-                        if (OnLevel(p, s.level) && Free(c, rr * 0.85f) && !TerrainBuilder.NearStairs(c, rr + 1.4f) && Flat(c, w, d, rotY, out float y))
+                        if (OnLevel(p, s.level) && Free(c, rr * 0.85f) && !TerrainBuilder.NearStairs(c, rr + 1.4f) && !OnRoad(c, w + 0.6f, d + 0.6f, rotY) && Flat(c, w, d, rotY, out float y))
                         {
                             if (place(s, placed, c, y, rotY, w, d))
                             {
@@ -442,7 +457,7 @@ namespace Tsukuyomi.EditorTools
                 float w = R(5.5f, 9f), d = R(5.5f, 8f);
                 float rotY = new[] { 0f, 90f, 180f, -90f }[Ri(0, 4)] + R(-8, 8);
                 float rr = Mathf.Max(w, d) * 0.5f;
-                if (!Free(c, rr * 0.86f) || TerrainBuilder.NearStairs(c, rr + 1.4f) || !Flat(c, w, d, rotY, out float y, 0.45f)) continue;
+                if (!Free(c, rr * 0.86f) || TerrainBuilder.NearStairs(c, rr + 1.4f) || OnRoad(c, w + 0.6f, d + 0.6f, rotY) || !Flat(c, w, d, rotY, out float y, 0.45f)) continue;
                 if (place(placed, c, y, rotY, w, d))
                 {
                     Reserve(c, rr * 0.86f);

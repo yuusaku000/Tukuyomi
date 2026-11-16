@@ -41,7 +41,7 @@ namespace Tsukuyomi.EditorTools
             return false;
         }
 
-        public static void Run(Transform houses, Transform[] roots, List<(Vector2 c, float r)> keepOut, ref int seed)
+        public static void Run(Transform houses, Transform[] roots, List<(Vector2 c, float r)> keepOut, List<(Vector2 c, float r)> natural, ref int seed)
         {
             Physics.SyncTransforms();
             var occ = new bool[NX, NZ];
@@ -77,6 +77,8 @@ namespace Tsukuyomi.EditorTools
                 float len = Vector2.Distance(st.bottom, st.top);
                 for (float t = 0; t <= len; t += 1f) MarkCircle(Vector2.Lerp(st.bottom, st.top, t / Mathf.Max(0.01f, len)), st.width / 2 + 2f);
             }
+            var road = new bool[NX, NZ];
+            for (int i = 0; i < NX; i++) for (int j = 0; j < NZ; j++) road[i, j] = why[i, j] == 2;
             // 3) 建っているもの（家・名所・小物）
             var blame = new Dictionary<string, int>();
             foreach (var root in roots)
@@ -165,6 +167,59 @@ namespace Tsukuyomi.EditorTools
                 MarkCircle(p, used + 0.5f);
             }
             Debug.Log($"[Tsukuyomi] infill: houses {nHouse}, lounges {nLounge}, plazas {nPlaza}, bamboo {nBamboo}, sheds {nShed}, gardens {nGarden}");
+            Pave(houses, why, lvl, road, natural);
+        }
+
+        /// <summary>
+        /// 残った空き地（道と建物のあいだの土）を石畳の広場にする。上段は道の近く（5m）だけで、奥は苔の庭のまま。
+        /// 竹林・丘・海ぞいの遊歩道・水のそばはそのまま。
+        /// </summary>
+        static void Pave(Transform parent, byte[,] why, int[,] lvl, bool[,] road, List<(Vector2 c, float r)> natural)
+        {
+            var rd = Clearance(road);
+            var pave = new bool[NX, NZ];
+            int count = 0;
+            for (int i = 0; i < NX; i++)
+                for (int j = 0; j < NZ; j++)
+                {
+                    int lv = lvl[i, j];
+                    if (lv < 0 || why[i, j] == 2 || why[i, j] == 3) continue;
+                    var p = CellPos(i, j);
+                    if (Island.Inside(p.x, p.y) < 3.5f || Island.NearestWater(p.x, p.y) < 1.6f) continue;
+                    if (lv == 0 && Island.Inside(p.x, p.y) < 13f) continue;
+                    if (Vector2.Distance(p, Island.HillCenter) < Island.HillRadius + 3f) continue;
+                    if (lv == 2 && rd[i, j] > 5f) continue;
+                    bool nat = false;
+                    foreach (var (c, r) in natural) if ((p - c).sqrMagnitude < r * r) { nat = true; break; }
+                    if (nat) continue;
+                    pave[i, j] = true; count++;
+                }
+            var g = Group(parent, "空き地の石畳", Vector3.zero);
+            const int CH = 64;
+            for (int ci = 0; ci < NX; ci += CH)
+                for (int cj = 0; cj < NZ; cj += CH)
+                {
+                    var v = new List<Vector3>(); var uv = new List<Vector2>(); var t = new List<int>();
+                    for (int i = ci; i < Mathf.Min(NX, ci + CH); i++)
+                        for (int j = cj; j < Mathf.Min(NZ, cj + CH); j++)
+                        {
+                            if (!pave[i, j]) continue;
+                            float y = Island.LevelTop(lvl[i, j]) + 0.025f;
+                            float x0 = X0 + i, z0 = Z0 + j;
+                            int k = v.Count;
+                            v.Add(new Vector3(x0, y, z0)); v.Add(new Vector3(x0 + 1, y, z0)); v.Add(new Vector3(x0, y, z0 + 1)); v.Add(new Vector3(x0 + 1, y, z0 + 1));
+                            foreach (var q in new[] { v[k], v[k + 1], v[k + 2], v[k + 3] }) uv.Add(new Vector2(q.x / 4f, q.z / 4f));
+                            t.AddRange(new[] { k, k + 2, k + 1, k + 1, k + 2, k + 3 });
+                        }
+                    if (t.Count == 0) continue;
+                    var m = new Mesh { name = $"square_{ci}_{cj}", indexFormat = UnityEngine.Rendering.IndexFormat.UInt32 };
+                    m.SetVertices(v); m.SetUVs(0, uv); m.SetTriangles(t, 0);
+                    m.RecalculateNormals(); m.RecalculateTangents(); m.RecalculateBounds();
+                    m = SaveMeshForce($"square_{ci}_{cj}", m);
+                    var go = MeshObj(g, "石畳", m, Vector3.zero, TerrainBuilder.SquareTex);
+                    go.GetComponent<MeshRenderer>().shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+                }
+            Debug.Log($"[Tsukuyomi] paved leftover cells: {count}");
         }
 
         /// <summary>確認用の絵（環境変数 TSUKUYOMI_INFILL_DEBUG のフォルダへ）。灰=使えない 青=道 赤=建物 白=空き</summary>

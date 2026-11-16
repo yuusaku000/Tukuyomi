@@ -49,6 +49,7 @@ namespace Tsukuyomi.EditorTools
         public static Material Bed => Lit("t_bed", new Color(0.22f, 0.27f, 0.26f), 0.2f);
         public static Material StoneWall => TexMat("t_ishigaki", "stone_wall_05", new Color(0.92f, 0.9f, 0.86f), 1f, 0.15f);
         public static Material PavingTex => TexMat("t_paving", "stone_tiles_03", new Color(0.95f, 0.93f, 0.9f), 1f, 0.2f);
+        public static Material SquareTex => TexMat("t_square", "stone_tiles_03", new Color(0.7f, 0.7f, 0.72f), 1f, 0.12f);
         public static Material AlleyTex => TexMat("t_alley_stone", "stone_tiles_03", new Color(0.78f, 0.7f, 0.6f), 1f, 0.15f);
 
         // ───────── 地面 ─────────

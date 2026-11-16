@@ -79,8 +79,8 @@ namespace Tsukuyomi
                 name = "下町の水路", half = 4f, depth = 1.9f,
                 pts = new[]
                 {
-                    new Vector2(-172, 62), new Vector2(-140, 54), new Vector2(-112, 40), new Vector2(-84, 31), new Vector2(-50, 27),
-                    new Vector2(-20, 28), new Vector2(0, 29), new Vector2(30, 28), new Vector2(60, 27), new Vector2(90, 33),
+                    new Vector2(-172, 62), new Vector2(-140, 54), new Vector2(-112, 40), new Vector2(-84, 30), new Vector2(-50, 26),
+                    new Vector2(-20, 24.5f), new Vector2(0, 24), new Vector2(30, 24.5f), new Vector2(60, 26), new Vector2(90, 32),
                     new Vector2(112, 48), new Vector2(132, 70), new Vector2(150, 88), new Vector2(174, 98),
                 },
             },

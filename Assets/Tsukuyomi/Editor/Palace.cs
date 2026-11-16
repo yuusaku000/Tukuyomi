@@ -135,15 +135,14 @@ namespace Tsukuyomi.EditorTools
                 Box(g, "階段", new Vector3(sx0 + i * run + run / 2, (0.2f + top) / 2, sz), new Vector3(run + 0.02f, top - 0.2f, sw), WoodDark, true);
             }
             float sx1 = sx0 + n * run;
-            Box(g, "階段の手すり", new Vector3((sx0 + sx1) / 2, (0.2f + upY) / 2 + 0.9f, sz - sw / 2 - 0.05f), new Vector3(Vector2.Distance(new Vector2(sx0, 0.2f), new Vector2(sx1, upY)), 0.08f, 0.08f), Vermilion, false,
-                new Vector3(0, 0, Mathf.Atan2(upY - 0.2f, sx1 - sx0) * Mathf.Rad2Deg));
+
 
             // 1階の屋根（まわりの庇）
             var copper = RoofCopper;
             foreach (float sd in new[] { -1f, 1f })
             {
-                Box(g, "庇", new Vector3(0, upY - 0.35f, sd * (D / 2 + 0.75f)), new Vector3(W + 2.6f, 0.14f, 1.8f), copper, false, new Vector3(sd * 18f, 0, 0));
-                Box(g, "庇", new Vector3(sd * (W / 2 + 0.75f), upY - 0.35f, 0), new Vector3(1.8f, 0.14f, D + 2.6f), copper, false, new Vector3(0, 0, -sd * 18f));
+                Box(g, "庇", new Vector3(0, upY - 0.75f, sd * (D / 2 + 1.05f)), new Vector3(W + 2.6f, 0.14f, 1.8f), copper, false, new Vector3(sd * 18f, 0, 0));
+                Box(g, "庇", new Vector3(sd * (W / 2 + 1.05f), upY - 0.75f, 0), new Vector3(1.8f, 0.14f, D + 2.6f), copper, false, new Vector3(0, 0, -sd * 18f));
             }
 
             // 望楼の床（階段の上は吹き抜け）

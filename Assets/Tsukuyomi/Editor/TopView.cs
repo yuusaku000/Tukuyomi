@@ -30,7 +30,7 @@ namespace Tsukuyomi.EditorTools
                 cam.nearClipPlane = 1f; cam.farClipPlane = 400f;
                 cam.clearFlags = CameraClearFlags.SolidColor;
                 cam.backgroundColor = new Color(0.1f, 0.2f, 0.3f);
-                const int px = 1600;
+                const int px = 1000;
                 const float size = 170f;   // 1枚の幅（m）
                 var rt = new RenderTexture(px, px, 24);
                 cam.targetTexture = rt;

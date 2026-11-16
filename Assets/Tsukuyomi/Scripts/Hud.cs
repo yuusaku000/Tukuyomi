@@ -38,12 +38,38 @@ namespace Tsukuyomi
             {
                 var dir = PhotoDir;
                 System.IO.Directory.CreateDirectory(dir);
-                var path = System.IO.Path.Combine(dir, "tsukuyomi_" + System.DateTime.Now.ToString("yyyyMMdd_HHmmss") + ".png");
-                ScreenCapture.CaptureScreenshot(path);
+                var path = System.IO.Path.Combine(dir, "tsukuyomi_" + System.DateTime.Now.ToString("yyyyMMdd_HHmmss") + ".jpg");
+                StartCoroutine(SavePhoto(path));
                 _photoMsg = "写真を保存しました ▸ " + path;
                 _photoT = 0.3f;
             }
             catch (System.Exception e) { Toast("写真を保存できませんでした: " + e.Message); }
+        }
+
+        /// <summary>写真は横 1280 までに縮めて JPEG で保存する（Claude に見せるときの量を減らすため）。</summary>
+        System.Collections.IEnumerator SavePhoto(string path)
+        {
+            yield return new WaitForEndOfFrame();
+            Texture2D shot = null, small = null; RenderTexture rt = null;
+            try
+            {
+                shot = ScreenCapture.CaptureScreenshotAsTexture();
+                int w = Mathf.Min(1280, shot.width), h = Mathf.RoundToInt(shot.height * (w / (float)shot.width));
+                rt = RenderTexture.GetTemporary(w, h, 0);
+                Graphics.Blit(shot, rt);
+                var prev = RenderTexture.active; RenderTexture.active = rt;
+                small = new Texture2D(w, h, TextureFormat.RGB24, false);
+                small.ReadPixels(new Rect(0, 0, w, h), 0, 0); small.Apply();
+                RenderTexture.active = prev;
+                System.IO.File.WriteAllBytes(path, small.EncodeToJPG(88));
+            }
+            catch (System.Exception e) { Toast("写真を保存できませんでした: " + e.Message); }
+            finally
+            {
+                if (rt != null) RenderTexture.ReleaseTemporary(rt);
+                if (shot != null) Destroy(shot);
+                if (small != null) Destroy(small);
+            }
         }
         /// <summary>写真の置き場所。ピクチャはウイルスバスターのフォルダ保護で止められるので、保存データと同じ AppData にする。</summary>
         public static string PhotoDir => System.IO.Path.Combine(Ts.DataDir, "photos");

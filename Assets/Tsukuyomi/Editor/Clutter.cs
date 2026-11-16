@@ -209,7 +209,7 @@ namespace Tsukuyomi.EditorTools
             var bush = Lit("bush", new Color(0.22f, 0.42f, 0.22f), 0.1f);
             var rock = Lit("rock", new Color(0.45f, 0.45f, 0.43f), 0.15f);
             var flowers = new[] { ColorMat(new Color(1f, 0.6f, 0.75f)), ColorMat(new Color(1f, 0.9f, 0.4f)), ColorMat(new Color(0.75f, 0.6f, 1f)) };
-            for (int k = 0; k < 4000 && gardens < 900; k++)
+            for (int k = 0; k < 12000 && gardens < 1500; k++)
             {
                 var c = new Vector2(R(-155, 155), R(5, 312));
                 if (!Town.Free(c, 1.8f) || !Walkable(c, -1) || Town.OnAnyStreet(c, 1.2f)) continue;
