@@ -578,7 +578,7 @@ namespace Tsukuyomi.EditorTools
             mirror.SetFloat("_Scale", 0.6f); mirror.SetFloat("_Speed", 0.2f); mirror.SetFloat("_Alpha", 0.95f); mirror.SetFloat("_Grid", 0.8f);
             Prim(PrimitiveType.Quad, basin, "水", new Vector3(0, 0.42f, 0), new Vector3(13.2f, 5.2f, 1), mirror, false, new Vector3(90, 0, 0));
             Box(basin, "石の橋", new Vector3(0, 0.55f, 0), new Vector3(2.4f, 0.3f, 6.4f), Stone, true);
-            foreach (float x in new[] { -10f, 10f }) Sakura(g, new Vector3(c.x + x, 0, c.y - 2), 0.9f, true);
+            foreach (float x in new[] { -17f, 17f }) Sakura(g, new Vector3(c.x + x, 0, c.y - 4), 0.72f, true); // 正殿の階段や望楼にかからないよう、外へ小さめに
             foreach (float x in new[] { -6f, 6f }) foreach (float z in new[] { -9f, 3f }) Toro(g, new Vector3(c.x + x, 0, c.y + z), z < 0, 1.1f);
             // 正殿（高い基壇の上の三階の楼閣）
             Box(g, "基壇", new Vector3(c.x, 0.7f, c.y + 8), new Vector3(24f, 1.4f, 11f), Stone, true);

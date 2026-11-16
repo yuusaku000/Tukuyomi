@@ -176,9 +176,17 @@ namespace Tsukuyomi.EditorTools
             for (float x = -W / 2 + 1f; x < W / 2; x += 1.25f)
                 foreach (float sd in new[] { -1f, 1f }) Cyl(g, "高欄の小柱", new Vector3(x, upY + 0.45f, sd * (D / 2 - 0.15f)), 0.04f, 0.9f, Vermilion);
             // 望楼の上の裳階（ひさし）と、もう一階（月見の間）。窓が灯り、まわりに高欄
-            MeshObj(g, "望楼の屋根", Roof(W + 3.2f, D + 3.2f, 0.8f, 0.7f), new Vector3(0, upY + H2, 0), copper);
             const float W3 = W - 5f, D3 = D - 2.4f, H3 = 3.4f;
             float y3 = upY + H2 + 1.1f, f3 = y3 + 0.15f; // f3：三階の床の上
+            // 望楼のひさし：三階の床のまわりだけ（まん中は屋根をなくして、階段から上がる所を空ける）
+            {
+                float ox = W / 2 + 1.6f, oz = D / 2 + 1.6f, ix = W3 / 2 + 0.8f, iz = D3 / 2 + 0.8f;
+                foreach (float sd in new[] { -1f, 1f })
+                {
+                    Box(g, "望楼のひさし", new Vector3(0, y3 - 0.35f, sd * (iz + oz) / 2), new Vector3(ox * 2, 0.14f, oz - iz + 0.4f), copper, false, new Vector3(sd * 16f, 0, 0));
+                    Box(g, "望楼のひさし", new Vector3(sd * (ix + ox) / 2, y3 - 0.35f, 0), new Vector3(ox - ix + 0.4f, 0.14f, iz * 2), copper, false, new Vector3(0, 0, -sd * 16f));
+                }
+            }
             // 三階の床（縁もふくむ）。南がわに望楼から上がる階段の穴をあける
             const float hx0 = -7.3f, hx1 = 0.45f, hz0 = -3.2f, hz1 = -1.95f;
             float ex = W3 / 2 + 0.8f, ez = D3 / 2 + 0.8f;
@@ -193,34 +201,35 @@ namespace Tsukuyomi.EditorTools
                 for (int i = 0; i < n3; i++)
                 {
                     float top = upY + (i + 1) * rise3;
-                    Box(g, "三階への階段", new Vector3(hx0 + 0.05f + i * run3 + run3 / 2, (upY + top) / 2, (hz0 + hz1) / 2), new Vector3(run3 + 0.02f, top - upY, sw3), WoodDark, true);
+                    Box(g, "三階への階段", new Vector3(hx0 + 0.05f + i * run3 + run3 / 2, top - 0.06f, (hz0 + hz1) / 2), new Vector3(run3 + 0.04f, 0.12f, sw3), WoodDark, true);
                 }
+                // 段をささえる側桁（踏み板だけの、すけた階段）
+                float len3 = n3 * run3, ang3 = Mathf.Atan2(f3 - upY, len3) * Mathf.Rad2Deg;
+                foreach (float szs in new[] { hz0 + 0.04f, hz1 - 0.04f })
+                    Box(g, "階段の側桁", new Vector3(hx0 + 0.05f + len3 / 2, (upY + f3) / 2 - 0.15f, sz), new Vector3(Mathf.Sqrt(len3 * len3 + (f3 - upY) * (f3 - upY)), 0.25f, 0.08f), Vermilion, false, new Vector3(0, 0, ang3));
                 Box(g, "階段の手すり", new Vector3((hx0 + hx1) / 2, f3 + 0.9f, hz1 + 0.05f), new Vector3(hx1 - hx0, 0.1f, 0.1f), Vermilion);
                 Box(g, "見えない柵", new Vector3((hx0 + hx1) / 2 - 0.3f, f3 + 0.7f, hz1 + 0.08f), new Vector3(hx1 - hx0 - 0.6f, 1.4f, 0.15f), Vermilion, true).GetComponent<Renderer>().enabled = false;
                 Box(g, "見えない柵", new Vector3(hx0 - 0.08f, f3 + 0.7f, (hz0 + hz1) / 2), new Vector3(0.15f, 1.4f, hz1 - hz0), Vermilion, true).GetComponent<Renderer>().enabled = false;
             }
-            // 三階の壁（中に入れる）。北のまん中は縁へ出る戸口
-            var wallMat = Buildings.RedLacquer;
-            foreach (float sd in new[] { -1f, 1f })
-            {
-                Box(g, "三階の壁", new Vector3(sd * (W3 / 2 - 0.1f), f3 + H3 / 2, 0), new Vector3(0.2f, H3, D3), wallMat, true);
-                if (sd < 0) Box(g, "三階の壁", new Vector3(0, f3 + H3 / 2, -D3 / 2 + 0.1f), new Vector3(W3, H3, 0.2f), wallMat, true);
-                else
-                {
-                    foreach (float sx in new[] { -1f, 1f })
-                        Box(g, "三階の壁", new Vector3(sx * (W3 / 4 + 0.45f), f3 + H3 / 2, D3 / 2 - 0.1f), new Vector3(W3 / 2 - 0.9f, H3, 0.2f), wallMat, true);
-                    Box(g, "戸口の上", new Vector3(0, f3 + 2.3f + (H3 - 2.3f) / 2, D3 / 2 - 0.1f), new Vector3(1.8f, H3 - 2.3f, 0.2f), wallMat, true);
-                }
-            }
+            // 三階は望楼と同じく、柱と高欄だけの吹き抜け（まわりの景色が見える）
+            for (float x = -W3 / 2; x <= W3 / 2 + 0.01f; x += W3 / 4)
+                foreach (float sd in new[] { -1f, 1f })
+                    Cyl(g, "三階の柱", new Vector3(x, f3 + H3 / 2, sd * (D3 / 2)), 0.14f, H3, Vermilion, true);
+            for (float x = -ex + 0.6f; x < ex; x += 1.25f)
+                foreach (float sd in new[] { -1f, 1f }) Cyl(g, "三階の高欄の小柱", new Vector3(x, f3 + 0.45f, sd * (ez - 0.12f)), 0.04f, 0.9f, Vermilion);
+            for (float z = -ez + 0.6f; z < ez; z += 1.25f)
+                foreach (float sd in new[] { -1f, 1f }) Cyl(g, "三階の高欄の小柱", new Vector3(sd * (ex - 0.12f), f3 + 0.45f, z), 0.04f, 0.9f, Vermilion);
             // 縁の見えない柵（落ちないように）
             foreach (float sd in new[] { -1f, 1f })
             {
                 Box(g, "見えない柵", new Vector3(0, f3 + 0.7f, sd * (ez - 0.1f)), new Vector3(ex * 2, 1.4f, 0.2f), Vermilion, true).GetComponent<Renderer>().enabled = false;
                 Box(g, "見えない柵", new Vector3(sd * (ex - 0.1f), f3 + 0.7f, 0), new Vector3(0.2f, 1.4f, ez * 2), Vermilion, true).GetComponent<Renderer>().enabled = false;
-                Box(g, "三階の高欄", new Vector3(sd * (W3 / 2 + 0.75f), y3 + 0.7f, 0), new Vector3(0.1f, 0.1f, D3 + 1.4f), Vermilion);
+                Box(g, "三階の高欄", new Vector3(sd * (ex - 0.12f), f3 + 0.9f, 0), new Vector3(0.12f, 0.12f, ez * 2), Vermilion);
+                Box(g, "三階の高欄", new Vector3(0, f3 + 0.9f, sd * (ez - 0.12f)), new Vector3(ex * 2, 0.12f, 0.12f), Vermilion);
             }
             // 中：月見のソファ・行灯・あかり
             SofaSet(g, new Vector3(3.2f, f3, -1.0f), 180f);
+            SofaSet(g, new Vector3(-4.2f, f3, 0.6f), 180f, 2.6f);
             foreach (float x in new[] { -5.5f, 6.3f })
             {
                 Box(g, "行灯", new Vector3(x, f3 + 0.55f, 2.2f), new Vector3(0.4f, 0.6f, 0.4f), GlowWhite);
@@ -228,25 +237,17 @@ namespace Tsukuyomi.EditorTools
             }
             Lamp(g, new Vector3(0, f3 + 2.6f, 0), new Color(1f, 0.78f, 0.55f), 10f, 1.6f);
             y3 = f3 - 0.15f;
-            foreach (float sd in new[] { -1f, 1f })
-            {
-                for (int i = 0; i < 5; i++)
-                    Box(g, "三階の窓", new Vector3(-W3 / 2 + W3 * (i + 0.5f) / 5, y3 + H3 * 0.55f, sd * (D3 / 2 + 0.03f)), new Vector3(W3 / 5 - 0.7f, 1.4f, 0.05f), Buildings.WindowGlow);
-                Box(g, "三階の高欄", new Vector3(0, y3 + 0.7f, sd * (D3 / 2 + 0.75f)), new Vector3(W3 + 1.4f, 0.1f, 0.1f), Vermilion);
-                for (int i = 0; i < 3; i++)
-                    Box(g, "三階の窓", new Vector3(sd * (W3 / 2 + 0.03f), y3 + H3 * 0.55f, -D3 / 2 + D3 * (i + 0.5f) / 3), new Vector3(0.05f, 1.4f, D3 / 3 - 0.6f), Buildings.WindowGlow);
-            }
-            foreach (float sx in new[] { -1f, 1f }) foreach (float sz3 in new[] { -1f, 1f })
-                Cyl(g, "三階の柱", new Vector3(sx * (W3 / 2 + 0.05f), y3 + H3 / 2, sz3 * (D3 / 2 + 0.05f)), 0.15f, H3, Vermilion);
             Box(g, "三階の梁", new Vector3(0, y3 + H3 - 0.12f, 0), new Vector3(W3 + 0.4f, 0.3f, D3 + 0.4f), Vermilion);
-            for (int i = 0; i < 6; i++) Chochin(g, new Vector3(-W3 / 2 + W3 * (i + 0.5f) / 6, y3 + H3 - 0.5f, -D3 / 2 - 0.9f), i % 2 == 0 ? GlowRed : GlowGold);
+            foreach (float sd in new[] { -1f, 1f })
+                for (int i = 0; i < 6; i++) Chochin(g, new Vector3(-W3 / 2 + W3 * (i + 0.5f) / 6, f3 + H3 - 0.6f, sd * (D3 / 2)), (i + (sd > 0 ? 1 : 0)) % 2 == 0 ? GlowRed : GlowGold);
             float yr = y3 + H3;
             MeshObj(g, "最上階の屋根", Roof(W3 + 3.6f, D3 + 3.4f, 3.6f, 1.2f), new Vector3(0, yr, 0), copper);
             Box(g, "棟", new Vector3(0, yr + 3.6f, 0), new Vector3((W3 - D3) + 1.2f, 0.35f, 0.45f), Black);
             foreach (float sx in new[] { -1f, 1f }) Ball(g, "鴟尾", new Vector3(sx * ((W3 - D3) / 2 + 0.6f), yr + 3.95f, 0), new Vector3(0.5f, 0.8f, 0.4f), Gold);
             // 望楼の席：月見のソファと遠眼鏡
-            SofaSet(g, new Vector3(-6.5f, upY, 1.0f), 0);
-            SofaSet(g, new Vector3(-2.2f, upY, 1.0f), 0, 2.6f);
+            // 望楼のソファは、北の海と月見台のほう（景色）を向く
+            SofaSet(g, new Vector3(-6.5f, upY, 0.4f), 180f);
+            SofaSet(g, new Vector3(-2.2f, upY, 0.4f), 180f, 2.6f);
             var scope = Group(g, "月見の遠眼鏡", new Vector3(5.5f, upY, -2.8f), 200);
             Cyl(scope, "三脚", new Vector3(0, 0.6f, 0), 0.05f, 1.2f, WoodDark);
             var tube = Cyl(scope, "筒", new Vector3(0, 1.35f, 0.1f), 0.11f, 1.1f, Gold);
