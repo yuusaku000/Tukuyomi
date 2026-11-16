@@ -83,7 +83,7 @@ namespace Tsukuyomi
                 if (a > 0)
                 {
                     float x = 60, y = auto ? 100 : 150;
-                    Text(new Rect(x, y, 800, 24), (LiveShow.Now == LiveShow.Phase.Song1 ? "M1 ▸ " : "M2 ▸ ") + song.en, 18, new Color(Cyan.r, Cyan.g, Cyan.b, a), TextAnchor.UpperLeft, true);
+                    Text(new Rect(x, y, 800, 24), $"M{ls.SongNo} ▸ " + song.en, 18, new Color(Cyan.r, Cyan.g, Cyan.b, a), TextAnchor.UpperLeft, true);
                     Text(new Rect(x, y + 24, 900, 70), "♪ " + song.title, 50, new Color(1, 1, 1, a), TextAnchor.UpperLeft, false, FontStyle.Bold);
                     Text(new Rect(x + 6, y + 92, 800, 28), "作詞・作曲　ヤチヨ", 18, new Color(Gold.r, Gold.g, Gold.b, a * 0.9f), TextAnchor.UpperLeft);
                     Fill(new Rect(x, y + 124, 300 * a, 2), new Color(Pink.r, Pink.g, Pink.b, a));
@@ -131,8 +131,7 @@ namespace Tsukuyomi
                 Text(r, talk, 28, new Color(1, 1, 1, ta), TextAnchor.MiddleCenter);
             }
 
-            // コメント欄（右）
-            DrawComments(auto);
+            // コメントは画面には出さず、舞台のうしろの空に流す（LiveShow.Wow）
 
             // キーの案内とペンライトの色
             if (!auto && !Blocked)
@@ -141,7 +140,7 @@ namespace Tsukuyomi
                 var kr = new Rect(W - 640, H - 112, 600, 30);
                 Fill(new Rect(kr.x - 8, kr.y - 4, kr.width + 8, kr.height + 8), new Color(0.02f, 0.05f, 0.12f, 0.45f));
                 Fill(new Rect(kr.x, kr.y + 7, 16, 16), pc);
-                Text(new Rect(kr.x + 24, kr.y, 600, 30), $"ペンライト「{LiveShow.PenNames[LiveShow.PenColor]}」　1〜8 色　 C おまかせカメラ　 T 投げ銭", 18, new Color(1, 1, 1, 0.85f), TextAnchor.MiddleLeft);
+                Text(new Rect(kr.x + 24, kr.y, 600, 30), $"ペンライト「{LiveShow.PenNames[LiveShow.PenColor]}」　1〜8 色　 C おまかせカメラ　 T 投げ銭（ステージに招待）", 18, new Color(1, 1, 1, 0.85f), TextAnchor.MiddleLeft);
             }
         }
 
@@ -197,7 +196,7 @@ namespace Tsukuyomi
             Panel(r);
             Text(new Rect(r.x, r.y + 20, r.width, 22), "SUPER FUJU", 16, Cyan, TextAnchor.MiddleCenter, true);
             Text(new Rect(r.x, r.y + 46, r.width, 50), "ヤチヨに投げ銭", 38, Color.white, TextAnchor.MiddleCenter, false, FontStyle.Bold);
-            Text(new Rect(r.x, r.y + 98, r.width, 26), "ミニヤチヨの本物のふじゅ〜から払います。コメントが光って、ヤチヨがお礼を言います", 18, new Color(1, 1, 1, 0.7f), TextAnchor.MiddleCenter);
+            Text(new Rect(r.x, r.y + 98, r.width, 26), "ミニヤチヨの本物のふじゅ〜から払います。コメントが空で光って流れ、ステージに招待されます", 18, new Color(1, 1, 1, 0.7f), TextAnchor.MiddleCenter);
             // 金額
             float bw = 150, gap = 12, bx = r.x + (r.width - (bw * TipAmounts.Length + gap * (TipAmounts.Length - 1))) / 2, by = r.y + 140;
             for (int i = 0; i < TipAmounts.Length; i++)

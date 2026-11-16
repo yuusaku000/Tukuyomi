@@ -247,6 +247,14 @@ namespace Tsukuyomi.EditorTools
             show.cheer = Src("客席の歓声", new Vector3(0, G + 2f, -150f), 22f, 140f, true, 40);
             show.sparkMat = Shaded("spark", "Tsukuyomi/Spark");
             show.penMat = penMat;
+            show.beamMat = beamMat;
+            show.glowMat = led;
+            var water = Shaded("water_live", "Tsukuyomi/Water");
+            water.SetColor("_Deep", new Color(0.02f, 0.18f, 0.3f)); water.SetColor("_Shallow", new Color(0.1f, 0.5f, 0.6f));
+            water.SetFloat("_Scale", 0.2f); water.SetFloat("_Speed", 0.9f); water.SetFloat("_Alpha", 0.62f); water.SetFloat("_Grid", 0f);
+            EditorUtility.SetDirty(water);
+            show.waterMat = water;
+            show.holoMat = Landmarks.Holo("holo_live", new Color(0.5f, 0.85f, 1f), 0.5f, 1.8f, 0.15f);
             rig.gameObject.SetActive(false);
             Debug.Log($"[Tsukuyomi] live stage: heads {heads.Count}, ring {ledRing.Count}+{ledFloor.Count}");
         }

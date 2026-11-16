@@ -93,7 +93,10 @@ namespace Tsukuyomi
                 if (!Hud.Blocked && Input.GetKeyDown(KeyCode.Space) && !InWater) { _vy = jumpSpeed; jumped = true; _airT = 1f; }
                 if (transform.position.y > 0.6f && !InWater && (SkyShip.I == null || !SkyShip.I.OnDeck(transform.position))) { _safePos = transform.position; _safeYaw = transform.eulerAngles.y; }
             }
-            _vy += gravity * Time.deltaTime;
+            // ライブの「無重力」：会場では、決まった高さまでふわっと浮く
+            float fh = LiveShow.FloatHeight;
+            if (fh > 0.05f && LiveShow.PlayerInVenue) _vy = Mathf.Clamp((Island.Ground + 0.1f + fh - transform.position.y) * 2.2f, -4f, 5f);
+            else _vy += gravity * Time.deltaTime;
             var before = transform.position;
             var flags = _cc.Move((_move + Vector3.up * _vy) * Time.deltaTime);
             // 段にぶつかって止まったら、段の高さぶん持ち上げてもう一度すすむ（走っていても石段を登れるように）

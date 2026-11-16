@@ -31,7 +31,7 @@ namespace Tsukuyomi
             if (sec == null) return 0;
             if (s.style == 1)
                 return sec.last ? 4 : sec.name == "chorus" ? 1 : sec.name == "pre" ? 7 : sec.name == "bridge" ? 3 : 0;
-            return sec.name switch { "verse" => 2, "pre" => 3, "chorus" => 1, "bridge" => 7, "inter" => 2, _ => 0 };
+            return sec.name switch { "verse" => 2, "pre" => 3, "chorus" => 1, "drop" => (s.style == 2 ? 5 : 1), "bridge" => 7, "inter" => 2, _ => 0 };
         }
 
         Color Theme => PenColors[ThemeIndex()];
@@ -250,7 +250,7 @@ namespace Tsukuyomi
             float beat = s != null ? s.Beat(_songT) : _pt * 1.5f;
             int energy = _phase == Phase.Opening ? 0 : _phase == Phase.MC ? 1 : _phase == Phase.Ending ? 2 : sec != null ? sec.energy : 0;
             bool ballad = s != null && s.style == 1;
-            bool chorus = sec != null && sec.name == "chorus";
+            bool chorus = HypeSec(sec);
             bool last = sec != null && sec.last;
             var theme = Theme;
             float onBeat = Mathf.Pow(1f - Mathf.Repeat(beat, 1f), 3f); // 拍の頭で光る
@@ -295,18 +295,19 @@ namespace Tsukuyomi
                         float k = _phase == Phase.Opening ? 0.35f : energy >= 3 ? 0.55f + 0.45f * onBeat : energy == 2 ? 0.5f : 0.35f;
                         if (chorus && !ballad && ((int)beat + i) % 4 == 0) k = 1f; // 順番にまたたく
                         k += _flash * 0.6f;
+                        k *= (1f - _aloneK) * (1f - 0.7f * _freezeK); // ふたりきり・時間が止まっている間は消える
                         _mpb.SetColor(IdColor, c * k * 0.55f);
                         beams[i].SetPropertyBlock(_mpb);
                     }
                 }
             if (entranceBeam)
             {
-                float a = _phase == Phase.Song1 ? Mathf.Clamp01(1f - Mathf.Abs(_songT - 2.2f) / 2.4f) : _phase == Phase.Ending ? Mathf.Clamp01(1f - Mathf.Abs(_pt - (EndLen - 2f)) / 2f) : 0;
+                float a = _phase == Phase.Song && _si == 0 ? Mathf.Clamp01(1f - Mathf.Abs(_songT - EntranceLandT) / 1.6f) : _phase == Phase.Ending ? Mathf.Clamp01(1f - Mathf.Abs(_pt - (EndLen - 2f)) / 2f) : 0;
                 entranceBeam.enabled = a > 0.01f;
                 _mpb.SetColor(IdColor, new Color(0.8f, 0.9f, 1f) * a * 1.4f);
                 entranceBeam.SetPropertyBlock(_mpb);
-                if (_phase == Phase.Song1 && _songT > 0.5f && _songT < 3.5f && Random.value < 0.6f)
-                    Emit(_burst, spot + new Vector3(Random.Range(-1f, 1f), Random.Range(0f, 3f), Random.Range(-1f, 1f)), Vector3.up * Random.Range(1f, 4f), Color.Lerp(PenColors[2], PenColors[1], Random.value));
+                if (_phase == Phase.Song && _si == 0 && EntranceSparkle(_songT) && Random.value < 0.6f)
+                    Emit(_burst, performer.position + new Vector3(Random.Range(-1f, 1f), Random.Range(0f, 3f), Random.Range(-1f, 1f)), Vector3.up * Random.Range(1f, 4f), Color.Lerp(PenColors[2], PenColors[1], Random.value));
             }
 
             // 光の輪（舞台のうしろの大きな輪と、床の輪）
@@ -314,7 +315,7 @@ namespace Tsukuyomi
             Ring(ledFloor, beat, theme, energy, ballad, 1);
             if (moonDisc)
             {
-                float m = _phase == Phase.Song2 ? 0.35f + (chorus ? 0.5f : 0.2f) + (last ? 0.4f : 0) : _phase == Phase.MC ? 0.3f : 0.12f;
+                float m = ballad ? 0.35f + (chorus ? 0.5f : 0.2f) + (last ? 0.4f : 0) : _phase == Phase.MC ? 0.3f : 0.12f;
                 _mpb.SetColor(IdColor, new Color(1f, 0.88f, 0.62f) * m);
                 moonDisc.SetPropertyBlock(_mpb);
             }
@@ -422,7 +423,7 @@ namespace Tsukuyomi
                         {
                             float yaw = side * 12f - side * k * 8f + Mathf.Sin(beat * Mathf.PI * 0.25f) * 10f;
                             var dir = Quaternion.Euler(-tilt - k * 0.5f, yaw, 0) * Vector3.forward;
-                            Beam(o, dir, 70f, k % 2 == 0 ? green : Theme, 0.05f);
+                            Beam(o, dir, 70f, (k % 2 == 0 ? green : Theme) * LaserDim, 0.05f);
                         }
                     }
                 if (tunnel)
@@ -434,7 +435,7 @@ namespace Tsukuyomi
                     {
                         float a = k * Mathf.PI * 2f / 14f + t * 0.9f;
                         var dir = rot * new Vector3(Mathf.Cos(a) * 0.32f, Mathf.Sin(a) * 0.22f, 1f).normalized;
-                        Beam(o, dir, 70f, k % 2 == 0 ? PenColors[2] : PenColors[3], 0.045f);
+                        Beam(o, dir, 70f, (k % 2 == 0 ? PenColors[2] : PenColors[3]) * LaserDim, 0.045f);
                     }
                 }
                 if (sheet)
@@ -504,14 +505,20 @@ namespace Tsukuyomi
             _v.Clear(); _c.Clear(); _uv.Clear(); _t.Clear(); _n.Clear();
             var av = new List<Vector3>(_fans.Count * 16); var an = new List<Vector3>(_fans.Count * 16); var au = new List<Vector2>(_fans.Count * 16); var at = new List<int>(_fans.Count * 24);
             var themeI = ThemeIndex();
-            bool hop = !ballad && energy >= 3;
+            beat = FrozenBeat(beat); // 時間が止まっている間は、ふりも止まる
+            bool hop = !ballad && energy >= 3 && !_frozen;
+            _hands.Clear();
+            float tt = Time.time;
             foreach (var f in _fans)
             {
-                if (!f.root) continue;
+                if (!f.root || !f.root.gameObject.activeSelf) continue;
                 var root = f.root;
                 // サビは拍に合わせて小さくはねる
                 float y = hop ? Mathf.Abs(Mathf.Sin((beat + f.phase) * Mathf.PI)) * 0.07f : 0;
-                var p = root.position; p.y = f.baseY + y; root.position = p;
+                // 無重力：ひとりずつ少しずつちがう高さに浮いて、ゆっくりかたむく
+                float fl = FloatHeight * (0.65f + 0.35f * Mathf.Sin(f.phase * 40f + tt * 0.9f));
+                var p = root.position; p.y = f.baseY + y + fl; root.position = p;
+                root.rotation = Quaternion.Euler(fl * 4f * Mathf.Sin(f.phase * 30f + tt * 0.5f), f.yaw, fl * 5f * Mathf.Cos(f.phase * 25f + tt * 0.4f));
                 var rot = root.rotation;
                 var shoulder = root.TransformPoint(new Vector3(0.22f, 1.24f, 0));
                 var dir = rot * WaveDir(beat, energy, ballad, chorus, f.phase, _phase);
@@ -521,6 +528,7 @@ namespace Tsukuyomi
                 Box(av, an, au, at, hand - dir * 0.02f, hand + dir * 0.07f, 0.05f * f.scale, f.handUv);
                 int ci = f.follow ? themeI : f.own;
                 Beam(hand, dir, 0.42f, PenColors[ci], 0.05f);
+                _hands.Add((hand + dir * 0.4f, PenColors[ci]));
             }
             _penMesh.Clear();
             if (_v.Count > 0)
@@ -587,7 +595,7 @@ namespace Tsukuyomi
             // 腕をあげて、曲に合わせてふる
             var s = Song; var sec = Sec;
             float beat = s != null ? s.Beat(_songT) : _pt * 1.5f;
-            var d = WaveDir(beat, sec != null ? sec.energy : 1, s != null && s.style == 1, sec != null && sec.name == "chorus", 0, _phase);
+            var d = WaveDir(beat, sec != null ? sec.energy : 1, s != null && s.style == 1, HypeSec(sec), 0, _phase);
             // 方向 → 腕の回転（腕は -y にのびている）
             var q = Quaternion.FromToRotation(Vector3.down, d);
             doll.holdR = 1f; _penHeld = true;
@@ -640,7 +648,7 @@ namespace Tsukuyomi
         void CloseCamTick(float t)
         {
             if (!closeCam) return;
-            bool sing = _phase == Phase.Song1 || _phase == Phase.Song2 || _phase == Phase.MC || _phase == Phase.Ending;
+            bool sing = _phase != Phase.Opening && _phase != Phase.Idle;
             closeCam.enabled = sing && performer && performer.gameObject.activeSelf;
             if (!closeCam.enabled) return;
             var face = performer.position + Vector3.up * 1.42f;
@@ -675,7 +683,7 @@ namespace Tsukuyomi
 
         static readonly int[] ShotsIntro = { 0, 2, 8 }, ShotsVerse = { 1, 3, 7, 5 }, ShotsPre = { 5, 6, 3 }, ShotsChorus = { 0, 4, 1, 2, 6, 8 }, ShotsBallad = { 0, 1, 4, 7, 6 }, ShotsTalk = { 1, 7, 4 };
 
-        void LateUpdate()
+        void CamLate()
         {
             if (!AutoCam) return;
             if (!Running) { SetAutoCam(false); return; }
@@ -690,7 +698,7 @@ namespace Tsukuyomi
                 float bars = (_songT - sec.t0) / s.BarLen;
                 int no = Mathf.FloorToInt(bars / len);
                 u = (bars - no * len) / len;
-                var list = ballad ? ShotsBallad : sec.name switch { "intro" => ShotsIntro, "outro" => ShotsIntro, "pre" => ShotsPre, "chorus" => ShotsChorus, "inter" => ShotsChorus, "bridge" => ShotsTalk, _ => ShotsVerse };
+                var list = ballad ? ShotsBallad : sec.name switch { "intro" => ShotsIntro, "outro" => ShotsIntro, "pre" => ShotsPre, "chorus" => ShotsChorus, "drop" => ShotsChorus, "inter" => ShotsChorus, "bridge" => ShotsTalk, _ => ShotsVerse };
                 shot = list[(no + sec.bar0) % list.Length];
             }
             else

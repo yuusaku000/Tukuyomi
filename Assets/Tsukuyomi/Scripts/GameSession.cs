@@ -136,9 +136,19 @@ namespace Tsukuyomi
                 // 段階4：live:秒[:c番号][:tip][:ask] ／ live:s1:chorus:2[+秒]… でライブのその場面へ（音は出さない）
                 if (p.Length > 3 && p[3].StartsWith("live:") && LiveShow.I != null)
                 {
-                    var a = p[3].Substring(5).Split(':');
+                    var raw = p[3].Substring(5).Split(':');
+                    // set=0,2,1（曲順）・fx=dragon（演出）・open=gate（登場）を先に読む
+                    var rest = new System.Collections.Generic.List<string>();
+                    foreach (var x in raw)
+                    {
+                        if (x.StartsWith("set=")) LiveShow.ForceSet = LiveShow.ParseSet(x.Substring(4));
+                        else if (x.StartsWith("fx=")) LiveShow.ForceFx = x.Substring(3);
+                        else if (x.StartsWith("open=")) LiveShow.ForceOpen = x.Substring(5);
+                        else rest.Add(x);
+                    }
+                    var a = rest.ToArray();
                     int k = 0; float at;
-                    if (a[0] == "s1" || a[0] == "s2")
+                    if (a[0] == "s1" || a[0] == "s2" || a[0] == "s3")
                     {
                         string liveSpec = a[0] + ":" + a[1] + ":" + (a.Length > 2 && int.TryParse(a[2].Split('+')[0], out var nth) ? nth : 1);
                         float plus = 0;
@@ -149,6 +159,7 @@ namespace Tsukuyomi
                     }
                     else { float.TryParse(a[0], NumberStyles.Float, CultureInfo.InvariantCulture, out at); k = 1; }
                     LiveShow.I.Test(at);
+                    LiveShow.I.Replan(); LiveShow.I.Test(at);
                     LiveShow.ForceShot = -1;
                     LiveShow.SetAutoCam(false);
                     for (; k < a.Length; k++)

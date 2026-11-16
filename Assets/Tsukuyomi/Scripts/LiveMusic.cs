@@ -27,7 +27,9 @@ namespace Tsukuyomi
     {
         public string title, en;
         public float bpm;
-        public int style;           // 0 明るいポップ・1 バラード
+        public int style;           // 0 明るいポップ・1 バラード・2 EDM・3 ロック
+        public string mc;           // 曲の前のヤチヨのひとこと
+        public bool Hype => style != 1;
         public float reverb = 0.2f;
         public readonly List<LiveSec> secs = new List<LiveSec>();
         public float lead = 0.6f;   // 曲が始まるまでの間（秒）
@@ -162,7 +164,7 @@ namespace Tsukuyomi
 
         public static LiveSong Parade()
         {
-            var s = new LiveSong { title = "月灯りパレード", en = "TSUKIAKARI PARADE", bpm = 136, style = 0, reverb = 0.16f };
+            var s = new LiveSong { title = "月灯りパレード", en = "TSUKIAKARI PARADE", bpm = 136, style = 0, reverb = 0.16f, mc = "みんなで光の行進、いくよ〜！" };
             s.secs.Add(S("intro", 2, 1, "G A F#m Bm G A D D", P_Intro));
             s.secs.Add(S("verse", 1, 0, C_Verse, P_Verse, L1_Verse1));
             s.secs.Add(S("pre", 2, 0, C_Pre, P_Pre, L1_Pre1));
@@ -249,7 +251,7 @@ namespace Tsukuyomi
 
         public static LiveSong Letter()
         {
-            var s = new LiveSong { title = "八千夜のてがみ", en = "A LETTER OF 8000 NIGHTS", bpm = 76, style = 1, reverb = 0.3f };
+            var s = new LiveSong { title = "八千夜のてがみ", en = "A LETTER OF 8000 NIGHTS", bpm = 76, style = 1, reverb = 0.3f, mc = "ゆっくり聞いてね。ずっと前から、みんなに聞いてほしかった歌です" };
             s.secs.Add(S("intro", 0, 1, "C G/B Am G", B_Intro));
             s.secs.Add(S("verse", 1, 0, BC_A, B_A, L2_A1, 2));
             s.secs.Add(S("pre", 1, 0, BC_B, B_B, L2_B1, 2));
@@ -264,6 +266,191 @@ namespace Tsukuyomi
             s.Layout();
             return s;
         }
+
+
+        // ───────── 3曲目「ヤオヨロ☆ハイパージャンプ」（ロック・172 BPM・イ長調） ─────────
+
+        static readonly string[] J_Intro =
+        {
+            "A5 - E5 - A5 B5 C#6 -", "B5 - G#5 - E5 - - -", "F#5 - C#6 - B5 A5 B5 -", "A5 - F#5 - D5 - - -",
+            "A5 - E5 - A5 B5 C#6 -", "B5 - G#5 - E5 - E6 -", "D6 - C#6 - B5 - A5 -", "B5 - - - . . . .",
+        };
+        static readonly string[] J_Verse =
+        {
+            "C#5 C#5 C#5 - B4 - A4 -", "B4 - B4 C#5 E5 - - -", "F#5 F#5 E5 - C#5 - A4 -", "F#4 - A4 - B4 - - -",
+            "C#5 C#5 C#5 - B4 - A4 -", "B4 - B4 C#5 E5 - F#5 -", "F#5 - E5 - D5 - C#5 -", "B4 - - - . . . .",
+        };
+        static readonly string[] J_Pre =
+        {
+            "D5 - D5 - E5 - F#5 -", "E5 - - - B4 - - -", "C#5 - E5 - G#5 - A5 -", "A5 - - - F#5 - - -",
+            "D5 - D5 - E5 - F#5 -", "G#5 - - - E5 - - -", "F#5 - F#5 - E5 - D5 -", "E5 - - - - - . .",
+        };
+        static readonly string[] J_Chorus =
+        {
+            "A5 - - - F#5 - A5 -", "B5 - - - G#5 - E5 -", "E5 - C#5 - E5 - A5 -", "A5 - - - - - . .",
+            "A5 - - - F#5 - A5 -", "B5 - - - C#6 - B5 -", "A5 - - - E5 - C#5 -", "E5 - - - - - . .",
+            "A5 - - - F#5 - A5 -", "B5 - - - G#5 - E5 -", "C#6 - B5 - A5 - C#6 -", "C#6 - - - B5 - A5 -",
+            "F#5 - - - A5 - B5 -", "B5 - - - G#5 - E5 -", "A5 - - - - - - -", "- - - - . . . .",
+        };
+        static readonly string[] J_Inter = { "A5 E5 A5 B5 C#6 B5 A5 E5", "B5 G#5 E5 G#5 B5 - - -", "F#5 A5 D6 C#6 B5 A5 F#5 -", "E5 G#5 B5 E6 - - . ." };
+        static readonly string[] J_Bridge =
+        {
+            "C#5 - - - E5 - - -", "F#5 - - - A5 - - -", "E5 - - - C#5 - - -", "B4 - - - - - . .",
+            "C#5 - - - E5 - F#5 -", "A5 - - - F#5 - A5 -", "B5 - - - D6 - B5 -", "E6 - - - - - - -",
+        };
+        static readonly string[] J_Outro = { "A5 - - - F#5 - A5 -", "B5 - - - G#5 - E5 -", "A5 - - - - - - -", "A5 - - - - - . ." };
+        const string JC_V = "A E F#m D A E D E", JC_P = "D E C#m F#m D E Bm E", JC_C = "D E C#m F#m D E A A D E C#m F#m Bm E A A";
+        static readonly string[] L3_V1 = { "ノートを閉じたら 合図はひとつ", "スマコン起動 ヤオヨロ！" };
+        static readonly string[] L3_P1 = { "重力なんて 置いてきちゃった", "さあ ふみきって ──" };
+        static readonly string[] L3_C = { "ヤオヨロ☆ハイパージャンプ！ 空まで届け", "八百万の 光が呼んでる", "ヤオヨロ☆ハイパージャンプ！ 月を越えて", "いまだけは だれより 高く！" };
+        static readonly string[] L3_V2 = { "千本鳥居を 駆けあがったら", "屋根の上まで 一直線" };
+        static readonly string[] L3_P2 = { "心のスイッチ ぜんぶオンにして", "せーので とびこめ ──" };
+        static readonly string[] L3_B = { "落ちるのが こわくなったら", "わたしの手を つかんでいて" };
+        static readonly string[] L3_Last = { "ヤオヨロ☆ハイパージャンプ！ 空まで届け", "八百万の 光が呼んでる", "ヤオヨロ☆ハイパージャンプ！ 月を越えて", "どこまでも いっしょに 高く！" };
+
+        public static LiveSong Jump()
+        {
+            var s = new LiveSong { title = "ヤオヨロ☆ハイパージャンプ", en = "YAOYORO HYPER JUMP", bpm = 172, style = 3, reverb = 0.12f, mc = "重力なんて、ここにはないよ！ いっしょにとぼう！" };
+            s.secs.Add(S("intro", 2, 0, "A E F#m D A E D E", J_Intro));
+            s.secs.Add(S("verse", 1, 0, JC_V, J_Verse, L3_V1));
+            s.secs.Add(S("pre", 2, 0, JC_P, J_Pre, L3_P1));
+            s.secs.Add(S("chorus", 3, 0, JC_C, J_Chorus, L3_C));
+            s.secs.Add(S("inter", 2, 0, "A E D E", J_Inter));
+            s.secs.Add(S("verse", 1, 0, JC_V, J_Verse, L3_V2));
+            s.secs.Add(S("pre", 2, 0, JC_P, J_Pre, L3_P2));
+            s.secs.Add(S("chorus", 3, 0, JC_C, J_Chorus, L3_C));
+            s.secs.Add(S("bridge", 1, 0, "F#m D A E F#m D Bm E", J_Bridge, L3_B));
+            s.secs.Add(S("chorus", 3, 0, JC_C, J_Chorus, L3_Last, last: true));
+            s.secs.Add(S("outro", 2, 0, "D E A A", J_Outro));
+            s.Layout();
+            return s;
+        }
+
+        // ───────── 4曲目「ネオン金魚の夜」（EDM・128 BPM・イ短調） ─────────
+
+        static readonly string[] K_Hook = { "A5 C6 E6 C6 A5 C6 E6 G6", "F5 A5 C6 A5 F5 A5 C6 E6", "E5 G5 C6 G5 E5 G5 C6 E6", "D5 G5 B5 G5 D5 G5 B5 D6" };
+        static readonly string[] K_Verse =
+        {
+            "A4 - C5 - E5 - D5 -", "C5 - - - A4 - - -", "G4 - C5 - E5 - G5 -", "G5 - - - E5 - D5 -",
+            "A4 - C5 - E5 - D5 -", "C5 - - - A4 - C5 -", "E5 - - - D5 - C5 -", "B4 - - - . . . .",
+        };
+        static readonly string[] K_Pre =
+        {
+            "A5 - - - G5 - F5 -", "G5 - - - D5 - - -", "E5 - G5 - B5 - A5 -", "A5 - - - - - . .",
+            "A5 - - - G5 - F5 -", "G5 - - - B5 - D6 -", "B5 - - - G#5 - E5 -", "G#5 - - - B5 - - -",
+        };
+        static readonly string[] K_Chorus =
+        {
+            "C6 - - - A5 - C6 -", "D6 - - - B5 - G5 -", "B5 - - - G5 - E5 -", "A5 - - - - - E5 G5",
+            "C6 - - - A5 - C6 -", "D6 - - - E6 - D6 -", "C6 - B5 - A5 - - -", "A5 - - - - - . .",
+        };
+        static readonly string[] K_Drop =
+        {
+            "A5 A5 . A5 C6 . A5 G5", "F5 F5 . F5 A5 . C6 A5", "G5 G5 . G5 C6 . E6 C6", "B5 . G5 . D6 . B5 .",
+            "A5 A5 . A5 C6 . E6 D6", "C6 C6 . A5 F5 . A5 C6", "E6 . D6 . C6 . G5 .", "B5 - - - D6 - - -",
+        };
+        static readonly string[] K_Bridge =
+        {
+            "F5 - - - A5 - - -", "G5 - - - B5 - - -", "A5 - - - C6 - - -", "B5 - - - D6 - - -",
+            "F5 - A5 - C6 - - -", "G5 - B5 - D6 - - -", "C6 - - - B5 - A5 -", "G#5 - - - B5 - E6 -",
+        };
+        static readonly string[] K_Outro = { "A5 C6 E6 C6 A5 C6 E6 G6", "F5 A5 C6 A5 F5 A5 C6 E6", "G5 B5 D6 B5 G5 B5 D6 -", "A5 - - - - - - -" };
+        const string KC_8 = "Am F C G Am F C G", KC_P = "F G Em Am F G Esus4 E", KC_C = "F G Em Am F G Am Am";
+        static readonly string[] L4_V1 = { "ネオンの水面に 金魚がおよぐ", "だれも知らない 夜のすきま" };
+        static readonly string[] L4_P1 = { "しっぽをゆらして ついておいで", "光る 迷路の むこうまで ──" };
+        static readonly string[] L4_C = { "ネオン金魚の夜 ゆらゆら 踊ろう", "ぜんぶ 忘れて 光になれ" };
+        static readonly string[] L4_V2 = { "提灯の海を すりぬけたら", "月が水槽に みえてくる" };
+        static readonly string[] L4_P2 = { "ひれをひろげて 風をつかんで", "はじけろ 3、2、1 ──" };
+        static readonly string[] L4_B = { "朝がきたら 消えてしまう魔法", "だから いまを 焼きつけて" };
+        static readonly string[] L4_Last = { "ネオン金魚の夜 ゆらゆら 踊ろう", "この夜を ずっと おぼえていて" };
+
+        static string[] Twice(string[] a) { var r = new string[a.Length * 2]; a.CopyTo(r, 0); a.CopyTo(r, a.Length); return r; }
+
+        public static LiveSong Kingyo()
+        {
+            var s = new LiveSong { title = "ネオン金魚の夜", en = "NEON GOLDFISH NIGHT", bpm = 128, style = 2, reverb = 0.2f, mc = "ネオンの海へ、もぐっちゃお！" };
+            s.secs.Add(S("intro", 2, 1, KC_8, Twice(K_Hook)));
+            s.secs.Add(S("verse", 1, 0, KC_8, K_Verse, L4_V1));
+            s.secs.Add(S("pre", 2, 0, KC_P, K_Pre, L4_P1));
+            s.secs.Add(S("chorus", 3, 0, KC_C, K_Chorus, L4_C));
+            s.secs.Add(S("drop", 3, 0, KC_8, K_Drop));
+            s.secs.Add(S("verse", 1, 0, KC_8, K_Verse, L4_V2));
+            s.secs.Add(S("pre", 2, 0, KC_P, K_Pre, L4_P2));
+            s.secs.Add(S("chorus", 3, 0, KC_C, K_Chorus, L4_C));
+            s.secs.Add(S("drop", 3, 0, KC_8, K_Drop));
+            s.secs.Add(S("bridge", 1, 0, "Dm Em F G Dm Em F E", K_Bridge, L4_B));
+            s.secs.Add(S("chorus", 3, 0, KC_C, K_Chorus, L4_Last, last: true));
+            s.secs.Add(S("drop", 3, 0, KC_8, K_Drop, last: true));
+            s.secs.Add(S("outro", 2, 1, "Am F G Am", K_Outro));
+            s.Layout();
+            return s;
+        }
+
+        // ───────── 5曲目「千本鳥居ハイウェイ」（速いEDM・160 BPM・ホ短調） ─────────
+
+        static readonly string[] H_Intro =
+        {
+            "E5 G5 B5 E6 D6 B5 G5 B5", "C6 - B5 - G5 - E5 -", "D5 F#5 A5 D6 C6 A5 F#5 A5", "B5 - - - F#5 - - -",
+            "E5 G5 B5 E6 D6 B5 G5 B5", "C6 - B5 - G5 - E5 -", "F#5 - G5 - A5 - D6 -", "C6 - - - B5 - . .",
+        };
+        static readonly string[] H_Verse =
+        {
+            "B4 - B4 - E5 - B4 -", "C5 - E5 - G5 - - -", "F#5 - E5 - D5 - E5 -", "F#5 - - - D5 - - -",
+            "B4 - B4 - E5 - B4 -", "C5 - E5 - G5 - A5 -", "A5 - G5 - F#5 - D5 -", "E5 - - - . . . .",
+        };
+        static readonly string[] H_Pre =
+        {
+            "E5 - G5 - - - E5 -", "F#5 - A5 - - - F#5 -", "D5 - F#5 - B5 - A5 -", "G5 - - - - - . .",
+            "E5 - G5 - - - C6 -", "A5 - F#5 - - - A5 -", "B5 - - - D#5 - F#5 -", "B5 - - - - - . .",
+        };
+        static readonly string[] H_Chorus =
+        {
+            "E6 - - - D6 - C6 -", "D6 - - - A5 - F#5 -", "F#5 - - - G5 - A5 -", "B5 - - - - - G5 B5",
+            "E6 - - - D6 - C6 -", "D6 - - - E6 - F#6 -", "G6 - - - F#6 - D6 -", "D6 - - - - - . .",
+            "E6 - - - D6 - C6 -", "D6 - - - A5 - F#5 -", "F#5 - - - G5 - A5 -", "B5 - - - E6 - G6 -",
+            "E6 - - - D6 - C6 -", "B5 - - - D#6 - F#6 -", "E6 - - - - - - -", "- - - - . . . .",
+        };
+        static readonly string[] H_Drop =
+        {
+            "E6 E6 B5 E6 . E6 D6 B5", "C6 C6 G5 C6 . C6 B5 G5", "D6 D6 A5 D6 . D6 F#6 D6", "B5 . F#5 . B5 . D#6 .",
+            "E6 E6 B5 E6 . E6 G6 E6", "C6 C6 G5 C6 . E6 C6 G5", "D6 . A5 . F#6 . D6 .", "D#6 - - - F#6 - - -",
+        };
+        static readonly string[] H_Bridge =
+        {
+            "C5 - - - E5 - - -", "B4 - - - E5 - - -", "E5 - - - G5 - - -", "F#5 - - - A5 - - -",
+            "C5 - - - E5 - A5 -", "B5 - - - G5 - E5 -", "G5 - - - E5 - G5 -", "F#5 - - - D#5 - B4 -",
+        };
+        static readonly string[] H_Outro = { "E6 - - - D6 - C6 -", "D6 - - - F#6 - - -", "E6 - - - - - - -", "E6 - - - - - . ." };
+        const string HC_V = "Em C D Bm Em C D D", HC_P = "C D Bm Em C D B B", HC_C = "C D Bm Em C D G G C D Bm Em Am B Em Em";
+        static readonly string[] L5_V1 = { "赤いゲートが 光のレーン", "アクセル踏んで 千本先へ" };
+        static readonly string[] L5_P1 = { "ふりかえらない ふりむかない", "くぐりぬけて ──" };
+        static readonly string[] L5_C = { "千本鳥居ハイウェイ 夜をつらぬけ", "ネオンの風が 背中を押すよ", "千本鳥居ハイウェイ 願いを積んで", "終点は きみと 見上げる月！" };
+        static readonly string[] L5_V2 = { "ひとつくぐれば 昨日が消えて", "ふたつくぐれば 明日が見える" };
+        static readonly string[] L5_P2 = { "エンジン音は 胸のビート", "つかまってて ──" };
+        static readonly string[] L5_B = { "迷ったら 赤い光を", "数えながら 帰っておいで" };
+        static readonly string[] L5_Last = { "千本鳥居ハイウェイ 夜をつらぬけ", "ネオンの風が 背中を押すよ", "千本鳥居ハイウェイ 願いを積んで", "終点で きみを 待ってる月！" };
+
+        public static LiveSong Highway()
+        {
+            var s = new LiveSong { title = "千本鳥居ハイウェイ", en = "SENBON TORII HIGHWAY", bpm = 160, style = 2, reverb = 0.15f, mc = "シートベルトしめてね！ 全速力でいくよ！" };
+            s.secs.Add(S("intro", 2, 1, "Em C D Bm Em C D D", H_Intro));
+            s.secs.Add(S("verse", 1, 0, HC_V, H_Verse, L5_V1));
+            s.secs.Add(S("pre", 2, 0, HC_P, H_Pre, L5_P1));
+            s.secs.Add(S("chorus", 3, 0, HC_C, H_Chorus, L5_C));
+            s.secs.Add(S("inter", 2, 0, "Em C D B", new[] { H_Drop[0], H_Drop[1], H_Drop[2], H_Drop[3] }));
+            s.secs.Add(S("verse", 1, 0, HC_V, H_Verse, L5_V2));
+            s.secs.Add(S("pre", 2, 0, HC_P, H_Pre, L5_P2));
+            s.secs.Add(S("chorus", 3, 0, HC_C, H_Chorus, L5_C));
+            s.secs.Add(S("bridge", 1, 0, "Am Em C D Am Em C B", H_Bridge, L5_B));
+            s.secs.Add(S("chorus", 3, 0, HC_C, H_Chorus, L5_Last, last: true));
+            s.secs.Add(S("drop", 3, 0, "Em C D Bm Em C D B", H_Drop, last: true));
+            s.secs.Add(S("outro", 2, 0, "C D Em Em", H_Outro));
+            s.Layout();
+            return s;
+        }
+
+        /// <summary>ライブで歌う曲ぜんぶ（曲順は LiveShow がランダムに決める）。</summary>
+        public static List<LiveSong> All() => new List<LiveSong> { Parade(), Letter(), Jump(), Kingyo(), Highway() };
 
         // ───────── 音の名前 ─────────
 
@@ -339,14 +526,16 @@ namespace Tsukuyomi
 
         static readonly float[] PianoAmp = { 0, 1f, 0.42f, 0.25f, 0.18f, 0.13f, 0.11f };
 
-        enum Inst { Lead, Bell, Pad, Bass, Arp, Piano, Strings, Flute, BalladBass }
+        enum Inst { Lead, Bell, Pad, Bass, Arp, Piano, Strings, Flute, BalladBass, Saw5, Guitar, Sub }
+        static readonly float[] Det5 = { 1f, 1.0071f, 0.9929f, 1.0153f, 0.9847f };
 
         /// <summary>1つの音を buf に足す。</summary>
         static void Note(float[] buf, Inst inst, float t0, float dur, float midi, float vel, Rng rng)
         {
             float f = Hz(midi);
             double inc = f / Rate;
-            float rel = inst switch { Inst.Pad => 0.5f, Inst.Strings => 0.9f, Inst.Bell => 1.6f, Inst.Piano => 1.4f, Inst.Flute => 0.25f, Inst.Lead => 0.14f, Inst.Arp => 0.05f, _ => 0.08f };
+            float rel = inst switch { Inst.Pad => 0.5f, Inst.Strings => 0.9f, Inst.Bell => 1.6f, Inst.Piano => 1.4f, Inst.Flute => 0.25f, Inst.Lead => 0.14f, Inst.Arp => 0.05f, Inst.Saw5 => 0.12f, _ => 0.08f };
+            var ph5 = new double[5] { 0.1, 0.37, 0.63, 0.81, 0.22 };
             int i0 = Mathf.Max(0, (int)(t0 * Rate));
             int n = (int)((dur + rel) * Rate);
             if (i0 + n > buf.Length) n = buf.Length - i0;
@@ -372,7 +561,7 @@ namespace Tsukuyomi
                         if (t > dur) env *= Mathf.Max(0, 1 - (t - dur) / rel);
                         break;
                     default:
-                        float att = inst switch { Inst.Pad => 0.25f, Inst.Strings => 0.55f, Inst.Flute => 0.07f, _ => 0.012f };
+                        float att = inst switch { Inst.Pad => 0.25f, Inst.Strings => 0.55f, Inst.Flute => 0.07f, Inst.Saw5 => 0.006f, Inst.Guitar => 0.004f, _ => 0.012f };
                         env = Mathf.Min(1, t / att);
                         if (inst == Inst.Lead) env *= 0.78f + 0.22f * Mathf.Exp(-t * 7f);
                         if (t > dur) env *= Mathf.Max(0, 1 - (t - dur) / rel);
@@ -457,6 +646,28 @@ namespace Tsukuyomi
                         v = Sin(p1) + 0.22f * Sin(p1 * 2) + 0.08f * Sin(p1 * 3) + lp * (0.25f * Mathf.Exp(-t * 6f) + 0.05f);
                         break;
                     }
+                    case Inst.Saw5:
+                    {
+                        // スーパーソウ：少しずつずらした5本のノコギリ波
+                        float sum = 0;
+                        for (int q = 0; q < 5; q++) sum += Saw(ref ph5[q], di * Det5[q]);
+                        lp += (sum * 0.3f - lp) * 0.4f;
+                        v = lp;
+                        break;
+                    }
+                    case Inst.Guitar:
+                    {
+                        // ひずんだギター：2本のノコギリ波を強くひずませる
+                        float a = Saw(ref p1, di), b = Saw(ref p2, di * 1.003);
+                        lp += ((a + b) * 0.5f - lp) * 0.3f;
+                        v = (float)Math.Tanh(lp * 4.5f) * 0.55f;
+                        break;
+                    }
+                    case Inst.Sub:
+                    {
+                        p1 += di; v = Sin(p1);
+                        break;
+                    }
                     default: v = 0; break;
                 }
                 buf[i0 + k] += v * env * vel;
@@ -536,9 +747,10 @@ namespace Tsukuyomi
         {
             int total = (int)(song.length * Rate);
             var buf = new float[total];
-            var r = new Rng(song.style == 0 ? 1234u : 777u);
+            var drm = new float[total];   // 打楽器（EDM では、ほかの音をキックに合わせて小さくする「ポンピング」のために分ける）
+            var r = new Rng((uint)(song.bpm * 13 + song.style * 101));
             float bar = song.BarLen, beat = song.BeatLen, e8 = beat / 2, e16 = beat / 4;
-            bool pop = song.style == 0;
+            bool pop = song.style == 0, edm = song.style == 2, rock = song.style == 3;
 
             for (int si = 0; si < song.secs.Count; si++)
             {
@@ -560,7 +772,17 @@ namespace Tsukuyomi
                         float t = sec.t0 + i * e8;
                         int midi = Midi(tk) + sh;
                         float d = len * e8 * 0.94f;
-                        if (sec.inst == 1) Note(buf, Inst.Bell, t, d, midi, pop ? 0.2f : 0.17f, r);
+                        if (sec.inst == 1) Note(buf, Inst.Bell, t, d, midi, pop || edm ? 0.2f : 0.17f, r);
+                        else if (edm)
+                        {
+                            if (sec.energy >= 3) { Note(buf, Inst.Saw5, t, d, midi, 0.16f, r); Note(buf, Inst.Bell, t, d, midi + 12, 0.06f, r); }
+                            else Note(buf, Inst.Lead, t, d, midi, 0.22f, r);
+                        }
+                        else if (rock)
+                        {
+                            Note(buf, Inst.Lead, t, d, midi, 0.22f, r);
+                            if (sec.energy >= 3) Note(buf, Inst.Bell, t, d, midi + 12, 0.045f, r);
+                        }
                         else if (pop)
                         {
                             Note(buf, Inst.Lead, t, d, midi, 0.24f, r);
@@ -587,7 +809,9 @@ namespace Tsukuyomi
                     bool fill = lastBar && next != null && next.energy > sec.energy;
                     bool firstBar = b == 0;
 
-                    if (pop)
+                    if (edm) EdmBar(buf, drm, sec, next, b, tb, voice, bassM, bar, beat, e8, e16, r);
+                    else if (rock) RockBar(buf, sec, next, b, tb, root, bassM, bar, beat, e8, e16, r);
+                    else if (pop)
                     {
                         // 和音のパッド
                         foreach (var m in voice) Note(buf, Inst.Pad, tb, bar * 0.98f, m, sec.energy >= 2 ? 0.075f : 0.06f, r);
@@ -683,8 +907,124 @@ namespace Tsukuyomi
             }
 
             Reverb(buf, song.reverb);
+            if (edm)
+            {
+                // ポンピング：拍の頭（キック）で、ほかの音を一瞬小さくする
+                for (int i = 0; i < total; i++)
+                {
+                    float t = i / (float)Rate - song.lead;
+                    float g = 1f;
+                    if (t > 0)
+                    {
+                        float tb = t - Mathf.Floor(t / beat) * beat;
+                        var sec = song.At(t + song.lead);
+                        if (sec != null && sec.energy >= 2) g = 1f - 0.6f * Mathf.Exp(-tb * 9f);
+                    }
+                    buf[i] = buf[i] * g + drm[i];
+                }
+            }
+            else for (int i = 0; i < total; i++) buf[i] += drm[i];
             Master(buf);
             return buf;
+        }
+
+        static void EdmBar(float[] buf, float[] drm, LiveSec sec, LiveSec next, int b, float tb, int[] voice, int bassM, float bar, float beat, float e8, float e16, Rng r)
+        {
+            bool lastBar = b == sec.Bars - 1, firstBar = b == 0;
+            bool fill = lastBar && next != null && next.energy > sec.energy;
+            bool hype = sec.energy >= 3;
+            string n = sec.name;
+            // 和音
+            if (n == "drop" || (hype && n == "chorus"))
+            {
+                for (int k = 0; k < 8; k++)
+                    if (k % 2 == 1 || n == "chorus")
+                        foreach (var m in voice) Note(buf, Inst.Saw5, tb + k * e8, e8 * (n == "chorus" ? 0.9f : 0.5f), m, n == "drop" ? 0.06f : 0.035f, r);
+            }
+            else if (n == "pre")
+            {
+                for (int k = 0; k < 8; k++) foreach (var m in voice) Note(buf, Inst.Saw5, tb + k * e8, e8 * 0.4f, m, 0.03f + b * 0.003f, r);
+            }
+            else foreach (var m in voice) Note(buf, Inst.Pad, tb, bar * 0.98f, m, 0.06f, r);
+            if (sec.energy >= 2)
+                for (int k = 0; k < 16; k++) Note(buf, Inst.Arp, tb + k * e16, e16 * 0.5f, voice[k % voice.Length] + 12 * ((k / voice.Length) % 2) + 12, 0.035f, r);
+            // ベース
+            if (hype || n == "pre")
+                for (int k = 0; k < 8; k++)
+                {
+                    if (k % 2 == 1) Note(buf, Inst.Bass, tb + k * e8, e8 * 0.7f, bassM + 12, 0.24f, r);
+                    else Note(buf, Inst.Sub, tb + k * e8, e8 * 0.9f, bassM, 0.3f, r);
+                }
+            else if (n != "intro" || b >= 4) { Note(buf, Inst.Sub, tb, bar * 0.48f, bassM, 0.3f, r); Note(buf, Inst.Sub, tb + 2 * beat, bar * 0.45f, bassM, 0.28f, r); }
+            // 打楽器
+            if (n == "bridge")
+            {
+                Clap(drm, tb + beat, 0.08f, r); Clap(drm, tb + 3 * beat, 0.08f, r);
+                if (lastBar) { Riser(drm, tb, bar, 0.4f, r); for (int k = 8; k < 16; k++) Snare(drm, tb + k * e16, 0.05f + (k - 8) * 0.03f, r); }
+                return;
+            }
+            if (n == "intro" && b < 4) { for (int k = 0; k < 8; k++) HatC(drm, tb + k * e8, 0.04f + b * 0.015f, r); if (b == 3) Riser(drm, tb, bar, 0.3f, r); return; }
+            if (firstBar && sec.energy >= 2) Crash(drm, tb, 0.15f, r);
+            if (fill && n == "pre")
+            {
+                for (int k = 0; k < 16; k++) Snare(drm, tb + k * e16, 0.04f + k * 0.014f, r);
+                Riser(drm, tb, bar, 0.4f, r);
+                return;
+            }
+            if (sec.energy >= 2) for (int k = 0; k < 4; k++) Kick(drm, tb + k * beat, 0.7f);
+            else { Kick(drm, tb, 0.6f); Kick(drm, tb + 2 * beat, 0.55f); }
+            Clap(drm, tb + beat, sec.energy >= 2 ? 0.16f : 0.1f, r); Clap(drm, tb + 3 * beat, sec.energy >= 2 ? 0.16f : 0.1f, r);
+            for (int k = 0; k < 8; k++)
+            {
+                if (k % 2 == 1) { if (sec.energy >= 2) HatO(drm, tb + k * e8, 0.06f, r); else HatC(drm, tb + k * e8, 0.05f, r); }
+                else HatC(drm, tb + k * e8, 0.035f, r);
+            }
+            if (hype) for (int k = 1; k < 16; k += 2) HatC(drm, tb + k * e16, 0.025f, r);
+            if (fill) for (int k = 12; k < 16; k++) Snare(drm, tb + k * e16, 0.1f + (k - 12) * 0.04f, r);
+            if (n == "outro" && lastBar) { Crash(drm, tb + bar, 0.2f, r); Kick(drm, tb + bar, 0.8f); }
+        }
+
+        static void RockBar(float[] buf, LiveSec sec, LiveSec next, int b, float tb, int root, int bassM, float bar, float beat, float e8, float e16, Rng r)
+        {
+            bool lastBar = b == sec.Bars - 1, firstBar = b == 0;
+            bool fill = lastBar && next != null && next.energy >= sec.energy && next.name != sec.name;
+            string n = sec.name;
+            int g0 = bassM + 12; // ギターの根音
+            int[] power = { g0, g0 + 7, g0 + 12 };
+            // ギター
+            if (n == "verse")
+                for (int k = 0; k < 8; k++) foreach (var m in power) Note(buf, Inst.Guitar, tb + k * e8, e8 * 0.4f, m, 0.05f, r);   // ブリッジミュートの刻み
+            else if (n == "bridge")
+                foreach (var m in power) Note(buf, Inst.Pad, tb, bar * 0.98f, m + 12, 0.06f, r);
+            else if (n == "pre")
+                for (int k = 0; k < 4; k++) foreach (var m in power) Note(buf, Inst.Guitar, tb + k * beat, beat * 0.9f, m, 0.055f, r);
+            else
+            {
+                foreach (var m in power) Note(buf, Inst.Guitar, tb, beat * 1.4f, m, 0.06f, r);
+                for (int k = 3; k < 8; k++) foreach (var m in power) Note(buf, Inst.Guitar, tb + k * e8, e8 * 0.8f, m, 0.05f, r);
+            }
+            // ベース
+            if (n != "bridge") for (int k = 0; k < 8; k++) Note(buf, Inst.Bass, tb + k * e8, e8 * 0.8f, bassM, 0.24f, r);
+            else Note(buf, Inst.Bass, tb, bar * 0.9f, bassM, 0.22f, r);
+            // ドラム
+            if (n == "bridge")
+            {
+                Kick(buf, tb, 0.5f); HatC(buf, tb + beat, 0.04f, r); HatC(buf, tb + 3 * beat, 0.04f, r);
+                if (lastBar) { for (int k = 0; k < 8; k++) Tom(buf, tb + bar * 0.5f + k * e16, 180f - k * 14f, 0.28f); Riser(buf, tb, bar, 0.3f, r); }
+                return;
+            }
+            if (firstBar || sec.energy >= 3 && b % 2 == 0) Crash(buf, tb, 0.13f, r);
+            int[] kicks = sec.energy >= 3 ? new[] { 0, 2, 3, 4, 6 } : sec.energy == 2 ? new[] { 0, 2, 4, 6 } : new[] { 0, 3, 4 };
+            foreach (int k in kicks) Kick(buf, tb + k * e8, 0.6f);
+            if (fill)
+            {
+                Snare(buf, tb + beat, 0.25f, r);
+                for (int k = 8; k < 16; k++) Tom(buf, tb + k * e16, 200f - k * 8f, 0.26f);
+                return;
+            }
+            Snare(buf, tb + beat, 0.28f, r); Snare(buf, tb + 3 * beat, 0.28f, r);
+            for (int k = 0; k < 8; k++) { if (sec.energy >= 3) HatO(buf, tb + k * e8, 0.04f, r); else HatC(buf, tb + k * e8, 0.06f, r); }
+            if (n == "outro" && lastBar) { Crash(buf, tb + bar, 0.22f, r); Kick(buf, tb + bar, 0.8f); }
         }
 
         /// <summary>ホールのような響き（くし形のフィルタ4つ＋全域通過2つ）。</summary>

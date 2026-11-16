@@ -293,6 +293,22 @@ namespace Tsukuyomi
             return parts.root.transform;
         }
 
+        /// <summary>
+        /// ライブの演出の人形（ちびヤチヨ・巨大なヤチヨ）：体と左右の腕をそれぞれ1つの形にまとめる。
+        /// mat があれば、その材質にする（ホログラムなど）。
+        /// </summary>
+        public Transform MakeFigure(DollLook look, float scale, Material mat, out Transform armL, out Transform armR)
+        {
+            var parts = Doll.Build("演出の人形", look, TmpMat, transform);
+            parts.root.transform.localScale = Vector3.one * scale;
+            parts.root.GetComponent<DollAnimator>().enabled = false;
+            var rs = new[] { Bake(parts.body, parts.armL, parts.armR), Bake(parts.armL, null, null), Bake(parts.armR, null, null) };
+            if (mat != null) foreach (var r in rs) r.sharedMaterial = mat;
+            armL = parts.armL; armR = parts.armR;
+            RefreshColors();
+            return parts.root.transform;
+        }
+
         Walker Make(string name, DollLook look, float scale, bool still = false)
         {
             var parts = Doll.Build(name, look, TmpMat, transform);
