@@ -167,12 +167,12 @@ namespace Tsukuyomi
                 var m = new GameObject("流れ星").transform; m.SetParent(_cur, false);
                 float s = i == 0 ? 4f : Random.Range(0.6f, 1.4f);
                 Part(m, PrimitiveType.Sphere, Vector3.zero, Vector3.one * 1.2f * s, starMat);
-                Part(m, PrimitiveType.Cube, new Vector3(0, 0, -9f * s), new Vector3(0.35f, 0.35f, 18f) * s, starMat);
+                Part(m, PrimitiveType.Cube, new Vector3(0, 0, -6f * s), new Vector3(0.3f, 0.3f, 12f) * s, starMat);
                 m.gameObject.SetActive(false);
                 _parts.Add(m);
-                var start = new Vector3(Random.Range(-250f, 250f), Random.Range(150f, 220f), Random.Range(0f, 400f));
+                var start = new Vector3(Random.Range(-250f, 250f), Random.Range(190f, 250f), Random.Range(0f, 400f));
                 _seeds.Add(start);
-                _seeds.Add(new Vector3(i == 0 ? 0f : Random.Range(0f, 18f), i == 0 ? 20f : Random.Range(1.2f, 2.5f), 0)); // 始まる時刻・続く時間
+                _seeds.Add(new Vector3(i == 0 ? 2f : Random.Range(0f, 18f), i == 0 ? 4.5f : Random.Range(1.0f, 1.8f), 0)); // 止まって見えないよう、どれも速く流れる // 始まる時刻・続く時間
             }
         }
 
@@ -217,8 +217,8 @@ namespace Tsukuyomi
                         bool on = u >= 0 && u <= 1;
                         if (_parts[i].gameObject.activeSelf != on) _parts[i].gameObject.SetActive(on);
                         if (!on) continue;
-                        var dir = new Vector3(-0.8f, -0.45f, -0.4f).normalized;
-                        _parts[i].position = center + start + dir * (u * (i == 0 ? 120f : 160f));
+                        var dir = new Vector3(-0.85f, -0.25f, -0.45f).normalized; // ゆるく下がる（地面や島に届かない）
+                        _parts[i].position = center + start + dir * (u * (i == 0 ? 260f : 200f));
                         _parts[i].rotation = Quaternion.LookRotation(dir);
                     }
                     break;

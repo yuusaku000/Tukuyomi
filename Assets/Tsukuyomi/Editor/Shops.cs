@@ -50,6 +50,8 @@ namespace Tsukuyomi.EditorTools
             Stall("kori", "かき氷と飲み物「しろくま」", "SHAVED ICE ▸ SHIROKUMA", "つめた〜いの、あります", "下町の環状通り", 25, 0, new Color(0.3f, 0.6f, 0.9f)),
             // 上段の参道
             House("fudan", ItemKind.Clothes, "ふだん着の店「木綿屋」", "EVERYDAY WEAR ▸ MOMENYA", "まいど。毎日着るなら、うちの木綿がいちばん", "上段の参道", 0, 140),
+            // 理髪店（髪の色と形）
+            House("barber", ItemKind.Accessory, "理髪店「月の櫛」", "BARBER ▸ TSUKI NO KUSHI", "いらっしゃいませ。今日はどんな髪にしましょう？", "月見商店街|東西通り|中段の環状通り", 6, 58),
             // 服の形ごとの店
             House("miko", ItemKind.Clothes, "巫女装束「神楽屋」", "MIKO ▸ KAGURAYA", "ようこそお参りくださいました。装束の着つけ、お手伝いします", "上段の環状通り|上段の参道|中段の環状通り|下町の環状通り", 25, 150),
             House("dress", ItemKind.Clothes, "ドレス着物「月下美人」", "DRESS KIMONO ▸ GEKKABIJIN", "いらっしゃいませ！ ふわっと広がる裾、ためしてみて", "東西通り|月見商店街|中段の環状通り|下町の環状通り", 45, 80),
@@ -84,6 +86,7 @@ namespace Tsukuyomi.EditorTools
             // 頂上の参道
             l.Add(Again(System.Array.Find(Defs, d => d.group == "komono" && d.stall), "頂上の参道|上段の参道", 0.5f));
             // もっとお店を：新しい服の店の2軒目と、屋台をあちこちに
+            l.Add(Again(F("barber"), "上段の環状通り|下町の環状通り", 0.5f));
             l.Add(Again(F("dress"), "下町の環状通り", 0.5f));
             l.Add(Again(F("miko"), "中段の環状通り", 0.35f));
             l.Add(Again(F("juni"), "中段の環状通り|上段の環状通り|下町の環状通り", 0.65f));
@@ -230,6 +233,23 @@ namespace Tsukuyomi.EditorTools
                 }
                 else
                 {
+                    if (def.group == "barber")
+                    {
+                        // 理髪店：赤・白・青のしま模様の看板柱と、壁の鏡といす
+                        var pole = Group(shop, "サインポール", new Vector3(w / 2 - 0.5f, 0.62f, dep / 2 + 0.4f));
+                        for (int k = 0; k < 8; k++)
+                            Cyl(pole, "しま", new Vector3(0, 0.4f + k * 0.25f, 0), 0.16f, 0.25f, k % 3 == 0 ? Glow("barber_red", new Color(1f, 0.2f, 0.2f), 0.8f, 2.5f) : k % 3 == 1 ? GlowWhite : Glow("barber_blue", new Color(0.3f, 0.5f, 1f), 0.8f, 2.5f));
+                        Ball(pole, "玉", new Vector3(0, 2.5f, 0), Vector3.one * 0.3f, GlowWhite);
+                        for (int k = 0; k < 3; k++)
+                        {
+                            float mx = -2.4f + k * 2.4f;
+                            Box(shop, "鏡", new Vector3(mx, 0.62f + 1.6f, wallFace + 0.1f), new Vector3(1.2f, 1.4f, 0.04f), Lit("barber_mirror", new Color(0.75f, 0.85f, 0.95f), 0.95f, 0.8f));
+                            Box(shop, "鏡の枠", new Vector3(mx, 0.62f + 1.6f, wallFace + 0.08f), new Vector3(1.36f, 1.56f, 0.03f), Gold);
+                            Box(shop, "いす", new Vector3(mx, 0.62f + 0.5f, wallFace + 0.9f), new Vector3(0.7f, 0.15f, 0.7f), Lit("barber_chair", new Color(0.7f, 0.15f, 0.2f), 0.4f));
+                        }
+                    }
+                    else
+                    {
                     // 軒につるしたお面と、かんざしの台
                     for (int i = 0; i < 5; i++)
                     {
@@ -239,6 +259,7 @@ namespace Tsukuyomi.EditorTools
                     }
                     for (int i = 0; i < 6; i++)
                         Ball(shop, "かんざし", new Vector3(-2.5f + i, 0.62f + 1.0f, wallFace + 0.75f), Vector3.one * 0.12f, ColorMat(Color.HSVToRGB(i / 6f, 0.5f, 1f)));
+                    }
                 }
                 standLocal = new Vector3(0, 0, dep / 2 + 1.3f);
                 keeperLocal = new Vector3(-w / 2 + 1.1f, 0, dep / 2 + 0.35f);

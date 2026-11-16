@@ -99,7 +99,7 @@ namespace Tsukuyomi.EditorTools
             crowd.litTemplate = ColorMat(Color.white);
 
 
-            Combiner.Run(_env);
+            Combiner.Run(_env, 64f); // 区画を少し大きくして、描く回数をへらす
             foreach (var t in _env.GetComponentsInChildren<Transform>(true))
                 GameObjectUtility.SetStaticEditorFlags(t.gameObject, StaticEditorFlags.OccluderStatic | StaticEditorFlags.OccludeeStatic);
 
@@ -611,9 +611,9 @@ namespace Tsukuyomi.EditorTools
             var edge = c + dir * (Island.Levels[2].RadiusAt(Mathf.PI / 2) - 0.5f);
             var deckC = edge + dir * 3.5f;
             var deck = Group(g, "月見台", new Vector3(deckC.x, 0, deckC.y));
-            Box(deck, "舞台", new Vector3(0, -0.15f, 0), new Vector3(14f, 0.3f, 9f), Wood, true);
+            Box(deck, "舞台", new Vector3(0, -0.11f, 0), new Vector3(14f, 0.3f, 9f), Wood, true); // 頂上の地面より 4cm 上（重なってちらつかないように）
             // 頂上の段とのすき間をなくす：うしろ（御殿のほう）へ床をのばし、段のふちの石垣の上にかぶせる
-            Box(deck, "つなぎの床", new Vector3(0, -0.15f, -7.25f), new Vector3(14f, 0.3f, 6f), Wood, true);
+            Box(deck, "つなぎの床", new Vector3(0, -0.11f, -7.25f), new Vector3(14f, 0.3f, 6f), Wood, true);
             Box(deck, "つなぎの梁", new Vector3(0, -0.5f, -4.4f), new Vector3(14.2f, 0.5f, 0.4f), Vermilion);
             _lookDeck = deck;
             foreach (float x in new[] { -6.8f, 6.8f })
@@ -694,7 +694,7 @@ namespace Tsukuyomi.EditorTools
             // 大画面広場
             Box(g, "広場の石畳", new Vector3(PlazaC.x, l1 + 0.04f, PlazaC.y), new Vector3(30f, 0.08f, 30f), Parts.Paving);
             var (hallPos, hallYaw) = PlaceScreenHall(l1);
-            // 大画面と懸造りの展望台のあいだは2階建てまで（見晴らしを残す）
+            // 大画面と懸造りの展望台のあいだは平屋だけ（見晴らしを残す）
             Buildings.LowRise.Clear();
             Buildings.LowRise.Add((new Vector2(hallPos.x, hallPos.z), _lookEdge, 14f));
             ScreenHall(g, hallPos, hallYaw, out studio);

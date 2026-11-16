@@ -30,6 +30,10 @@ namespace Tsukuyomi
         public int lastWeekRank, lastWeekCount;
         public float lastWeekCm;
         public float restMinutes;
+        // 理髪店：髪の色と形（hairSet が false のあいだは、はじめの黒髪ロング）
+        public bool hairSet;
+        public Color hairColor = new Color(0.16f, 0.12f, 0.16f);
+        public int hairStyle = 1;
     }
 
     /// <summary>%APPDATA%\Tsukuyomi\save.json に、ログアウトした場所などを残す。</summary>

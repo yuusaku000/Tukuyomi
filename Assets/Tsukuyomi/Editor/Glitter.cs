@@ -84,7 +84,7 @@ namespace Tsukuyomi.EditorTools
                         else if (kind == 1) Streamers(g, a, b);
                         else if (kind == 2) Umbrellas(g, a, b);
                         else if (kind == 3) KingyoRope(g, a, b);
-                        else if (kind == 4) FloatLanterns(decoRoot, a, b);
+                        else if (kind == 4) FloatLanterns(g, a, b); // 動かさずに町といっしょにまとめる（軽くするため）
                         else LanternRope(g, a, b);
                         deco++;
                     }
@@ -215,8 +215,7 @@ namespace Tsukuyomi.EditorTools
                 Box(l, "灯", Vector3.zero, new Vector3(0.55f, 0.75f, 0.55f), i % 3 == 0 ? GlowPink : GlowWarm);
                 Box(l, "ふち", new Vector3(0, 0.4f, 0), new Vector3(0.62f, 0.06f, 0.62f), WoodDark);
                 Box(l, "ふち", new Vector3(0, -0.4f, 0), new Vector3(0.62f, 0.06f, 0.62f), WoodDark);
-                var f = l.gameObject.AddComponent<Floaty>();
-                f.amplitude = R(0.15f, 0.4f); f.speed = R(0.3f, 0.6f); f.spin = R(-8, 8);
+                R(0f, 1f); R(0f, 1f); R(0f, 1f); // 乱数の進み方を前と同じにする
             }
         }
 

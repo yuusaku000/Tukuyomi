@@ -24,6 +24,39 @@ namespace Tsukuyomi
         GameObject _food;
         Coroutine _eating;
         Color _hair = new Color(0.16f, 0.12f, 0.16f);
+        int _hairStyle = 1;
+        bool _odango;
+        GameObject _hairObj;
+
+        /// <summary>理髪店の髪型：0 ショート・1 ロング・2 ポニーテール・3 おだんご・4 ツインテール。</summary>
+        public static readonly string[] HairStyles = { "ショート", "ロング", "ポニーテール", "おだんご", "ツインテール" };
+        public Color HairColor => _hair;
+        public int HairStyle => _hairStyle;
+
+        /// <summary>髪の色と形を変える（保存はしない）。</summary>
+        public void SetHair(Color c, int style)
+        {
+            _hair = c; _hairStyle = Mathf.Clamp(style, 0, HairStyles.Length - 1);
+            var m = Mat(c);
+            foreach (var n in new[] { "HairBack", "Bangs", "SideL", "SideR", "Long" })
+            {
+                var t = Find(doll.head, n);
+                if (t != null) t.GetComponent<Renderer>().sharedMaterial = m;
+            }
+            var longHair = Find(doll.head, "Long");
+            if (longHair) longHair.gameObject.SetActive(!_odango && _hairStyle == 1);
+            if (_hairObj != null) Destroy(_hairObj);
+            _hairObj = null;
+            if (_hairStyle >= 2)
+            {
+                var h = Holder(doll.head, "髪型"); _hairObj = h.gameObject;
+                if (_hairStyle == 2) Part(h, PrimitiveType.Capsule, new Vector3(0, -0.12f, -0.24f), new Vector3(0.13f, 0.28f, 0.13f), c, false, new Vector3(-20, 0, 0));
+                else if (_hairStyle == 3) foreach (float s in new[] { -1f, 1f }) Part(h, PrimitiveType.Sphere, new Vector3(0.15f * s, 0.24f, -0.03f), Vector3.one * 0.17f, c);
+                else foreach (float s in new[] { -1f, 1f }) Part(h, PrimitiveType.Capsule, new Vector3(0.27f * s, -0.12f, -0.08f), new Vector3(0.12f, 0.26f, 0.12f), c, false, new Vector3(0, 0, -18 * s));
+                _hairObj.SetActive(!_odango);
+            }
+            if (cam != null) cam.RefreshBody();
+        }
         bool _umbrella;
         Renderer _canopy;
 
@@ -96,7 +129,9 @@ namespace Tsukuyomi
                 if (id == "odango") odango = true;
             }
             var longHair = Find(doll.head, "Long");
-            if (longHair) longHair.gameObject.SetActive(!odango);
+            if (longHair) longHair.gameObject.SetActive(!odango && _hairStyle == 1);
+            _odango = odango;
+            if (_hairObj != null) _hairObj.SetActive(!odango);
             if (!Eating) doll.holdR = _umbrella ? 1 : 0;
             doll.holdREuler = _umbrella ? new Vector3(-62, 0, -28) : new Vector3(-120, 0, -25);
             if (cam != null) cam.RefreshBody();

@@ -251,15 +251,14 @@ namespace Tsukuyomi
             }
             else if (kind == 1)
             {
-                // 名所を、出発の向きから回る順にならべる
-                var list = new List<(float ang, Vector2 p)>();
-                foreach (var q in Sights)
+                // 町の上をひとまわり：同じ向きに回りながら、内と外へゆるく波うつ輪（行ったり来たりしない）
+                for (int i = 1; i < 48; i++)
                 {
-                    float ang = Mathf.Repeat(Mathf.Atan2(q.y - c.y, q.x - c.x) - a0, Mathf.PI * 2);
-                    list.Add((ang, q));
+                    float a = a0 + i * Mathf.PI * 2 / 48;
+                    float rr = 82f + 24f * Mathf.Sin(3f * (a - a0));
+                    var q = c + new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * rr;
+                    wps.Add(new Vector3(q.x, Island.TerraceHeight(q.x, q.y) + 20f, q.y));
                 }
-                list.Sort((x, y) => x.ang.CompareTo(y.ang));
-                foreach (var (_, q) in list) wps.Add(new Vector3(q.x, Island.TerraceHeight(q.x, q.y) + 24f, q.y));
                 clearance = 12f;
             }
             else
@@ -301,6 +300,27 @@ namespace Tsukuyomi
             for (int i = h.Length - 2; i >= 0; i--) h[i] = Mathf.Max(h[i], h[i + 1] - 1.2f);
             for (int pass = 0; pass < 3; pass++)
                 for (int i = 1; i < h.Length - 1; i++) h[i] = Mathf.Max(h[i], (h[i - 1] + h[i] + h[i + 1]) / 3f);
+            if (kind == 1)
+            {
+                // 低空の周は、上り下りをへらす：前後 150m でいちばん高い所に合わせてから、ゆっくりならす
+                var src = (float[])h.Clone();
+                for (int i = 1; i < h.Length - 1; i++)
+                {
+                    float m = src[i];
+                    for (int k = Mathf.Max(0, i - 50); k <= Mathf.Min(h.Length - 1, i + 50); k++) m = Mathf.Max(m, src[k]);
+                    h[i] = m;
+                }
+                for (int pass = 0; pass < 4; pass++)
+                {
+                    var t2 = (float[])h.Clone();
+                    for (int i = 1; i < h.Length - 1; i++)
+                    {
+                        float sum = 0; int n = 0;
+                        for (int k = Mathf.Max(0, i - 25); k <= Mathf.Min(h.Length - 1, i + 25); k++) { sum += t2[k]; n++; }
+                        h[i] = Mathf.Max(src[i], sum / n);
+                    }
+                }
+            }
             var path = new Path { p = new Vector3[pts.Count], s = new float[pts.Count] };
             for (int i = 0; i < pts.Count; i++)
             {

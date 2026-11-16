@@ -54,6 +54,7 @@ namespace Tsukuyomi
             bool first = !_data.has;
             var ward = player.GetComponent<Wardrobe>();
             if (ward != null) ward.Wear(_data.clothes, _data.wearing);
+            if (ward != null && _data.hairSet) ward.SetHair(_data.hairColor, _data.hairStyle);
 
             var warp = Ts.Arg("--warp");
             var z = warp != null ? Zone.Find(warp) : null;

@@ -18,6 +18,8 @@ namespace Tsukuyomi
         {
             int v = 1;
             try { v = PlayerPrefs.GetInt("quality", 1); } catch { }
+            // 確認用：--quality 0|1|2（覚えない）
+            if (int.TryParse(Ts.Arg("--quality"), out var q)) { ApplyOnly(Mathf.Clamp(q, 0, 2)); return; }
             Apply(Mathf.Clamp(v, 0, 2));
         }
 
@@ -25,14 +27,23 @@ namespace Tsukuyomi
 
         public static void Apply(int level)
         {
+            ApplyOnly(level);
+            try { PlayerPrefs.SetInt("quality", level); PlayerPrefs.Save(); } catch { }
+        }
+
+        static void ApplyOnly(int level)
+        {
             Level = level;
+            // ふちのギザギザ消し：軽い＝なし・ふつう＝FXAA（軽い）・きれい＝SMAA
+            var cam = Camera.main;
+            if (cam != null && cam.TryGetComponent<UniversalAdditionalCameraData>(out var data))
+                data.antialiasing = level == 0 ? AntialiasingMode.None : level == 1 ? AntialiasingMode.FastApproximateAntialiasing : AntialiasingMode.SubpixelMorphologicalAntiAliasing;
             if (GraphicsSettings.currentRenderPipeline is UniversalRenderPipelineAsset urp)
             {
                 urp.renderScale = Scale[level];
                 urp.shadowDistance = Shadow[level];
                 urp.upscalingFilter = UpscalingFilterSelection.FSR;
             }
-            try { PlayerPrefs.SetInt("quality", level); PlayerPrefs.Save(); } catch { }
         }
     }
 }

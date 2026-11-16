@@ -34,6 +34,29 @@ namespace Tsukuyomi
             return g;
         }
 
+        /// <summary>root の下の形（skip はのぞく）を1つにまとめる。</summary>
+        static void Merge(Transform root, Transform skip)
+        {
+            var list = new List<CombineInstance>();
+            Material mat = null;
+            var kill = new List<GameObject>();
+            foreach (var mf in root.GetComponentsInChildren<MeshFilter>())
+            {
+                if (mf.transform == skip || mf.transform.IsChildOf(skip)) continue;
+                mat = mf.GetComponent<Renderer>().sharedMaterial;
+                list.Add(new CombineInstance { mesh = mf.sharedMesh, transform = root.worldToLocalMatrix * mf.transform.localToWorldMatrix });
+                kill.Add(mf.gameObject);
+            }
+            if (list.Count < 2) return;
+            var m = new Mesh { name = "sky_fish" };
+            m.CombineMeshes(list.ToArray(), true, true);
+            foreach (var k in kill) Destroy(k);
+            root.gameObject.AddComponent<MeshFilter>().sharedMesh = m;
+            var r = root.gameObject.AddComponent<MeshRenderer>();
+            r.sharedMaterial = mat;
+            r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        }
+
         void Start()
         {
             for (int s = 0; s < schools; s++)
@@ -55,6 +78,7 @@ namespace Tsukuyomi
                     var tail = Part(root, PrimitiveType.Sphere, new Vector3(0, 0, -0.75f) * size, new Vector3(0.05f, 0.45f, 0.35f) * size, mat).transform;
                     // 透けて見える背骨
                     Part(root, PrimitiveType.Cube, Vector3.zero, new Vector3(0.03f, 0.03f, 1.1f) * size, mat);
+                    Merge(root, tail); // 体・背びれ・背骨を1つの形にまとめる（軽くするため）
                     sc.fish.Add(new Fish { t = root, tail = tail, offset = Random.insideUnitSphere * 4f, phase = Random.value * 10f });
                 }
                 _schools.Add(sc);

@@ -167,7 +167,7 @@ namespace Tsukuyomi.EditorTools
 
         public static Transform TownHouse(Transform parent, Vector3 pos, float rotY, float w, float d, int floors, int roofKind, bool shop, int seed)
         {
-            if (floors >= 3 && LowRise.Count > 0 && InLowRise(parent != null ? parent.TransformPoint(pos) : pos)) floors = 2;
+            if (floors >= 2 && LowRise.Count > 0 && InLowRise(parent != null ? parent.TransformPoint(pos) : pos)) floors = 1;
             var g = Group(parent, floors >= 4 ? "高楼" : floors == 3 ? "楼閣" : floors == 2 ? "二階建ての店" : "店", pos, rotY);
             Base(g, w, d);
             float y0 = 0.62f, h = R(3.4f, 3.9f);

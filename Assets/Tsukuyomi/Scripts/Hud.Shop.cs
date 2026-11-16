@@ -56,9 +56,11 @@ namespace Tsukuyomi
         public static void CloseShop()
         {
             if (_i == null || !ShopOpen) return;
+            bool barber = IsBarber;
             _shop = null; _wardrobe = false; _confirm = false;
             var d = Data; var w = _i.Ward;
             if (d != null && w != null) w.Show(d.clothes, d.wearing);
+            if (barber) _i.BarberRevert();
             _i.RestoreCam();
         }
 
@@ -83,6 +85,7 @@ namespace Tsukuyomi
                 player.Teleport(s.stand, s.standYaw + 180f);
             FrontCam(s.standYaw);
             RefreshBalance();
+            if (IsBarber) BarberOpen();
         }
 
         void FrontCam(float yaw)
@@ -267,6 +270,7 @@ namespace Tsukuyomi
         void DrawShop()
         {
             if (_wardrobe) { DrawWardrobe(); return; }
+            if (IsBarber) { DrawBarber(); return; }
             var r = new Rect(W - 740, 100, 700, 880);
             Panel(r);
             Text(new Rect(r.x + 26, r.y + 18, 400, 20), _shop.english, 16, Cyan, TextAnchor.UpperLeft, true);
