@@ -35,7 +35,10 @@ namespace Tsukuyomi
             _src = gameObject.AddComponent<AudioSource>();
             _src.spatialBlend = 0; _src.priority = 0; _src.playOnAwake = false;
             _click = Synth.Click(); _coin = Synth.Coin(); _gong = Synth.Gong();
-            _steps = new[] { Synth.Step(0), Synth.Step(1), Synth.Step(2) };
+            // 足音：本物の足音の録音（OpenGameArt「Footsteps」, CC0）。なければ合成の音
+            var rec = new System.Collections.Generic.List<AudioClip>();
+            foreach (var c in Resources.LoadAll<AudioClip>("Sounds")) if (c.name.StartsWith("step_")) rec.Add(c);
+            _steps = rec.Count > 0 ? rec.ToArray() : new[] { Synth.Step(0), Synth.Step(1), Synth.Step(2) };
         }
 
         public static void Play(AudioClip c, float vol)
@@ -65,7 +68,7 @@ namespace Tsukuyomi
             {
                 _walked = 0;
                 var s = _steps[Random.Range(0, _steps.Length)];
-                Play(s, 0.35f);
+                Play(s, 0.45f);
             }
         }
     }

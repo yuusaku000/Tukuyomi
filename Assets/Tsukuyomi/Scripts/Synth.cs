@@ -17,6 +17,34 @@ namespace Tsukuyomi
             return clip;
         }
 
+        /// <summary>取ってきた録音（ステレオでも）を、つなぎ目なしでくり返せる1チャンネルの音にする。</summary>
+        public static AudioClip Seamless(AudioClip src, string name)
+        {
+            if (src == null) return null;
+            try
+            {
+                if (src.loadState != AudioDataLoadState.Loaded) src.LoadAudioData();
+                int ch = src.channels, n = src.samples;
+                var raw = new float[n * ch];
+                if (!src.GetData(raw, 0)) return src;
+                var mono = new float[n];
+                for (int i = 0; i < n; i++) { float s = 0; for (int c = 0; c < ch; c++) s += raw[i * ch + c]; mono[i] = s / ch; }
+                int nf = Mathf.Min(n / 4, src.frequency); // 1秒ぶん重ねる
+                int len = n - nf;
+                var data = new float[len];
+                System.Array.Copy(mono, data, len);
+                for (int i = 0; i < nf; i++)
+                {
+                    float k = i / (float)nf;
+                    data[i] = mono[i] * Mathf.Sqrt(k) + mono[len + i] * Mathf.Sqrt(1 - k);
+                }
+                var clip = AudioClip.Create(name, len, 1, src.frequency, false);
+                clip.SetData(data, 0);
+                return clip;
+            }
+            catch { return src; }
+        }
+
         /// <summary>
         /// くり返し用の音：少し長めに作って、終わりの部分を始まりに重ねる（つなぎ目で「プツッ」と鳴らないように）。
         /// </summary>
@@ -127,15 +155,7 @@ namespace Tsukuyomi
                 v += Mathf.Sin(2 * Mathf.PI * 90f * bt2) * Mathf.Exp(-bt2 * 14f) * 0.5f;
                 float ct = t % (beat / 2);
                 v += r.Next() * Mathf.Exp(-ct * 60f) * 0.12f;
-                int k = Mathf.Min(melody.Length - 1, (int)(t / beat));
-                int note = melody[k];
-                if (note >= 0)
-                {
-                    float nt = t - k * beat;
-                    float f = scale[note] * (1 + 0.006f * Mathf.Sin(2 * Mathf.PI * 5.5f * t));
-                    v += (Mathf.Sin(2 * Mathf.PI * f * t) + 0.25f * Mathf.Sin(2 * Mathf.PI * f * 2 * t)) * 0.28f
-                         * Mathf.Clamp01(nt * 25f) * Mathf.Clamp01((beat - nt) * 12f);
-                }
+                // 笛（すんだ高い音）は「ぴぇー・きゅー」と生き物の声のように聞こえたので鳴らさない。太鼓と鉦だけ
                 return v * 0.5f;
             });
         }

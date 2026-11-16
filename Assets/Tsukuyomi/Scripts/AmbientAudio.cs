@@ -54,8 +54,9 @@ namespace Tsukuyomi
             _loops.Add((_sea, 0.1f, false));
             var falls = Synth.Water(10f, 0.18f);
             foreach (var p in waterPoints) if (p) { var s = Src(p.position, falls, 0.38f, 42f, true); _loops.Add((s, 0.38f, false)); }
-            var crowd = Synth.Crowd(14f);
-            foreach (var p in crowdPoints) if (p) { var s = Src(p.position, crowd, 0.18f, 38f, true); _loops.Add((s, 0.18f, true)); }
+            // 町のざわめき：本物の人混みの録音（OpenGameArt, CC0）。なければ合成の音
+            var crowd = Synth.Seamless(Resources.Load<AudioClip>("Sounds/crowd_ambience"), "crowd_rec") ?? Synth.Crowd(14f);
+            foreach (var p in crowdPoints) if (p) { var s = Src(p.position, crowd, 0.12f, 38f, true); _loops.Add((s, 0.12f, true)); }
             _chimeClips = new[] { Synth.Chime(1760f), Synth.Chime(2093f), Synth.Chime(2349f), Synth.Chime(2637f) };
             _chimes = new AudioSource[chimePoints.Length];
             for (int i = 0; i < chimePoints.Length; i++) if (chimePoints[i]) _chimes[i] = Src(chimePoints[i].position, _chimeClips[0], 0.35f, 28f, false, true, 120);

@@ -120,7 +120,7 @@ namespace Tsukuyomi
         void AutoLap(int laps)
         {
             _paidRider = false;
-            Ride(seaDock, seaYaw, laps, true);
+            Ride(seaDock, seaYaw, laps, true, 1); // お客がいないときは、町の名所をめぐる低空の周だけ（下から見て楽しいように）
         }
 
         // ───────── 道すじ ─────────
@@ -157,7 +157,7 @@ namespace Tsukuyomi
         }
 
         /// <summary>dock から空へ上がり、laps 周して dock へもどる。</summary>
-        void Ride(Vector3 dock, float dockYaw, int laps, bool homeAfter)
+        void Ride(Vector3 dock, float dockYaw, int laps, bool homeAfter, int firstKind = 0)
         {
             float a0 = AngleOf(dock);
             var entry = Circle(a0);
@@ -177,11 +177,12 @@ namespace Tsukuyomi
             string[] names = { "島の上を高く回っています", "町の名所をめぐっています（低空）", "海の上をすれすれに飛んでいます" };
             for (int k = 0; k < laps; k++)
             {
-                var route = Route(k % 3, a0);
+                int kind = (firstKind + k) % 3;
+                var route = Route(kind, a0);
                 int lap = k;
                 _legs.Enqueue(new Leg
                 {
-                    dur = route.len / CruiseSpeed(k % 3), say = (laps > 1 ? $"{lap + 1}周目：" : "") + names[k % 3],
+                    dur = route.len / CruiseSpeed(kind), say = (laps > 1 ? $"{lap + 1}周目：" : "") + names[kind],
                     pos = route.At,
                 });
             }

@@ -68,6 +68,7 @@ namespace Tsukuyomi.EditorTools
             PlayerSettings.bundleVersion = DateTime.Now.ToString("yyyy.MMdd.HHmm");
             PlayerSettings.fullScreenMode = FullScreenMode.FullScreenWindow;
             PlayerSettings.defaultIsNativeResolution = true;
+            PlayerSettings.enableFrameTimingStats = true; // 確認用：CPU と GPU の時間をはかる
             PlayerSettings.resizableWindow = true;
             PlayerSettings.runInBackground = true;
             PlayerSettings.visibleInBackground = true;

@@ -12,7 +12,7 @@ namespace Tsukuyomi
 
         CharacterController _cc;
         Vector3 _move;
-        float _vy, _wetTime;
+        float _vy, _wetTime, _airT;
         Vector3 _safePos;
         float _safeYaw;
 
@@ -84,14 +84,37 @@ namespace Tsukuyomi
                 transform.rotation = Quaternion.Slerp(transform.rotation, face, 1 - Mathf.Exp(-12f * Time.deltaTime));
             }
 
-            if (_cc.isGrounded)
+            bool jumped = false;
+            if (_cc.isGrounded) _airT = 0; else _airT += Time.deltaTime;
+            if (_cc.isGrounded || (_airT < 0.18f && _vy <= 0))
             {
-                if (_vy < 0) _vy = -2f;
-                if (!Hud.Blocked && Input.GetKeyDown(KeyCode.Space) && !InWater) _vy = jumpSpeed;
+                // 走って段の角を越えたときに少し浮いても、地面に吸いつける（浮くと段を登れなくなっていた）
+                if (_vy < 0) _vy = -7f;
+                if (!Hud.Blocked && Input.GetKeyDown(KeyCode.Space) && !InWater) { _vy = jumpSpeed; jumped = true; _airT = 1f; }
                 if (transform.position.y > 0.6f && !InWater && (SkyShip.I == null || !SkyShip.I.OnDeck(transform.position))) { _safePos = transform.position; _safeYaw = transform.eulerAngles.y; }
             }
             _vy += gravity * Time.deltaTime;
-            _cc.Move((_move + Vector3.up * _vy) * Time.deltaTime);
+            var before = transform.position;
+            var flags = _cc.Move((_move + Vector3.up * _vy) * Time.deltaTime);
+            // 段にぶつかって止まったら、段の高さぶん持ち上げてもう一度すすむ（走っていても石段を登れるように）
+            var flat = new Vector3(_move.x, 0, _move.z);
+            if ((flags & CollisionFlags.Sides) != 0 && !jumped && _airT < 0.2f && flat.sqrMagnitude > 1f)
+            {
+                var moved = transform.position - before; moved.y = 0;
+                if (moved.magnitude < flat.magnitude * Time.deltaTime * 0.5f)
+                {
+                    var from = transform.position;
+                    _cc.Move(Vector3.up * 0.55f);
+                    _cc.Move(flat.normalized * Mathf.Max(0.12f, flat.magnitude * Time.deltaTime));
+                    _cc.Move(Vector3.down * 0.7f);
+                    float up = transform.position.y - from.y;
+                    var gone = transform.position - from; gone.y = 0;
+                    if (up < 0.02f || up > 0.56f || gone.magnitude < 0.05f)
+                    {
+                        _cc.enabled = false; transform.position = from; _cc.enabled = true;
+                    }
+                }
+            }
 
             if (doll != null) doll.speed = new Vector3(_move.x, 0, _move.z).magnitude;
 

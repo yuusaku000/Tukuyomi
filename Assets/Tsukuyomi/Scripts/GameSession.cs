@@ -143,7 +143,10 @@ namespace Tsukuyomi
                 int f0 = Time.frameCount; float t0 = Time.realtimeSinceStartup;
                 yield return new WaitForSeconds(Mathf.Min(1f, wait));
 
-                Debug.Log($"[Tour] {p[0]} fps={(Time.frameCount - f0) / (Time.realtimeSinceStartup - t0):0}");
+                FrameTimingManager.CaptureFrameTimings();
+                var ft = new FrameTiming[1];
+                string tm = FrameTimingManager.GetLatestTimings(1, ft) > 0 ? $" cpu={ft[0].cpuFrameTime:0.0}ms main={ft[0].cpuMainThreadFrameTime:0.0}ms render={ft[0].cpuRenderThreadFrameTime:0.0}ms gpu={ft[0].gpuFrameTime:0.0}ms" : "";
+                Debug.Log($"[Tour] {p[0]} fps={(Time.frameCount - f0) / (Time.realtimeSinceStartup - t0):0}{tm}");
                 ScreenCapture.CaptureScreenshot(Path.Combine(dir, $"{i:00}_{p[0].Replace("@", "at").Replace(",", "_")}.png"));
                 yield return new WaitForSeconds(0.8f);
                 i++;
