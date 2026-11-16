@@ -17,6 +17,7 @@ namespace Tsukuyomi.EditorTools
         {
             Mats.Clear();
             Meshes.Clear();
+            _lowSphere = null;
             foreach (var d in new[] { Gen, Gen + "/Materials", Gen + "/Meshes" })
                 Directory.CreateDirectory(d);
             AssetDatabase.Refresh();
@@ -51,6 +52,28 @@ namespace Tsukuyomi.EditorTools
             m.SetFloat("_Metallic", metal);
             m.SetFloat("_Cull", twoSided ? 0f : 2f);
             m.doubleSidedGI = twoSided;
+            EditorUtility.SetDirty(m);
+            return m;
+        }
+
+        /// <summary>絵（テクスチャ）つきのマテリアル。cutout なら葉っぱのように透けた部分を抜く。</summary>
+        public static Material LitTex(string name, Texture2D tex, bool cutout, float smooth = 0.2f)
+        {
+            bool known = Mats.ContainsKey(name);
+            var m = Asset(name, _lit);
+            if (known) return m;
+            m.SetTexture("_BaseMap", tex);
+            m.SetColor("_BaseColor", Color.white);
+            m.SetFloat("_Smoothness", smooth);
+            m.SetFloat("_Metallic", 0f);
+            if (cutout)
+            {
+                m.SetFloat("_AlphaClip", 1f);
+                m.SetFloat("_Cutoff", 0.45f);
+                m.EnableKeyword("_ALPHATEST_ON");
+                m.SetFloat("_Cull", 0f);
+                m.renderQueue = 2450;
+            }
             EditorUtility.SetDirty(m);
             return m;
         }
@@ -115,8 +138,42 @@ namespace Tsukuyomi.EditorTools
             return g;
         }
 
-        public static GameObject Ball(Transform p, string n, Vector3 pos, Vector3 size, Material m, bool col = false) =>
-            Prim(PrimitiveType.Sphere, p, n, pos, size, m, col);
+        static Mesh _lowSphere;
+
+        /// <summary>軽い球（12×8）。Unity の球（約760三角形）のかわりに使う。</summary>
+        public static Mesh LowSphere
+        {
+            get
+            {
+                if (_lowSphere != null) return _lowSphere;
+                const int seg = 12, ring = 8;
+                var v = new List<Vector3>(); var t = new List<int>();
+                for (int r = 0; r <= ring; r++)
+                    for (int s = 0; s <= seg; s++)
+                    {
+                        float th = Mathf.PI * r / ring, ph = 2 * Mathf.PI * s / seg;
+                        v.Add(new Vector3(Mathf.Sin(th) * Mathf.Cos(ph), Mathf.Cos(th), Mathf.Sin(th) * Mathf.Sin(ph)) * 0.5f);
+                    }
+                for (int r = 0; r < ring; r++)
+                    for (int s = 0; s < seg; s++)
+                    {
+                        int k = r * (seg + 1) + s;
+                        t.AddRange(new[] { k, k + 1, k + seg + 1, k + 1, k + seg + 2, k + seg + 1 });
+                    }
+                var m = new Mesh { name = "low_sphere" };
+                m.SetVertices(v); m.SetTriangles(t, 0); m.RecalculateNormals(); m.RecalculateBounds();
+                _lowSphere = SaveMesh("low_sphere", m);
+                return _lowSphere;
+            }
+        }
+
+        public static GameObject Ball(Transform p, string n, Vector3 pos, Vector3 size, Material m, bool col = false)
+        {
+            if (col) return Prim(PrimitiveType.Sphere, p, n, pos, size, m, col);
+            var g = MeshObj(p, n, LowSphere, pos, m);
+            g.transform.localScale = size;
+            return g;
+        }
 
         public static GameObject MeshObj(Transform p, string n, Mesh mesh, Vector3 pos, Material m, bool collider = false)
         {
@@ -148,6 +205,9 @@ namespace Tsukuyomi.EditorTools
 
         public static Mesh SaveMesh(string key, Mesh mesh) => Meshes.TryGetValue(key, out var m) ? m : Save(key, mesh);
 
+        /// <summary>同じ名前があっても作り直して保存する（地形など、毎回変わるもの）。</summary>
+        public static Mesh SaveMeshForce(string key, Mesh mesh) => Save(key, mesh);
+
         /// <summary>
         /// 平安ふうの寄棟の屋根。軒は浅く、棟に向かって急になる反りと、四隅のはね上がり。w×d は軒先までの大きさ。
         /// </summary>
@@ -155,7 +215,7 @@ namespace Tsukuyomi.EditorTools
         {
             string key = $"roof_{w:0.0}_{d:0.0}_{h:0.0}_{lift:0.0}".Replace('.', 'p');
             if (Meshes.TryGetValue(key, out var cached)) return cached;
-            const int n = 30;
+            const int n = 16;
             float a = w / 2, b = d / 2, half = Mathf.Min(a, b);
             var v = new List<Vector3>(); var uv = new List<Vector2>(); var t = new List<int>();
             for (int i = 0; i <= n; i++)

@@ -27,6 +27,7 @@ namespace Tsukuyomi
         void Start()
         {
             _shotMode = Ts.ShotMode;
+            Quality.Load();
             Application.runInBackground = true;
             _data = Ts.Flag("--fresh") ? new SaveData() : SaveStore.Load();
             bool first = !_data.has;
@@ -38,7 +39,7 @@ namespace Tsukuyomi
             else if (_data.has && _data.y > -5f && Mathf.Abs(_data.x) < 600 && Mathf.Abs(_data.z) < 600)
             {
                 player.Teleport(new Vector3(_data.x, _data.y + 0.1f, _data.z), _data.yaw);
-                cam.yaw = _data.camYaw; cam.pitch = _data.camPitch; cam.distance = _data.camDist;
+                cam.yaw = _data.camYaw; cam.pitch = _data.camPitch; cam.distance = _data.camDist; cam.firstPerson = _data.firstPerson;
                 cam.Snap();
             }
             else
@@ -83,7 +84,12 @@ namespace Tsukuyomi
                 if (p.Length > 1 && p[1].Length > 0) Ts.SetTime(p[1]);
                 if (p.Length > 2) ApplyCam(p[2]);
                 Hud.OpenMap(p.Length > 3 && p[3] == "map");
-                yield return new WaitForSeconds(3.5f);
+                Hud.OpenMenu(p.Length > 3 && p[3] == "menu");
+                cam.firstPerson = p.Length > 4 && p[4] == "fp";
+                yield return new WaitForSeconds(2.5f);
+                int f0 = Time.frameCount; float t0 = Time.realtimeSinceStartup;
+                yield return new WaitForSeconds(1f);
+                Debug.Log($"[Tour] {p[0]} fps={(Time.frameCount - f0) / (Time.realtimeSinceStartup - t0):0}");
                 ScreenCapture.CaptureScreenshot(Path.Combine(dir, $"{i:00}_{p[0]}.png"));
                 yield return new WaitForSeconds(0.8f);
                 i++;
@@ -113,7 +119,7 @@ namespace Tsukuyomi
             if (player.InWater) return; // 水の中は保存しない（岸にもどされる途中のため）
             _data.has = true;
             _data.x = p.x; _data.y = p.y; _data.z = p.z; _data.yaw = player.Yaw;
-            _data.camYaw = cam.yaw; _data.camPitch = cam.pitch; _data.camDist = cam.distance;
+            _data.camYaw = cam.yaw; _data.camPitch = cam.pitch; _data.camDist = cam.distance; _data.firstPerson = cam.firstPerson;
             SaveStore.Save(_data);
         }
 
@@ -127,7 +133,7 @@ namespace Tsukuyomi
         {
             if (!focus) Save();
             // ほかの画面を見ている間は、PCに負担をかけない
-            Application.targetFrameRate = focus ? -1 : 20;
+            Application.targetFrameRate = focus || _shotMode ? -1 : 20;
         }
 
         void OnApplicationQuit() => Save();

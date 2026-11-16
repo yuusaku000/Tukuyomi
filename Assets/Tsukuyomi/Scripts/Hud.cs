@@ -1,35 +1,128 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace Tsukuyomi
 {
     /// <summary>
-    /// 画面の表示（IMGUI）：左上のロゴと時刻と場所、場所に入ったときの大きな名前、
-    /// Esc のメニュー（つづける・地図・ログアウト）、M の地図とワープ、ちょっとしたお知らせ。
+    /// 画面の表示（IMGUI）。スマコン（AR）ごしに見ているような見た目：
+    /// 画面の四隅のかぎ、上の方位の帯（名所の向きと距離）、左上の接続表示、左下の座標、右下のキー、
+    /// 一人称の照準、場所に入ったときの名前、お知らせ、Esc のメニュー、M の地図とワープ。
     /// </summary>
     public class Hud : MonoBehaviour
     {
         public PlayerController player;
         public OrbitCamera cam;
-        public Vector2 worldMin = new Vector2(-150, -100), worldMax = new Vector2(150, 262);
+        public Vector2 worldMin = new Vector2(-175, -170), worldMax = new Vector2(175, 315);
 
         /// <summary>メニューか地図を開いている間は true（歩けない・見回せない）。</summary>
         public static bool Blocked { get; private set; }
 
         static Hud _i;
         static string _toast, _bannerTitle, _bannerSub;
-        static float _toastT, _bannerT;
+        static float _toastT, _bannerT, _bannerLen = 3.5f;
 
         bool _menu, _map, _clicked;
         Zone _zone;
-        Texture2D _px;
+        Texture2D _px, _mapTex;
         GUIStyle _label;
-        float _hintT = 12f;
+        Font _mono;
+        float _hintT = 14f;
+        bool _debug = Ts.Flag("--debug");
+        float _fps, _fpsT;
+        int _fpsFrames;
+
+        /// <summary>F12：画面をそのまま写真にする（ピクチャ\Tsukuyomi）。デバッグ表示も写る。</summary>
+        void TakePhoto()
+        {
+            try
+            {
+                var dir = System.IO.Path.Combine(System.Environment.GetFolderPath(System.Environment.SpecialFolder.MyPictures), "Tsukuyomi");
+                System.IO.Directory.CreateDirectory(dir);
+                var path = System.IO.Path.Combine(dir, "tsukuyomi_" + System.DateTime.Now.ToString("yyyyMMdd_HHmmss") + ".png");
+                ScreenCapture.CaptureScreenshot(path);
+                _photoMsg = "写真を保存しました ▸ " + path;
+                _photoT = 0.3f;
+            }
+            catch (System.Exception e) { Toast("写真を保存できませんでした: " + e.Message); }
+        }
+        string _photoMsg;
+        float _photoT;
+
+        static string TerraceName(float x, float z)
+        {
+            float h = Island.TerraceHeight(x, z);
+            if (Island.Inside(x, z) < 0) return "海";
+            for (int i = 3; i >= 0; i--)
+                if (Mathf.Abs(h - Island.LevelTop(i)) < 0.3f) return i == 0 ? "L0 下町" : i == 1 ? "L1 中段" : i == 2 ? "L2 上段" : "L3 頂上";
+            return h > Island.LevelTop(1) + 0.3f && h < Island.LevelTop(2) - 0.3f ? "丘/崖" : "崖";
+        }
+
+        static string PathOf(Transform t)
+        {
+            var parts = new List<string>();
+            var cur = t;
+            while (cur != null && parts.Count < 4)
+            {
+                parts.Insert(0, cur.parent != null && cur.parent.parent != null ? cur.name + "#" + cur.GetSiblingIndex() : cur.name);
+                cur = cur.parent;
+            }
+            return string.Join("/", parts);
+        }
+
+        void DrawDebug()
+        {
+            if (player == null || cam == null) return;
+            var p = player.Position;
+            var ct = cam.transform;
+            string look = "（なし）";
+            var hits = Physics.RaycastAll(ct.position, ct.forward, 400f, ~0, QueryTriggerInteraction.Ignore);
+            System.Array.Sort(hits, (h1, h2) => h1.distance.CompareTo(h2.distance));
+            foreach (var hit in hits)
+            {
+                if (hit.transform.IsChildOf(player.transform)) continue;
+                look = $"x {hit.point.x:0.0}  y {hit.point.y:0.00}  z {hit.point.z:0.0}   {hit.distance:0.0}m  ▸ {PathOf(hit.transform)}";
+                break;
+            }
+            float ws = Island.WaterSurface(p.x, p.z);
+            var zone = Zone.At(p);
+            var lines = new[]
+            {
+                $"DEBUG [F3]   ver {Application.version}   fps {_fps:0}   gfx {Quality.Name}   {Screen.width}x{Screen.height}",
+                $"PLAYER  x {p.x:0.0}   y {p.y:0.00}   z {p.z:0.0}   向き {player.Yaw:0}°",
+                $"CAMERA  yaw {Mathf.Repeat(cam.yaw, 360):0}°   pitch {cam.pitch:0}°   {(cam.firstPerson ? "一人称" : "三人称")}   距離 {cam.distance:0.0}",
+                $"GROUND  地面 {Island.Height(p.x, p.z):0.00}   段 {TerraceName(p.x, p.z)}   水面 {(float.IsNaN(ws) ? "なし" : ws.ToString("0.00"))}   島のふちまで {Island.Inside(p.x, p.z):0.0}m",
+                $"AREA    {(zone != null ? zone.id + " / " + zone.title : "（なし）")}",
+                $"LOOK    {look}",
+                $"TIME    {Ts.Now:yyyy-MM-dd HH:mm}   太陽 {RealTimeSky.SunElevation:0.0}°   夜 {RealTimeSky.Night:0.00}",
+            };
+            var r = new Rect(34, 214, 980, lines.Length * 24 + 20);
+            Fill(r, new Color(0, 0, 0, 0.62f));
+            Frame(r, new Color(1f, 0.85f, 0.3f, 0.8f), 1.5f);
+            for (int i = 0; i < lines.Length; i++)
+                Text(new Rect(r.x + 12, r.y + 10 + i * 24, r.width - 20, 24), lines[i], 17, i == 0 ? new Color(1f, 0.85f, 0.3f) : Color.white, TextAnchor.UpperLeft, false, FontStyle.Normal, false);
+            // 画面のまんなか（LOOK の場所）
+            var c = new Vector2(W / 2, H / 2);
+            var col = new Color(1f, 0.85f, 0.3f, 0.95f);
+            Fill(new Rect(c.x - 12, c.y - 1, 24, 2), col);
+            Fill(new Rect(c.x - 1, c.y - 12, 2, 24), col);
+        }
+
+        static readonly Color Cyan = new Color(0.45f, 0.95f, 1f);
+        static readonly Color Pink = new Color(1f, 0.5f, 0.8f);
+        static readonly Color Gold = new Color(1f, 0.88f, 0.6f);
+        static readonly Color Glass = new Color(0.02f, 0.06f, 0.13f, 0.5f);
 
         void Awake() => _i = this;
 
         public static void OpenMap(bool open)
         {
             if (_i != null) { _i._map = open; _i._menu = false; }
+        }
+
+        public static void OpenMenu(bool open)
+        {
+            if (_i != null && open) { _i._menu = true; _i._map = false; }
+            else if (_i != null) _i._menu = false;
         }
 
         public static void Toast(string text)
@@ -42,21 +135,55 @@ namespace Tsukuyomi
         {
             _bannerTitle = title;
             _bannerSub = sub;
-            _bannerT = seconds;
+            _bannerT = _bannerLen = seconds;
         }
 
         public static void Welcome(bool first, string from)
         {
-            string via = from == "contact" ? "スマコンからフルダイブ" : from == "iroha" ? "彩葉のスマホから接続" : "TSUKUYOMI  ─  LOGIN";
+            string via = from == "contact" ? "SMART CONTACT ▸ FULL DIVE" : from == "iroha" ? "IROHA PHONE ▸ LINK" : "TSUKUYOMI ▸ LOGIN";
             Banner(first ? "ツクヨミへようこそ" : "おかえりなさい", via, 5f);
             if (_i != null) _i._zone = null;
         }
+
+        // ───────── 地図の絵 ─────────
+
+        Texture2D MapTexture()
+        {
+            const int W = 210, H = 291;
+            var tex = new Texture2D(W, H, TextureFormat.RGBA32, false) { filterMode = FilterMode.Bilinear, wrapMode = TextureWrapMode.Clamp };
+            var cols = new Color[W * H];
+            for (int j = 0; j < H; j++)
+                for (int i = 0; i < W; i++)
+                {
+                    float x = Mathf.Lerp(worldMin.x, worldMax.x, (i + 0.5f) / W);
+                    float z = Mathf.Lerp(worldMin.y, worldMax.y, (j + 0.5f) / H);
+                    float h = Island.Height(x, z);
+                    Color c;
+                    if (!float.IsNaN(Island.WaterSurface(x, z)) || h < 0.3f) c = h < -1f && Island.Inside(x, z) < -2 ? new Color(0.03f, 0.1f, 0.18f) : new Color(0.15f, 0.45f, 0.65f);
+                    else if (h < 3f) c = new Color(0.3f, 0.36f, 0.42f);
+                    else if (h < 12f) c = new Color(0.36f, 0.42f, 0.5f);
+                    else if (h < 25f) c = new Color(0.44f, 0.5f, 0.58f);
+                    else c = new Color(0.55f, 0.6f, 0.68f);
+                    float hl = Island.Height(x - 1.2f, z + 1.2f);
+                    c *= Mathf.Clamp(1f + (hl - h) * 0.1f, 0.7f, 1.3f);
+                    // 段のふちを光らせる
+                    if (Mathf.Abs(hl - h) > 2f) c = Color.Lerp(c, Cyan, 0.6f);
+                    c.a = 1;
+                    cols[j * W + i] = c;
+                }
+            tex.SetPixels(cols);
+            tex.Apply();
+            return tex;
+        }
+
+        // ───────── 操作 ─────────
 
         void Update()
         {
             if (Ts.ShotMode)
             {
                 Blocked = false;
+                if (_menu || _map) { }
                 Cursor.lockState = CursorLockMode.None;
                 UpdateZone();
                 return;
@@ -67,6 +194,8 @@ namespace Tsukuyomi
                 else _menu = !_menu;
             }
             if (Input.GetKeyDown(KeyCode.M) && !_menu) _map = !_map;
+            if (Input.GetKeyDown(KeyCode.F3)) { _debug = !_debug; Toast(_debug ? "デバッグ表示オン（F3 で消す・F12 で写真）" : "デバッグ表示オフ"); }
+            if (Input.GetKeyDown(KeyCode.F12)) TakePhoto();
             Blocked = _menu || _map;
 
             if (Blocked)
@@ -93,15 +222,18 @@ namespace Tsukuyomi
                 if (z != _zone)
                 {
                     _zone = z;
-                    if (z != null) Banner(z.title, z.english);
+                    if (z != null) Banner(z.title, "AREA ▸ " + z.english);
                 }
             }
             _toastT -= Time.unscaledDeltaTime;
             _bannerT -= Time.unscaledDeltaTime;
+            _fpsFrames++; _fpsT += Time.unscaledDeltaTime;
+            if (_fpsT > 0.5f) { _fps = _fpsFrames / _fpsT; _fpsFrames = 0; _fpsT = 0; }
+            if (_photoT > 0) { _photoT -= Time.unscaledDeltaTime; if (_photoT <= 0) Toast(_photoMsg); }
             _hintT -= Time.unscaledDeltaTime;
         }
 
-        // ───────── 描画 ─────────
+        // ───────── 描く道具 ─────────
 
         float S => Screen.height / 1080f;
         float W => Screen.width / S;
@@ -115,99 +247,244 @@ namespace Tsukuyomi
             GUI.color = old;
         }
 
-        void Text(Rect r, string s, int size, Color c, TextAnchor a = TextAnchor.UpperLeft, bool shadow = true, FontStyle style = FontStyle.Normal)
+        void Frame(Rect r, Color c, float t = 1.5f)
         {
+            Fill(new Rect(r.x, r.y, r.width, t), c);
+            Fill(new Rect(r.x, r.yMax - t, r.width, t), c);
+            Fill(new Rect(r.x, r.y, t, r.height), c);
+            Fill(new Rect(r.xMax - t, r.y, t, r.height), c);
+        }
+
+        void Corners(Rect r, Color c, float len = 18f, float t = 3f)
+        {
+            Fill(new Rect(r.x, r.y, len, t), c); Fill(new Rect(r.x, r.y, t, len), c);
+            Fill(new Rect(r.xMax - len, r.y, len, t), c); Fill(new Rect(r.xMax - t, r.y, t, len), c);
+            Fill(new Rect(r.x, r.yMax - t, len, t), c); Fill(new Rect(r.x, r.yMax - len, t, len), c);
+            Fill(new Rect(r.xMax - len, r.yMax - t, len, t), c); Fill(new Rect(r.xMax - t, r.yMax - len, t, len), c);
+        }
+
+        void Panel(Rect r, float a = 1f)
+        {
+            Fill(r, new Color(Glass.r, Glass.g, Glass.b, Glass.a * a));
+            Frame(r, new Color(Cyan.r, Cyan.g, Cyan.b, 0.28f * a), 1f);
+            Corners(r, new Color(Cyan.r, Cyan.g, Cyan.b, 0.9f * a));
+            // うっすら走査線
+            for (float y = r.y + 3; y < r.yMax; y += 6) Fill(new Rect(r.x + 2, y, r.width - 4, 1), new Color(Cyan.r, Cyan.g, Cyan.b, 0.025f * a));
+        }
+
+        void Text(Rect r, string s, int size, Color c, TextAnchor a = TextAnchor.UpperLeft, bool mono = false, FontStyle style = FontStyle.Normal, bool glow = true)
+        {
+            _label.font = mono ? _mono : Ts.Font;
             _label.fontSize = size;
             _label.alignment = a;
             _label.fontStyle = style;
-            if (shadow)
+            if (glow)
             {
-                _label.normal.textColor = new Color(0, 0, 0, c.a * 0.65f);
-                GUI.Label(new Rect(r.x + 2, r.y + 2, r.width, r.height), s, _label);
+                _label.normal.textColor = new Color(c.r * 0.4f, c.g * 0.6f, c.b, c.a * 0.35f);
+                GUI.Label(new Rect(r.x + 1.5f, r.y + 1.5f, r.width, r.height), s, _label);
             }
             _label.normal.textColor = c;
             GUI.Label(r, s, _label);
         }
 
-        bool Button(Rect r, string s, int size = 30)
+        bool Button(Rect r, string s, int size = 26)
         {
             bool hover = r.Contains(Event.current.mousePosition);
-            Fill(r, hover ? new Color(1f, 0.55f, 0.75f, 0.92f) : new Color(0.12f, 0.1f, 0.3f, 0.88f));
-            Fill(new Rect(r.x, r.yMax - 3, r.width, 3), new Color(0.5f, 0.95f, 1f, 0.8f));
-            Text(r, s, size, Color.white, TextAnchor.MiddleCenter, false);
+            Fill(r, hover ? new Color(Cyan.r, Cyan.g, Cyan.b, 0.22f) : new Color(0.02f, 0.05f, 0.12f, 0.65f));
+            Frame(r, new Color(Cyan.r, Cyan.g, Cyan.b, hover ? 0.95f : 0.45f), hover ? 2f : 1f);
+            Fill(new Rect(r.x, r.y, 4, r.height), hover ? Pink : new Color(Pink.r, Pink.g, Pink.b, 0.6f));
+            Text(new Rect(r.x + 8, r.y, r.width - 8, r.height), s, size, Color.white, TextAnchor.MiddleCenter);
             return GUI.Button(r, GUIContent.none, GUIStyle.none);
         }
+
+        // ───────── 画面 ─────────
 
         void OnGUI()
         {
             if (_px == null) { _px = new Texture2D(1, 1); _px.SetPixel(0, 0, Color.white); _px.Apply(); }
+            if (_mono == null) _mono = Font.CreateDynamicFontFromOSFont(new[] { "Consolas", "Cascadia Mono", "Courier New" }, 24);
             if (_label == null) _label = new GUIStyle(GUI.skin.label) { font = Ts.Font, wordWrap = false, richText = false };
             GUI.matrix = Matrix4x4.Scale(new Vector3(S, S, 1));
+            float t = Time.unscaledTime;
 
-            // 左上：ロゴ・時刻・場所
-            Fill(new Rect(24, 24, 360, 128), new Color(0.05f, 0.04f, 0.16f, 0.62f));
-            Fill(new Rect(24, 24, 6, 128), new Color(1f, 0.5f, 0.75f, 0.95f));
-            Text(new Rect(44, 30, 340, 56), "ツクヨミ", 44, new Color(1f, 0.93f, 0.75f), TextAnchor.UpperLeft, true, FontStyle.Bold);
+            // 画面の四隅のかぎ（スマコンの視野）
+            Corners(new Rect(14, 14, W - 28, H - 28), new Color(Cyan.r, Cyan.g, Cyan.b, 0.35f), 70, 2);
+
+            // 左上：接続表示・時刻・場所
+            var info = new Rect(34, 30, 400, 170);
+            Panel(info);
+            bool blink = Mathf.Repeat(t, 1.2f) < 0.8f;
+            Fill(new Rect(info.x + 18, info.y + 19, 8, 8), blink ? new Color(0.4f, 1f, 0.6f) : new Color(0.2f, 0.5f, 0.3f));
+            Text(new Rect(info.x + 34, info.y + 10, 360, 24), "TSUKUYOMI AR ▸ LINK OK", 17, Cyan, TextAnchor.UpperLeft, true);
+            Text(new Rect(info.x + 16, info.y + 34, 360, 54), "ツクヨミ", 42, Color.white, TextAnchor.UpperLeft, false, FontStyle.Bold);
+            Fill(new Rect(info.x + 18, info.y + 88, 168, 2), Pink);
             var now = Ts.Now;
-            Text(new Rect(46, 86, 340, 30), $"{RealTimeSky.PeriodName(now)}  {now:HH:mm}", 24, new Color(0.75f, 0.95f, 1f));
-            Text(new Rect(46, 114, 340, 30), _zone != null ? _zone.title : "ツクヨミのどこか", 22, new Color(1f, 1f, 1f, 0.85f));
+            Text(new Rect(info.x + 18, info.y + 98, 120, 28), now.ToString("HH:mm"), 24, Gold, TextAnchor.UpperLeft, true);
+            Text(new Rect(info.x + 110, info.y + 99, 200, 28), RealTimeSky.PeriodName(now), 22, Gold);
+            Text(new Rect(info.x + 18, info.y + 132, 380, 28), "▸ " + (_zone != null ? _zone.title : "ツクヨミのどこか"), 21, Color.white);
 
-            // 右上：操作のヒント
             if (!Blocked)
             {
-                string keys = Cursor.lockState == CursorLockMode.Locked
-                    ? "WASD 移動   Shift 走る   Space ジャンプ   M 地図   Esc メニュー"
-                    : "クリックで操作開始   M 地図   Esc メニュー";
-                Text(new Rect(W - 1024, 30, 1000, 30), keys, 22, new Color(1, 1, 1, _hintT > 0 || Cursor.lockState != CursorLockMode.Locked ? 0.9f : 0.45f), TextAnchor.UpperRight);
+                Compass();
+                // 左下：座標
+                if (player != null)
+                {
+                    var p = player.Position;
+                    Text(new Rect(36, H - 74, 600, 22), $"POS  X {p.x,7:0.0}   Z {p.z,7:0.0}   ALT {p.y,5:0.0}m", 16, new Color(Cyan.r, Cyan.g, Cyan.b, 0.8f), TextAnchor.UpperLeft, true);
+                    Text(new Rect(36, H - 50, 600, 22), $"VIEW {(cam != null && cam.firstPerson ? "1ST PERSON" : "3RD PERSON")}   GFX {Quality.Name}", 16, new Color(Cyan.r, Cyan.g, Cyan.b, 0.6f), TextAnchor.UpperLeft, true);
+                }
+                // 右下：キー
+                Keys();
+                // 一人称の照準
+                if (cam != null && cam.firstPerson)
+                {
+                    var c = new Vector2(W / 2, H / 2);
+                    var col = new Color(Cyan.r, Cyan.g, Cyan.b, 0.85f);
+                    Fill(new Rect(c.x - 2, c.y - 2, 4, 4), col);
+                    Fill(new Rect(c.x - 18, c.y - 1, 9, 2), col); Fill(new Rect(c.x + 9, c.y - 1, 9, 2), col);
+                    Fill(new Rect(c.x - 1, c.y - 18, 2, 9), col); Fill(new Rect(c.x - 1, c.y + 9, 2, 9), col);
+                }
+                // まだ操作していないとき
+                if (Cursor.lockState != CursorLockMode.Locked && Mathf.Repeat(t, 1.4f) < 1.0f)
+                    Text(new Rect(0, H - 150, W, 30), "CLICK TO SYNC  ▸  クリックで操作開始", 22, Gold, TextAnchor.MiddleCenter);
             }
 
-            // 場所の名前（大きく）
+            // 場所の名前
             if (_bannerT > 0 && !string.IsNullOrEmpty(_bannerTitle))
             {
-                float a = Mathf.Clamp01(_bannerT / 0.6f);
-                Text(new Rect(0, H * 0.26f, W, 90), _bannerTitle, 76, new Color(1f, 1f, 1f, a), TextAnchor.MiddleCenter, true, FontStyle.Bold);
-                Fill(new Rect(W / 2 - 220, H * 0.26f + 96, 440, 2), new Color(1f, 0.6f, 0.8f, a * 0.9f));
-                Text(new Rect(0, H * 0.26f + 104, W, 40), _bannerSub, 26, new Color(1f, 0.9f, 0.6f, a), TextAnchor.MiddleCenter);
+                float a = Mathf.Clamp01(_bannerT / 0.6f) * Mathf.Clamp01((_bannerLen - _bannerT) / 0.3f + 0.2f);
+                float open = Mathf.Clamp01((_bannerLen - _bannerT) / 0.5f);
+                float y = H * 0.25f;
+                var box = new Rect(W / 2 - 340 * open, y, 680 * open, 150);
+                Corners(box, new Color(Cyan.r, Cyan.g, Cyan.b, a), 26, 3);
+                Text(new Rect(0, y + 10, W, 26), _bannerSub, 18, new Color(Cyan.r, Cyan.g, Cyan.b, a), TextAnchor.MiddleCenter, true);
+                Text(new Rect(0, y + 38, W, 80), _bannerTitle, 64, new Color(1, 1, 1, a), TextAnchor.MiddleCenter, false, FontStyle.Bold);
+                Fill(new Rect(W / 2 - 260 * open, y + 124, 520 * open, 2), new Color(Pink.r, Pink.g, Pink.b, a));
             }
 
             // お知らせ
             if (_toastT > 0 && !string.IsNullOrEmpty(_toast))
             {
                 float a = Mathf.Clamp01(_toastT / 0.5f);
-                var r = new Rect(W / 2 - 420, H - 190, 840, 64);
-                Fill(r, new Color(0.08f, 0.06f, 0.2f, 0.8f * a));
-                Text(r, _toast, 28, new Color(1, 1, 1, a), TextAnchor.MiddleCenter, false);
+                var r = new Rect(W / 2 - 430, H - 230, 860, 64);
+                Panel(r, a);
+                Fill(new Rect(r.x, r.y, 5, r.height), new Color(Pink.r, Pink.g, Pink.b, a));
+                Text(new Rect(r.x + 20, r.y + 6, 200, 20), "▸ NOTICE", 14, new Color(Cyan.r, Cyan.g, Cyan.b, a), TextAnchor.UpperLeft, true);
+                Text(new Rect(r.x, r.y + 8, r.width, r.height), _toast, 26, new Color(1, 1, 1, a), TextAnchor.MiddleCenter);
             }
 
+            if (_debug) DrawDebug();
             if (_map) DrawMap();
             else if (_menu) DrawMenu();
             GUI.matrix = Matrix4x4.identity;
         }
 
+        /// <summary>上の方位の帯：方角と、名所の向き・距離。</summary>
+        void Compass()
+        {
+            if (cam == null || player == null) return;
+            float cw = 760, cx = W / 2, y = 34;
+            var bar = new Rect(cx - cw / 2, y, cw, 46);
+            Fill(bar, new Color(0.02f, 0.06f, 0.13f, 0.35f));
+            Fill(new Rect(bar.x, bar.yMax - 1, bar.width, 1), new Color(Cyan.r, Cyan.g, Cyan.b, 0.5f));
+            float yaw = cam.transform.eulerAngles.y;
+            const float fov = 120f;
+            float Px(float bearing) => cx + Mathf.DeltaAngle(yaw, bearing) / (fov / 2) * (cw / 2);
+            for (int d = 0; d < 360; d += 15)
+            {
+                float dd = Mathf.DeltaAngle(yaw, d);
+                if (Mathf.Abs(dd) > fov / 2) continue;
+                float x = Px(d);
+                bool major = d % 90 == 0;
+                float a = 1 - Mathf.Abs(dd) / (fov / 2);
+                Fill(new Rect(x - 0.75f, bar.yMax - (major ? 16 : 8), 1.5f, major ? 16 : 8), new Color(Cyan.r, Cyan.g, Cyan.b, 0.8f * a));
+                if (major) Text(new Rect(x - 20, y + 2, 40, 22), d == 0 ? "N" : d == 90 ? "E" : d == 180 ? "S" : "W", 18, new Color(1, 1, 1, a), TextAnchor.MiddleCenter, true);
+            }
+            var marks = new List<(Zone z, float dd, float dist, float bearing)>();
+            foreach (var z in Zone.All)
+            {
+                if (!z.warpable || z == _zone) continue;
+                var v = z.transform.position - player.Position; v.y = 0;
+                float dist = v.magnitude;
+                if (dist < 8 || dist > 450) continue;
+                float bearing = Mathf.Atan2(v.x, v.z) * Mathf.Rad2Deg;
+                float dd = Mathf.DeltaAngle(yaw, bearing);
+                if (Mathf.Abs(dd) > fov / 2 - 4) continue;
+                marks.Add((z, dd, dist, bearing));
+            }
+            marks.Sort((p, q) => Mathf.Abs(p.dd).CompareTo(Mathf.Abs(q.dd)));
+            var placed = new List<(float x, int row)>();
+            for (int i = 0; i < marks.Count; i++)
+            {
+                var (z, dd, dist, bearing) = marks[i];
+                float x = Px(bearing);
+                float a = 1 - Mathf.Abs(dd) / (fov / 2) * 0.7f;
+                var c = z.mapColor; c.a = a;
+                Fill(new Rect(x - 4, bar.yMax + 4, 8, 8), c);
+                if (i >= 5) continue;
+                int row = 0;
+                foreach (var pl in placed) if (Mathf.Abs(pl.x - x) < 150 && pl.row == row) row++;
+                if (row > 2) continue;
+                placed.Add((x, row));
+                float ly = bar.yMax + 12 + row * 40;
+                if (row > 0) Fill(new Rect(x - 0.5f, bar.yMax + 12, 1, row * 40), new Color(c.r, c.g, c.b, a * 0.5f));
+                Text(new Rect(x - 90, ly, 180, 22), z.title, 15, new Color(1, 1, 1, a), TextAnchor.UpperCenter);
+                Text(new Rect(x - 90, ly + 19, 180, 18), $"{dist:0}m", 13, new Color(Cyan.r, Cyan.g, Cyan.b, a * 0.9f), TextAnchor.UpperCenter, true);
+            }
+            Fill(new Rect(cx - 1, y - 6, 2, 12), Pink);
+        }
+
+        void Keys()
+        {
+            var keys = new[] { ("WASD", "移動"), ("SHIFT", "走る"), ("SPACE", "ジャンプ"), ("V", "視点"), ("M", "地図"), ("ESC", "メニュー") };
+            float a = _hintT > 0 ? 0.95f : 0.5f;
+            float x = W - 36;
+            for (int i = keys.Length - 1; i >= 0; i--)
+            {
+                var (k, label) = keys[i];
+                float kw = 12 + k.Length * 10, lw = label.Length * 17 + 8;
+                x -= lw;
+                Text(new Rect(x, H - 62, lw, 26), label, 17, new Color(1, 1, 1, a), TextAnchor.MiddleLeft);
+                x -= kw + 6;
+                var kr = new Rect(x, H - 62, kw, 26);
+                Frame(kr, new Color(Cyan.r, Cyan.g, Cyan.b, a * 0.8f), 1f);
+                Text(kr, k, 14, new Color(Cyan.r, Cyan.g, Cyan.b, a), TextAnchor.MiddleCenter, true, FontStyle.Normal, false);
+                x -= 18;
+            }
+        }
+
         void DrawMenu()
         {
-            Fill(new Rect(0, 0, W, H), new Color(0.02f, 0.02f, 0.08f, 0.55f));
-            var r = new Rect(W / 2 - 300, H / 2 - 290, 600, 580);
-            Fill(r, new Color(0.07f, 0.06f, 0.2f, 0.94f));
-            Fill(new Rect(r.x, r.y, r.width, 6), new Color(1f, 0.55f, 0.78f));
-            Text(new Rect(r.x, r.y + 30, r.width, 70), "ツクヨミ", 56, new Color(1f, 0.93f, 0.75f), TextAnchor.MiddleCenter, true, FontStyle.Bold);
-            Text(new Rect(r.x, r.y + 100, r.width, 30), "TSUKUYOMI  ─  MENU", 20, new Color(0.7f, 0.9f, 1f), TextAnchor.MiddleCenter);
-            if (Button(new Rect(r.x + 90, r.y + 160, 420, 72), "つづける")) _menu = false;
-            if (Button(new Rect(r.x + 90, r.y + 250, 420, 72), "地図とワープ（M）")) { _menu = false; _map = true; }
-            if (Button(new Rect(r.x + 90, r.y + 340, 420, 72), "ログアウト（終わる）")) GameSession.Instance?.Logout();
-            Text(new Rect(r.x, r.y + 440, r.width, 120),
-                "WASD・矢印 歩く　Shift 走る　Space ジャンプ\nマウス 見回す　ホイール 近づく・離れる\nログアウトした場所から、次回は始まります",
-                20, new Color(1, 1, 1, 0.75f), TextAnchor.UpperCenter, false);
+            Fill(new Rect(0, 0, W, H), new Color(0.01f, 0.03f, 0.08f, 0.55f));
+            var r = new Rect(W / 2 - 310, H / 2 - 400, 620, 800);
+            Panel(r);
+            Text(new Rect(r.x, r.y + 24, r.width, 24), "SYSTEM MENU", 18, Cyan, TextAnchor.MiddleCenter, true);
+            Text(new Rect(r.x, r.y + 50, r.width, 70), "ツクヨミ", 54, Color.white, TextAnchor.MiddleCenter, false, FontStyle.Bold);
+            Fill(new Rect(r.x + 200, r.y + 124, 220, 2), Pink);
+            float y = r.y + 150;
+            if (Button(new Rect(r.x + 90, y, 440, 66), "つづける")) _menu = false;
+            y += 82;
+            if (Button(new Rect(r.x + 90, y, 440, 66), "地図とワープ（M）")) { _menu = false; _map = true; }
+            y += 82;
+            if (Button(new Rect(r.x + 90, y, 440, 66), cam != null && cam.firstPerson ? "視点：一人称（V で切りかえ）" : "視点：三人称（V で切りかえ）")) cam?.Toggle();
+            y += 82;
+            if (Button(new Rect(r.x + 90, y, 440, 66), AmbientAudio.Muted ? "音：オフ（押すとオン）" : "音：オン（押すとオフ）")) AmbientAudio.Muted = !AmbientAudio.Muted;
+            y += 82;
+            if (Button(new Rect(r.x + 90, y, 440, 66), $"画質：{Quality.Name}（押すと切りかえ）")) Quality.Next();
+            y += 82;
+            if (Button(new Rect(r.x + 90, y, 440, 66), "ログアウト（終わる）")) GameSession.Instance?.Logout();
+            Text(new Rect(r.x, r.yMax - 100, r.width, 90),
+                "WASD・矢印 歩く　Shift 走る　Space ジャンプ　V 視点\nマウス 見回す　ホイール 近づく・離れる（いちばん近くで一人称）\nF3 デバッグ表示　F12 写真（ピクチャ\\Tsukuyomi に保存）",
+                17, new Color(1, 1, 1, 0.75f), TextAnchor.UpperCenter);
         }
 
         void DrawMap()
         {
-            Fill(new Rect(0, 0, W, H), new Color(0.02f, 0.02f, 0.08f, 0.7f));
+            Fill(new Rect(0, 0, W, H), new Color(0.01f, 0.03f, 0.08f, 0.7f));
             float mh = 860f;
             float mw = mh * (worldMax.x - worldMin.x) / (worldMax.y - worldMin.y);
             var m = new Rect(W / 2 - (mw + 420) / 2, (H - mh) / 2, mw, mh);
-            Fill(new Rect(m.x - 8, m.y - 8, m.width + 16, m.height + 16), new Color(0.6f, 0.9f, 1f, 0.5f));
-            Fill(m, new Color(0.05f, 0.18f, 0.3f, 1f)); // 海
+            Panel(new Rect(m.x - 10, m.y - 10, m.width + 20, m.height + 20));
 
             Rect ToMap(Rect w)
             {
@@ -221,60 +498,57 @@ namespace Tsukuyomi
                 m.x + (p.x - worldMin.x) / (worldMax.x - worldMin.x) * m.width,
                 m.yMax - (p.z - worldMin.y) / (worldMax.y - worldMin.y) * m.height);
 
-            // 島と川と回廊
-            Fill(ToMap(new Rect(-130, 0, 260, 100)), new Color(0.82f, 0.78f, 0.68f));
-            Fill(ToMap(new Rect(-130, 114, 260, 136)), new Color(0.82f, 0.78f, 0.68f));
-            Fill(ToMap(new Rect(-130, 100, 260, 14)), new Color(0.2f, 0.5f, 0.75f));
-            Fill(ToMap(new Rect(-3.5f, -74, 7, 74)), new Color(0.75f, 0.3f, 0.22f));
-            Fill(ToMap(new Rect(-8, -74, 16, 12)), new Color(0.75f, 0.3f, 0.22f));
-            Fill(ToMap(new Rect(-6, 8, 12, 92)), new Color(0.65f, 0.62f, 0.58f));
-            Fill(ToMap(new Rect(-110, 40, 220, 8)), new Color(0.65f, 0.62f, 0.58f));
+            if (_mapTex == null) _mapTex = MapTexture();
+            GUI.DrawTexture(m, _mapTex);
+            for (float gx = m.x; gx < m.xMax; gx += 40) Fill(new Rect(gx, m.y, 1, m.height), new Color(Cyan.r, Cyan.g, Cyan.b, 0.06f));
+            for (float gy = m.y; gy < m.yMax; gy += 40) Fill(new Rect(m.x, gy, m.width, 1), new Color(Cyan.r, Cyan.g, Cyan.b, 0.06f));
+            Fill(ToMap(new Rect(-3.5f, -74, 7, 74)), new Color(0.85f, 0.3f, 0.22f));
+            Fill(ToMap(new Rect(-8, -74, 16, 12)), new Color(0.85f, 0.3f, 0.22f));
+            Fill(ToMap(new Rect(-2.5f, -100, 5, 26)), new Color(Cyan.r, Cyan.g, Cyan.b, 0.8f));
 
             Zone hover = null;
             foreach (var z in Zone.All)
             {
                 if (!z.warpable) continue;
                 var r = ToMap(z.Area);
-                var c = z.mapColor; c.a = 0.55f;
-                Fill(r, c);
-                if (r.Contains(Event.current.mousePosition)) { hover = z; Fill(r, new Color(1, 1, 1, 0.25f)); }
-                Text(r, z.title, 20, Color.white, TextAnchor.MiddleCenter, true, FontStyle.Bold);
+                var dot = ToMapP(z.transform.position);
+                if (r.Contains(Event.current.mousePosition)) { hover = z; Corners(r, Cyan, 12, 2); }
+                var c = z.mapColor; c.a = 0.95f;
+                Fill(new Rect(dot.x - 5, dot.y - 5, 10, 10), c);
+                Text(new Rect(dot.x - 100, dot.y + 6, 200, 24), z.title, 17, Color.white, TextAnchor.UpperCenter);
             }
+            var tp = ToMapP(new Vector3(0, 0, -82));
+            Fill(new Rect(tp.x - 14, tp.y - 3, 28, 6), new Color(1f, 0.3f, 0.2f));
 
-            // 大鳥居
-            var t = ToMapP(new Vector3(0, 0, -82));
-            Fill(new Rect(t.x - 14, t.y - 3, 28, 6), new Color(1f, 0.3f, 0.2f));
-            Text(new Rect(t.x - 80, t.y + 6, 160, 26), "大鳥居", 18, Color.white, TextAnchor.UpperCenter);
-
-            // 自分
             if (player != null)
             {
                 var p = ToMapP(player.Position);
-                float pulse = 9 + Mathf.Sin(Time.unscaledTime * 6) * 3;
-                Fill(new Rect(p.x - pulse, p.y - pulse, pulse * 2, pulse * 2), new Color(1f, 0.4f, 0.7f, 0.5f));
-                Fill(new Rect(p.x - 6, p.y - 6, 12, 12), Color.white);
-                Text(new Rect(p.x - 60, p.y - 40, 120, 26), "いまここ", 18, new Color(1f, 0.95f, 0.6f), TextAnchor.MiddleCenter);
+                float pulse = 10 + Mathf.Sin(Time.unscaledTime * 6) * 4;
+                Frame(new Rect(p.x - pulse, p.y - pulse, pulse * 2, pulse * 2), new Color(Pink.r, Pink.g, Pink.b, 0.8f), 2f);
+                Fill(new Rect(p.x - 5, p.y - 5, 10, 10), Color.white);
+                Text(new Rect(p.x - 70, p.y - 40, 140, 24), "YOU ▸ いまここ", 16, Gold, TextAnchor.MiddleCenter);
             }
+            Text(new Rect(m.x + 10, m.y + 8, 300, 20), "MAP ▸ TSUKUYOMI ISLAND", 15, Cyan, TextAnchor.UpperLeft, true);
 
-            // 右：ワープの一覧
-            var list = new Rect(m.xMax + 30, m.y, 380, mh);
-            Fill(list, new Color(0.07f, 0.06f, 0.2f, 0.94f));
-            Text(new Rect(list.x, list.y + 18, list.width, 50), "ワープ", 40, new Color(1f, 0.93f, 0.75f), TextAnchor.MiddleCenter, true, FontStyle.Bold);
+            var list = new Rect(m.xMax + 30, m.y - 10, 390, mh + 20);
+            Panel(list);
+            Text(new Rect(list.x, list.y + 16, list.width, 22), "WARP", 18, Cyan, TextAnchor.MiddleCenter, true);
+            Text(new Rect(list.x, list.y + 38, list.width, 40), "ワープ", 32, Color.white, TextAnchor.MiddleCenter, false, FontStyle.Bold);
             float y = list.y + 90;
-            var zones = new System.Collections.Generic.List<Zone>(Zone.All);
+            var zones = new List<Zone>(Zone.All);
             zones.Sort((a, b) => a.order.CompareTo(b.order));
             foreach (var z in zones)
             {
                 if (!z.warpable) continue;
-                if (Button(new Rect(list.x + 24, y, list.width - 48, 62), z.title, 26)) Warp(z);
-                y += 74;
+                if (Button(new Rect(list.x + 24, y, list.width - 48, 50), z.title, 21)) Warp(z);
+                y += 58;
             }
             if (hover != null && Event.current.type == EventType.MouseDown && Event.current.button == 0)
             {
                 Warp(hover);
                 Event.current.Use();
             }
-            Text(new Rect(list.x, list.yMax - 60, list.width, 40), "M・Esc で閉じる　地図の場所をクリックでも飛べます", 16, new Color(1, 1, 1, 0.7f), TextAnchor.MiddleCenter, false);
+            Text(new Rect(list.x, list.yMax - 40, list.width, 30), "M・Esc で閉じる　地図の場所をクリックでも飛べます", 14, new Color(1, 1, 1, 0.7f), TextAnchor.MiddleCenter);
         }
 
         void Warp(Zone z)

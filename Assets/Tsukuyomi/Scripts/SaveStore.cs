@@ -11,6 +11,7 @@ namespace Tsukuyomi
         public bool has;
         public float x, y, z, yaw;
         public float camYaw, camPitch = 14f, camDist = 6f;
+        public bool firstPerson;
         public int logins;
         public string firstLogin = "";
         public string lastLogin = "";

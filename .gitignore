@@ -24,3 +24,9 @@
 *.aab
 crashlytics-build.properties
 sysinfo.txt
+
+# 毎回 build.sh で作り直すもの（大きいので入れない）
+/Assets/Scenes/Tsukuyomi.unity
+/Assets/Scenes/Tsukuyomi.unity.meta
+/Assets/Tsukuyomi/Generated/
+/Assets/Tsukuyomi/Generated.meta

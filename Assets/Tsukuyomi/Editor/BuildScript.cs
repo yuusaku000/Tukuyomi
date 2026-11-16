@@ -65,6 +65,7 @@ namespace Tsukuyomi.EditorTools
         {
             PlayerSettings.companyName = "TsukuyomiFan";
             PlayerSettings.productName = "Tsukuyomi";
+            PlayerSettings.bundleVersion = DateTime.Now.ToString("yyyy.MMdd.HHmm");
             PlayerSettings.fullScreenMode = FullScreenMode.FullScreenWindow;
             PlayerSettings.defaultIsNativeResolution = true;
             PlayerSettings.resizableWindow = true;
@@ -81,8 +82,8 @@ namespace Tsukuyomi.EditorTools
             foreach (var rp in new[] { GraphicsSettings.defaultRenderPipeline, QualitySettings.renderPipeline })
                 if (rp is UniversalRenderPipelineAsset urp)
                 {
-                    urp.shadowDistance = 140f;
-                    urp.shadowCascadeCount = 4;
+                    urp.shadowDistance = 90f;
+                    urp.shadowCascadeCount = 2;
                     EditorUtility.SetDirty(urp);
                 }
             AssetDatabase.SaveAssets();

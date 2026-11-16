@@ -18,7 +18,7 @@ namespace Tsukuyomi
 
         public Vector3 Position => transform.position;
         public float Yaw => transform.eulerAngles.y;
-        public bool InWater => transform.position.y < 0.25f;
+        public bool InWater => transform.position.y < 0.25f || Island.InWater(transform.position);
 
         void Awake()
         {
@@ -45,7 +45,9 @@ namespace Tsukuyomi
             var want = (fwd * input.y + right * input.x) * speed;
             _move = Vector3.Lerp(_move, want, 1 - Mathf.Exp(-12f * Time.deltaTime));
 
-            if (want.sqrMagnitude > 0.01f)
+            if (cam != null && cam.firstPerson)
+                transform.rotation = Quaternion.Euler(0, cam.yaw, 0);
+            else if (want.sqrMagnitude > 0.01f)
             {
                 var face = Quaternion.LookRotation(new Vector3(want.x, 0, want.z));
                 transform.rotation = Quaternion.Slerp(transform.rotation, face, 1 - Mathf.Exp(-12f * Time.deltaTime));
@@ -55,7 +57,7 @@ namespace Tsukuyomi
             {
                 if (_vy < 0) _vy = -2f;
                 if (!Hud.Blocked && Input.GetKeyDown(KeyCode.Space) && !InWater) _vy = jumpSpeed;
-                if (transform.position.y > 0.6f) { _safePos = transform.position; _safeYaw = transform.eulerAngles.y; }
+                if (transform.position.y > 0.6f && !InWater) { _safePos = transform.position; _safeYaw = transform.eulerAngles.y; }
             }
             _vy += gravity * Time.deltaTime;
             _cc.Move((_move + Vector3.up * _vy) * Time.deltaTime);

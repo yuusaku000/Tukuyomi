@@ -13,7 +13,7 @@ namespace Tsukuyomi
         public Material skybox;
         public Transform moonBody, moonHalo, stars;
         public Camera follow;
-        public float moonElevation = 21f, moonAzimuth = 180f, moonDistance = 1500f;
+        public float moonElevation = 66f, moonAzimuth = 180f, moonDistance = 1500f;
 
         /// <summary>0 = 昼、1 = 夜。</summary>
         public static float Night { get; private set; }
@@ -135,8 +135,11 @@ namespace Tsukuyomi
 
             RenderSettings.fog = true;
             RenderSettings.fogMode = FogMode.Linear;
-            RenderSettings.fogStartDistance = Mathf.Lerp(90f, 140f, day);
-            RenderSettings.fogEndDistance = Mathf.Lerp(700f, 1100f, day);
+            // 朝（5〜9時）は霧が濃い
+            double hr = Ts.Now.TimeOfDay.TotalHours;
+            float morning = (float)(hr >= 5 && hr < 9.5 ? 1 - System.Math.Abs(hr - 7) / 2.5 : 0);
+            RenderSettings.fogStartDistance = Mathf.Lerp(Mathf.Lerp(90f, 140f, day), 15f, morning);
+            RenderSettings.fogEndDistance = Mathf.Lerp(Mathf.Lerp(700f, 1100f, day), 320f, morning);
             RenderSettings.fogColor = Color.Lerp(new Color(0.06f, 0.07f, 0.17f), new Color(0.72f, 0.8f, 0.9f), day) + new Color(0.3f, 0.12f, 0.02f) * dusk;
 
             Shader.SetGlobalFloat(IdNight, Night);
