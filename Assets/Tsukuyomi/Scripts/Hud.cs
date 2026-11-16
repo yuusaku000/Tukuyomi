@@ -17,6 +17,13 @@ namespace Tsukuyomi
         /// <summary>メニューか地図を開いている間は true（歩けない・見回せない）。</summary>
         public static bool Blocked { get; private set; }
 
+        /// <summary>一人称のまん中の照準（メニューでオン・オフ。PlayerPrefs に残す）。</summary>
+        public static bool CrosshairOn
+        {
+            get => PlayerPrefs.GetInt("tsukuyomi_crosshair", 1) == 1;
+            set { PlayerPrefs.SetInt("tsukuyomi_crosshair", value ? 1 : 0); PlayerPrefs.Save(); }
+        }
+
         static Hud _i;
         static string _toast, _bannerTitle, _bannerSub;
         static float _toastT, _bannerT, _bannerLen = 3.5f;
@@ -344,18 +351,14 @@ namespace Tsukuyomi
             // 画面の四隅のかぎ（スマコンの視野）
             Corners(new Rect(14, 14, W - 28, H - 28), new Color(Cyan.r, Cyan.g, Cyan.b, 0.35f), 70, 2);
 
-            // 左上：接続表示・時刻・場所
-            var info = new Rect(34, 30, 400, 170);
-            Panel(info);
+            // 左上：接続表示・時刻・場所（左下とおなじ、小さな文字だけ）
             bool blink = Mathf.Repeat(t, 1.2f) < 0.8f;
-            Fill(new Rect(info.x + 18, info.y + 19, 8, 8), blink ? new Color(0.4f, 1f, 0.6f) : new Color(0.2f, 0.5f, 0.3f));
-            Text(new Rect(info.x + 34, info.y + 10, 360, 24), "TSUKUYOMI AR ▸ LINK OK", 17, Cyan, TextAnchor.UpperLeft, true);
-            Text(new Rect(info.x + 16, info.y + 34, 360, 54), "ツクヨミ", 42, Color.white, TextAnchor.UpperLeft, false, FontStyle.Bold);
-            Fill(new Rect(info.x + 18, info.y + 88, 168, 2), Pink);
+            Fill(new Rect(38, 38, 7, 7), blink ? new Color(0.4f, 1f, 0.6f, 0.85f) : new Color(0.2f, 0.5f, 0.3f, 0.85f));
+            Text(new Rect(52, 31, 500, 22), "TSUKUYOMI AR ▸ LINK OK", 15, new Color(Cyan.r, Cyan.g, Cyan.b, 0.7f), TextAnchor.UpperLeft, true);
             var now = Ts.Now;
-            Text(new Rect(info.x + 18, info.y + 98, 120, 28), now.ToString("HH:mm"), 24, Gold, TextAnchor.UpperLeft, true);
-            Text(new Rect(info.x + 110, info.y + 99, 200, 28), RealTimeSky.PeriodName(now), 22, Gold);
-            Text(new Rect(info.x + 18, info.y + 132, 380, 28), "▸ " + (_zone != null ? _zone.title : "ツクヨミのどこか"), 21, Color.white);
+            Text(new Rect(36, 55, 120, 24), now.ToString("HH:mm"), 19, new Color(Gold.r, Gold.g, Gold.b, 0.85f), TextAnchor.UpperLeft, true);
+            Text(new Rect(102, 56, 120, 24), RealTimeSky.PeriodName(now), 17, new Color(Gold.r, Gold.g, Gold.b, 0.8f));
+            Text(new Rect(36, 82, 500, 24), "▸ " + (_zone != null ? _zone.title : "ツクヨミのどこか"), 17, new Color(1, 1, 1, 0.75f));
 
             if (!Blocked)
             {
@@ -375,7 +378,7 @@ namespace Tsukuyomi
                 DrawBubbles();
 
                 // 一人称の照準
-                if (cam != null && cam.firstPerson)
+                if (cam != null && cam.firstPerson && CrosshairOn)
                 {
                     var c = new Vector2(W / 2, H / 2);
                     var col = new Color(Cyan.r, Cyan.g, Cyan.b, 0.85f);
@@ -388,17 +391,15 @@ namespace Tsukuyomi
                     Text(new Rect(0, H - 150, W, 30), "CLICK TO SYNC  ▸  クリックで操作開始", 22, Gold, TextAnchor.MiddleCenter);
             }
 
-            // 場所の名前
+            // 場所の名前（小さく、方位の帯の下に）
             if (_bannerT > 0 && !string.IsNullOrEmpty(_bannerTitle))
             {
-                float a = Mathf.Clamp01(_bannerT / 0.6f) * Mathf.Clamp01((_bannerLen - _bannerT) / 0.3f + 0.2f);
+                float a = Mathf.Clamp01(_bannerT / 0.6f) * Mathf.Clamp01((_bannerLen - _bannerT) / 0.3f + 0.2f) * 0.9f;
                 float open = Mathf.Clamp01((_bannerLen - _bannerT) / 0.5f);
-                float y = H * 0.25f;
-                var box = new Rect(W / 2 - 340 * open, y, 680 * open, 150);
-                Corners(box, new Color(Cyan.r, Cyan.g, Cyan.b, a), 26, 3);
-                Text(new Rect(0, y + 10, W, 26), _bannerSub, 18, new Color(Cyan.r, Cyan.g, Cyan.b, a), TextAnchor.MiddleCenter, true);
-                Text(new Rect(0, y + 38, W, 80), _bannerTitle, 64, new Color(1, 1, 1, a), TextAnchor.MiddleCenter, false, FontStyle.Bold);
-                Fill(new Rect(W / 2 - 260 * open, y + 124, 520 * open, 2), new Color(Pink.r, Pink.g, Pink.b, a));
+                float y = 190;
+                Text(new Rect(0, y, W, 20), _bannerSub, 14, new Color(Cyan.r, Cyan.g, Cyan.b, a * 0.8f), TextAnchor.MiddleCenter, true);
+                Text(new Rect(0, y + 20, W, 44), _bannerTitle, 32, new Color(1, 1, 1, a), TextAnchor.MiddleCenter, false, FontStyle.Bold);
+                Fill(new Rect(W / 2 - 130 * open, y + 66, 260 * open, 1.5f), new Color(Pink.r, Pink.g, Pink.b, a * 0.8f));
             }
 
             // お知らせ
@@ -501,24 +502,26 @@ namespace Tsukuyomi
             Text(new Rect(r.x, r.y + 24, r.width, 24), "SYSTEM MENU", 18, Cyan, TextAnchor.MiddleCenter, true);
             Text(new Rect(r.x, r.y + 50, r.width, 70), "ツクヨミ", 54, Color.white, TextAnchor.MiddleCenter, false, FontStyle.Bold);
             Fill(new Rect(r.x + 200, r.y + 124, 220, 2), Pink);
-            float y = r.y + 150;
-            if (Button(new Rect(r.x + 110, y, 440, 66), "つづける")) _menu = false;
-            y += 76;
-            if (Button(new Rect(r.x + 110, y, 440, 66), "地図とワープ（M）")) { _menu = false; _map = true; }
-            y += 76;
-            if (Button(new Rect(r.x + 110, y, 440, 66), cam != null && cam.firstPerson ? "視点：一人称（V で切りかえ）" : "視点：三人称（V で切りかえ）")) cam?.Toggle();
-            y += 76;
-            if (Button(new Rect(r.x + 110, y, 440, 66), AmbientAudio.Muted ? "音：オフ（押すとオン）" : "音：オン（押すとオフ）")) AmbientAudio.Muted = !AmbientAudio.Muted;
-            y += 76;
-            if (Button(new Rect(r.x + 110, y, 440, 66), $"画質：{Quality.Name}（押すと切りかえ）")) Quality.Next();
-            y += 76;
-            if (Button(new Rect(r.x + 110, y, 440, 66), "写真のフォルダを開く")) { System.IO.Directory.CreateDirectory(PhotoDir); Application.OpenURL("file:///" + PhotoDir.Replace('\\', '/')); }
-            y += 76;
-            if (Button(new Rect(r.x + 110, y, 440, 66), "着がえ（C）")) OpenWardrobe();
-            y += 76;
-            if (Button(new Rect(r.x + 110, y, 440, 66), Crowd.BubblesOn ? "吹き出し：オン（押すとオフ）" : "吹き出し：オフ（押すとオン）")) Crowd.BubblesOn = !Crowd.BubblesOn;
-            y += 76;
-            if (Button(new Rect(r.x + 110, y, 440, 66), "ログアウト（終わる）")) GameSession.Instance?.Logout();
+            float y = r.y + 140;
+            if (Button(new Rect(r.x + 110, y, 440, 60), "つづける")) _menu = false;
+            y += 69;
+            if (Button(new Rect(r.x + 110, y, 440, 60), "地図とワープ（M）")) { _menu = false; _map = true; }
+            y += 69;
+            if (Button(new Rect(r.x + 110, y, 440, 60), cam != null && cam.firstPerson ? "視点：一人称（V で切りかえ）" : "視点：三人称（V で切りかえ）")) cam?.Toggle();
+            y += 69;
+            if (Button(new Rect(r.x + 110, y, 440, 60), AmbientAudio.Muted ? "音：オフ（押すとオン）" : "音：オン（押すとオフ）")) AmbientAudio.Muted = !AmbientAudio.Muted;
+            y += 69;
+            if (Button(new Rect(r.x + 110, y, 440, 60), $"画質：{Quality.Name}（押すと切りかえ）")) Quality.Next();
+            y += 69;
+            if (Button(new Rect(r.x + 110, y, 440, 60), "写真のフォルダを開く")) { System.IO.Directory.CreateDirectory(PhotoDir); Application.OpenURL("file:///" + PhotoDir.Replace('\\', '/')); }
+            y += 69;
+            if (Button(new Rect(r.x + 110, y, 440, 60), "着がえ（C）")) OpenWardrobe();
+            y += 69;
+            if (Button(new Rect(r.x + 110, y, 440, 60), Crowd.BubblesOn ? "吹き出し：オン（押すとオフ）" : "吹き出し：オフ（押すとオン）")) Crowd.BubblesOn = !Crowd.BubblesOn;
+            y += 69;
+            if (Button(new Rect(r.x + 110, y, 440, 60), CrosshairOn ? "照準（まん中の十字）：オン" : "照準（まん中の十字）：オフ")) CrosshairOn = !CrosshairOn;
+            y += 69;
+            if (Button(new Rect(r.x + 110, y, 440, 60), "ログアウト（終わる）")) GameSession.Instance?.Logout();
             Text(new Rect(r.x, r.yMax - 116, r.width, 110),
 
                 "WASD・矢印 歩く　Shift 走る　Space ジャンプ　V 視点\nマウス 見回す　ホイール 近づく・離れる（いちばん近くで一人称）\nF3 デバッグ表示　F4 飛行（デバッグ）　F12 写真（メニューの「写真のフォルダを開く」で見られます）\nE お店に入る（月見商店街の店先で）　C 着がえ",
