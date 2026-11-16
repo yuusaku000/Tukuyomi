@@ -119,9 +119,12 @@ namespace Tsukuyomi
                 if (p.Length > 3 && p[3] == "wear") Hud.OpenWardrobe();
                 if (p.Length > 3 && p[3].StartsWith("buy:")) Hud.TestBuy(p[3].Substring(4));
                 cam.firstPerson = p.Length > 4 && p[4] == "fp";
-                yield return new WaitForSeconds(2.5f);
+                // 6つ目で待ち秒数を変えられる（食べている途中を撮るときなど）
+                float wait = p.Length > 5 && float.TryParse(p[5], NumberStyles.Float, CultureInfo.InvariantCulture, out var wv) ? wv : 3.5f;
+                yield return new WaitForSeconds(Mathf.Max(0.2f, wait - 1f));
                 int f0 = Time.frameCount; float t0 = Time.realtimeSinceStartup;
-                yield return new WaitForSeconds(1f);
+                yield return new WaitForSeconds(Mathf.Min(1f, wait));
+
                 Debug.Log($"[Tour] {p[0]} fps={(Time.frameCount - f0) / (Time.realtimeSinceStartup - t0):0}");
                 ScreenCapture.CaptureScreenshot(Path.Combine(dir, $"{i:00}_{p[0].Replace("@", "at").Replace(",", "_")}.png"));
                 yield return new WaitForSeconds(0.8f);

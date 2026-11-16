@@ -72,7 +72,8 @@ namespace Tsukuyomi
                 if (_acc.ContainsValue(r.gameObject)) continue;
                 switch (r.name)
                 {
-                    case "Robe": case "Torso": r.sharedMaterial = Mat(it.robe); break;
+                    case "Robe": r.sharedMaterial = Mat(it.robe); break;
+                    case "Torso": r.sharedMaterial = Mat(it.hasTop ? it.top : it.robe); break;
                     case "Hem": case "Collar": case "Arm": r.sharedMaterial = Mat(it.robe2); break;
                     case "Sleeve": r.sharedMaterial = Mat(it.sleeve); break;
                     case "Cuff": r.sharedMaterial = Mat(it.cuff, it.glowCuff); break;
@@ -245,6 +246,124 @@ namespace Tsukuyomi
             }
         }
 
+        static readonly Color Stick = new Color(0.85f, 0.75f, 0.55f), Tray = new Color(0.8f, 0.68f, 0.45f), Lacquer = new Color(0.55f, 0.12f, 0.1f), Glass = new Color(0.85f, 0.95f, 1f);
+
+        /// <summary>食べ物の形を、手の上に（上向きで）作る。形の種類と色は Catalog から。</summary>
+        void BuildFood(Transform hand, Item f)
+        {
+            // 食べるときは腕が前に上がるので、腕から見た +z がほぼ真上になる。その向きでそろえる
+            var g = Holder(hand, "上向き");
+            g.localEulerAngles = new Vector3(90, 0, 0);
+            g.localPosition = new Vector3(0, -0.02f, 0);
+            var S = PrimitiveType.Sphere; var Cy = PrimitiveType.Cylinder; var Cu = PrimitiveType.Cube; var Ca = PrimitiveType.Capsule;
+            int n = Mathf.Max(1, f.count);
+            switch (f.shape)
+            {
+                case FoodShape.Skewer:
+                    Part(g, Cy, new Vector3(0, 0.15f, 0), new Vector3(0.012f, 0.15f, 0.012f), Stick);
+                    for (int i = 0; i < n; i++) Part(g, S, new Vector3(0, 0.1f + i * 0.055f, 0), Vector3.one * 0.06f, i % 2 == 1 && f.id == "negima" ? new Color(0.9f, 0.95f, 0.8f) : f.c1);
+                    break;
+                case FoodShape.Bowl:
+                    Part(g, Cy, new Vector3(0, 0.045f, 0), new Vector3(0.2f, 0.045f, 0.2f), f.shop == "oden" ? new Color(0.9f, 0.88f, 0.82f) : Lacquer);
+                    Part(g, Cy, new Vector3(0, 0.092f, 0), new Vector3(0.18f, 0.004f, 0.18f), f.c1);
+                    for (int i = 0; i < 3; i++)
+                    {
+                        float a = i * 2.1f;
+                        Part(g, S, new Vector3(Mathf.Cos(a) * 0.04f, 0.1f, Mathf.Sin(a) * 0.04f), new Vector3(0.05f, 0.03f, 0.05f), i == 0 ? f.c2 : Color.Lerp(f.c2, Color.white, 0.4f));
+                    }
+                    if (f.shop == "ramen")
+                        foreach (float x in new[] { -0.01f, 0.01f }) Part(g, Cy, new Vector3(x + 0.05f, 0.16f, -0.02f), new Vector3(0.008f, 0.1f, 0.008f), Stick, false, new Vector3(0, 0, -30));
+                    break;
+                case FoodShape.Cup:
+                    Part(g, Cy, new Vector3(0, 0.08f, 0), new Vector3(0.065f, 0.08f, 0.065f), f.c1);
+                    Part(g, Cy, new Vector3(0, 0.17f, 0), new Vector3(0.035f, 0.015f, 0.035f), f.c2);
+                    break;
+                case FoodShape.Tray:
+                    Part(g, Cu, new Vector3(0, 0.015f, 0), new Vector3(0.17f, 0.02f, 0.11f), Tray);
+                    for (int i = 0; i < n; i++)
+                    {
+                        var pos = new Vector3(-0.05f + (i % 3) * 0.05f, 0.045f, -0.025f + (i / 3) * 0.05f);
+                        Part(g, S, pos, Vector3.one * 0.045f, f.c1);
+                        Part(g, S, pos + new Vector3(0, 0.018f, 0), new Vector3(0.03f, 0.012f, 0.03f), f.c2);
+                    }
+                    break;
+                case FoodShape.Sushi:
+                    Part(g, Cu, new Vector3(0, 0.01f, 0), new Vector3(0.2f, 0.015f, 0.11f), Tray);
+                    for (int i = 0; i < n; i++)
+                    {
+                        float x = n == 1 ? 0 : -0.045f + i * 0.09f / (n - 1);
+                        Part(g, Ca, new Vector3(x, 0.035f, 0), new Vector3(0.04f, 0.035f, 0.04f), f.c2, false, new Vector3(0, 0, 90));
+                        if (f.c1 != f.c2) Part(g, Cu, new Vector3(x, 0.057f, 0), new Vector3(0.085f, 0.014f, 0.045f), f.c1);
+                    }
+                    break;
+                case FoodShape.Crepe:
+                    var cone = new GameObject("クレープ");
+                    cone.transform.SetParent(g, false);
+                    cone.transform.localPosition = new Vector3(0, 0.2f, 0);
+                    cone.transform.localEulerAngles = new Vector3(180, 0, 0);
+                    cone.transform.localScale = new Vector3(0.17f, 0.2f, 0.17f);
+                    cone.AddComponent<MeshFilter>().sharedMesh = Doll.Cone;
+                    cone.AddComponent<MeshRenderer>().sharedMaterial = Mat(f.c1);
+                    Part(g, S, new Vector3(0, 0.21f, 0), new Vector3(0.12f, 0.06f, 0.12f), White);
+                    for (int i = 0; i < 3; i++) Part(g, S, new Vector3(-0.03f + i * 0.03f, 0.235f, 0.01f), Vector3.one * 0.03f, f.c2);
+                    break;
+                case FoodShape.Round:
+                    if (f.id == "ringoame") Part(g, Cy, new Vector3(0, 0.07f, 0), new Vector3(0.012f, 0.07f, 0.012f), f.c2);
+                    Part(g, S, new Vector3(0, f.id == "ringoame" ? 0.17f : 0.06f, 0), Vector3.one * 0.1f, f.c1);
+                    if (f.id != "ringoame") Part(g, S, new Vector3(0, 0.1f, 0.03f), new Vector3(0.04f, 0.04f, 0.03f), f.c2);
+                    break;
+                case FoodShape.Fish:
+                    Part(g, S, new Vector3(0, 0.1f, 0), new Vector3(0.05f, 0.17f, 0.1f), f.c1);
+                    Part(g, Cu, new Vector3(0, 0.2f, 0), new Vector3(0.04f, 0.06f, 0.08f), f.c1, false, new Vector3(45, 0, 0));
+                    break;
+                case FoodShape.Parfait:
+                    Part(g, Cy, new Vector3(0, 0.09f, 0), new Vector3(0.08f, 0.09f, 0.08f), Glass);
+                    Part(g, Cy, new Vector3(0, 0.1f, 0), new Vector3(0.07f, 0.06f, 0.07f), f.c1);
+                    Part(g, S, new Vector3(0, 0.2f, 0), Vector3.one * 0.075f, f.c1);
+                    Part(g, S, new Vector3(0.03f, 0.235f, 0), Vector3.one * 0.035f, f.c2);
+                    break;
+                case FoodShape.StickBall:
+                    Part(g, Cy, new Vector3(0, 0.06f, 0), new Vector3(0.012f, 0.06f, 0.012f), Stick);
+                    Part(g, Ca, new Vector3(0, 0.19f, 0), new Vector3(0.05f, 0.08f, 0.05f), f.c1);
+                    for (int i = 0; i < 4; i++) Part(g, S, new Vector3(0.024f * (i % 2 == 0 ? 1 : -1), 0.15f + i * 0.03f, 0.01f), Vector3.one * 0.015f, f.c2);
+                    break;
+                case FoodShape.Puff:
+                    if (f.id == "wataame")
+                    {
+                        Part(g, Cy, new Vector3(0, 0.1f, 0), new Vector3(0.012f, 0.1f, 0.012f), f.c2);
+                        Part(g, S, new Vector3(0, 0.27f, 0), new Vector3(0.22f, 0.2f, 0.22f), f.c1);
+                    }
+                    else
+                    {
+                        Part(g, Cy, new Vector3(0, 0.04f, 0), new Vector3(0.11f, 0.04f, 0.11f), f.c2);
+                        Part(g, S, new Vector3(0, 0.12f, 0), Vector3.one * 0.14f, Color.Lerp(f.c1, Color.white, 0.25f));
+                        Part(g, S, new Vector3(0, 0.15f, 0), new Vector3(0.11f, 0.07f, 0.11f), f.c1);
+                    }
+                    break;
+                case FoodShape.Corn:
+                    Part(g, Cy, new Vector3(0, 0.04f, 0), new Vector3(0.012f, 0.04f, 0.012f), Stick);
+                    Part(g, Ca, new Vector3(0, 0.15f, 0), new Vector3(0.06f, 0.09f, 0.06f), f.c1);
+                    Part(g, Ca, new Vector3(0.006f, 0.15f, 0.02f), new Vector3(0.045f, 0.08f, 0.03f), f.c2);
+                    break;
+                case FoodShape.Plate:
+                    Part(g, Cy, new Vector3(0, 0.008f, 0), new Vector3(0.17f, 0.008f, 0.17f), f.id == "tsukimi" ? new Color(0.6f, 0.4f, 0.25f) : Tray);
+                    for (int i = 0; i < n; i++)
+                    {
+                        float a = i / (float)n * Mathf.PI * 2;
+                        var pos = new Vector3(Mathf.Cos(a) * 0.04f, 0.035f, Mathf.Sin(a) * 0.04f);
+                        if (f.id == "makizushi")
+                        {
+                            Part(g, Cy, pos, new Vector3(0.05f, 0.02f, 0.05f), f.c1);
+                            Part(g, Cy, pos + new Vector3(0, 0.002f, 0), new Vector3(0.04f, 0.02f, 0.04f), f.c2);
+                        }
+                        else if (f.id == "warabi") Part(g, Cu, pos, Vector3.one * 0.04f, f.c1, false, new Vector3(0, i * 25, 0));
+                        else Part(g, S, pos, Vector3.one * 0.05f, f.c1);
+                    }
+                    if (f.id == "tsukimi") Part(g, S, new Vector3(0, 0.075f, 0), Vector3.one * 0.05f, f.c1);
+                    break;
+            }
+        }
+
         // ───────── 食べる ─────────
 
         public void Eat(Item food)
@@ -260,37 +379,7 @@ namespace Tsukuyomi
             var h = Holder(arm, "食べ物");
             h.localPosition = new Vector3(0, -0.54f, 0.06f);
             _food = h.gameObject;
-            var brown = new Color(0.62f, 0.38f, 0.16f);
-            switch (food.id)
-            {
-                case "mitarashi":
-                    Part(h, PrimitiveType.Cylinder, new Vector3(0, -0.06f, 0), new Vector3(0.012f, 0.13f, 0.012f), new Color(0.85f, 0.75f, 0.55f));
-                    for (int i = 0; i < 3; i++) Part(h, PrimitiveType.Sphere, new Vector3(0, -0.06f - i * 0.06f, 0), Vector3.one * 0.065f, new Color(0.8f, 0.55f, 0.25f));
-                    break;
-                case "ramune":
-                    Part(h, PrimitiveType.Cylinder, new Vector3(0, -0.04f, 0), new Vector3(0.06f, 0.08f, 0.06f), new Color(0.55f, 0.85f, 0.95f));
-                    Part(h, PrimitiveType.Cylinder, new Vector3(0, -0.13f, 0), new Vector3(0.035f, 0.02f, 0.035f), new Color(0.2f, 0.45f, 0.9f));
-                    break;
-                case "taiyaki":
-                    Part(h, PrimitiveType.Sphere, new Vector3(0, -0.06f, 0.02f), new Vector3(0.05f, 0.17f, 0.1f), brown);
-                    Part(h, PrimitiveType.Cube, new Vector3(0, 0.04f, 0.02f), new Vector3(0.04f, 0.06f, 0.08f), brown, false, new Vector3(45, 0, 0));
-                    break;
-                case "daifuku":
-                    Part(h, PrimitiveType.Sphere, new Vector3(0, -0.05f, 0), Vector3.one * 0.1f, White);
-                    Part(h, PrimitiveType.Sphere, new Vector3(0, -0.06f, 0.04f), new Vector3(0.05f, 0.05f, 0.03f), new Color(0.9f, 0.2f, 0.3f));
-                    break;
-                case "tsukimi":
-                    Part(h, PrimitiveType.Cylinder, Vector3.zero, new Vector3(0.16f, 0.008f, 0.16f), new Color(0.6f, 0.4f, 0.25f), false, new Vector3(90, 0, 0));
-                    Part(h, PrimitiveType.Sphere, new Vector3(-0.03f, -0.035f, 0.02f), Vector3.one * 0.05f, White);
-                    Part(h, PrimitiveType.Sphere, new Vector3(0.03f, -0.035f, 0.02f), Vector3.one * 0.05f, White);
-                    Part(h, PrimitiveType.Sphere, new Vector3(0, -0.075f, 0.02f), Vector3.one * 0.05f, White);
-                    break;
-                default:
-                    Part(h, PrimitiveType.Cylinder, new Vector3(0, -0.04f, 0), new Vector3(0.07f, 0.08f, 0.07f), new Color(0.85f, 0.95f, 0.9f));
-                    Part(h, PrimitiveType.Sphere, new Vector3(0, -0.13f, 0), Vector3.one * 0.075f, new Color(0.45f, 0.65f, 0.3f));
-                    Part(h, PrimitiveType.Sphere, new Vector3(0.03f, -0.17f, 0), Vector3.one * 0.035f, White);
-                    break;
-            }
+            BuildFood(h, food);
             if (cam != null) cam.RefreshBody();
             var keep = doll.holdREuler;
             doll.holdREuler = new Vector3(-120, 0, -25);

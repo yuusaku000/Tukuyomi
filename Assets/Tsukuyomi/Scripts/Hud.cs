@@ -248,6 +248,8 @@ namespace Tsukuyomi
 
         void UpdateZone()
         {
+            EatCamTick();
+
             if (player != null && _bannerT <= 0)
             {
                 var z = Zone.At(player.Position);

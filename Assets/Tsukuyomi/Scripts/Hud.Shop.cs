@@ -12,6 +12,7 @@ namespace Tsukuyomi
     {
         static ShopStand _shop;
         static bool _wardrobe;
+        static int _wardTab;
         static int _sel;
         static bool _confirm, _busy;
         static string _shopMsg = "";
@@ -36,7 +37,7 @@ namespace Tsukuyomi
             _i.OpenShop(s, warp);
             if (preview != null)
             {
-                var list = Items(s.kind);
+                var list = Items(s.group);
                 int k = list.FindIndex(x => x.id == preview);
                 if (k >= 0) _i.Select(k);
             }
@@ -66,8 +67,7 @@ namespace Tsukuyomi
         {
             var it = Catalog.Get(id);
             if (_i == null || it == null) return;
-            string shop = it.kind == ItemKind.Clothes ? "gofuku" : it.kind == ItemKind.Accessory ? "komono" : "kanmi";
-            OpenShopFor(shop, id, true);
+            OpenShopFor(it.shop, id, true);
             _i.DoBuy(it);
         }
 
@@ -116,12 +116,7 @@ namespace Tsukuyomi
             }));
         }
 
-        static List<Item> Items(ItemKind k)
-        {
-            var l = new List<Item>();
-            foreach (var it in Catalog.Of(k)) if (it.price > 0) l.Add(it);
-            return l;
-        }
+        static List<Item> Items(string group) => new List<Item>(Catalog.InShop(group));
 
         static bool Owns(Item it) => it.id == Catalog.StartClothes || (Data != null && Data.owned.Contains(it.id));
         static bool Wears(Item it) => Data != null && (it.kind == ItemKind.Clothes ? Data.clothes == it.id : Data.wearing.Contains(it.id));
@@ -141,7 +136,7 @@ namespace Tsukuyomi
             _confirm = false;
             var d = Data; var w = Ward;
             if (_shop == null || d == null || w == null) return;
-            var list = Items(_shop.kind);
+            var list = Items(_shop.group);
             if (k < 0 || k >= list.Count) return;
             var it = list[k];
             if (it.kind == ItemKind.Clothes) w.Show(it.id, d.wearing);
@@ -181,7 +176,10 @@ namespace Tsukuyomi
                 if (it.kind == ItemKind.Food)
                 {
                     if (d != null) { d.eaten++; GameSession.Instance.SaveItems(); }
+                    var st = _shop;
                     CloseShop();
+                    // 食べているところを正面から見せて、食べ終わったらカメラをもどす
+                    if (st != null) { FrontCam(st.standYaw); _eatCam = 3.4f; }
                     Ward?.Eat(it);
                     Toast($"{it.name}（{Catalog.Yen(it.price)} ふじゅ〜）　残り {Catalog.Yen(r.fuju)} ふじゅ〜");
                     return;
@@ -193,6 +191,17 @@ namespace Tsukuyomi
         }
 
         static void Msg(string s) { _shopMsg = s; _shopMsgT = 8f; }
+
+        float _eatCam;
+
+        /// <summary>食べ終わったらカメラをもどす（Update から毎フレーム）。</summary>
+        void EatCamTick()
+        {
+            if (_eatCam <= 0) return;
+            _eatCam -= Time.unscaledDeltaTime;
+            if (_eatCam <= 0 && !ShopOpen) RestoreCam();
+        }
+
 
         // ───────── キー ─────────
 
@@ -264,8 +273,9 @@ namespace Tsukuyomi
             Text(new Rect(r.x + 300, r.y + 50, 376, 22), "支払いはミニヤチヨのふじゅ〜", 15, new Color(1, 1, 1, 0.6f), TextAnchor.UpperRight);
             Fill(new Rect(r.x + 24, r.y + 98, 220, 2), Pink);
 
-            var list = Items(_shop.kind);
+            var list = Items(_shop.group);
             float y = r.y + 112;
+
             for (int k = 0; k < list.Count; k++)
             {
                 var it = list[k];
@@ -324,41 +334,32 @@ namespace Tsukuyomi
             var d = Data;
             if (d == null) return;
 
+            // 服と飾りをタブで切りかえ、2列で並べる
+            if (Button(new Rect(r.x + 24, r.y + 112, 200, 50), _wardTab == 0 ? "▸ 服" : "服", 22)) _wardTab = 0;
+            if (Button(new Rect(r.x + 236, r.y + 112, 200, 50), _wardTab == 1 ? "▸ 飾り" : "飾り", 22)) _wardTab = 1;
+            if (_wardTab == 1) Text(new Rect(r.x + 450, r.y + 112, 250, 50), "同じ場所は1つだけ", 17, new Color(1, 1, 1, 0.6f), TextAnchor.MiddleLeft);
             float colW = (r.width - 60) / 2;
-            Text(new Rect(r.x + 20, r.y + 110, colW, 30), "服", 22, Gold);
-            Text(new Rect(r.x + 40 + colW, r.y + 110, colW, 30), "飾り（同じ場所は1つ）", 22, Gold);
-            float y = r.y + 146;
-            foreach (var it in Catalog.Of(ItemKind.Clothes))
+            int k = 0;
+            foreach (var it in Catalog.Of(_wardTab == 0 ? ItemKind.Clothes : ItemKind.Accessory))
             {
                 if (!Owns(it)) continue;
-                var row = new Rect(r.x + 20, y, colW, 52);
+                var row = new Rect(r.x + 20 + (k % 2) * (colW + 20), r.y + 180 + (k / 2) * 50, colW, 46);
+                k++;
                 bool on = Wears(it);
                 Fill(row, on ? new Color(Cyan.r, Cyan.g, Cyan.b, 0.22f) : new Color(0.02f, 0.05f, 0.12f, 0.55f));
                 Frame(row, new Color(Cyan.r, Cyan.g, Cyan.b, on ? 0.9f : 0.25f), on ? 2f : 1f);
                 if (on) Fill(new Rect(row.x, row.y, 5, row.height), Pink);
-                Text(new Rect(row.x + 16, row.y, row.width - 20, row.height), it.name, 22, Color.white, TextAnchor.MiddleLeft);
-                if (GUI.Button(row, GUIContent.none, GUIStyle.none) && !on) Equip(it, true);
-                y += 56;
+                Text(new Rect(row.x + 14, row.y, row.width - 70, row.height), it.name, 20, Color.white, TextAnchor.MiddleLeft);
+                if (it.kind == ItemKind.Accessory) Text(new Rect(row.xMax - 60, row.y, 50, row.height), SlotName(it.slot), 15, new Color(1, 1, 1, 0.55f), TextAnchor.MiddleRight);
+                if (GUI.Button(row, GUIContent.none, GUIStyle.none))
+                {
+                    if (it.kind == ItemKind.Clothes) { if (!on) Equip(it, true); }
+                    else Equip(it, !on);
+                }
             }
-            y = r.y + 146;
-            int accs = 0;
-            foreach (var it in Catalog.Of(ItemKind.Accessory))
-            {
-                if (!Owns(it)) continue;
-                accs++;
-                var row = new Rect(r.x + 40 + colW, y, colW, 52);
-                bool on = Wears(it);
-                Fill(row, on ? new Color(Cyan.r, Cyan.g, Cyan.b, 0.22f) : new Color(0.02f, 0.05f, 0.12f, 0.55f));
-                Frame(row, new Color(Cyan.r, Cyan.g, Cyan.b, on ? 0.9f : 0.25f), on ? 2f : 1f);
-                if (on) Fill(new Rect(row.x, row.y, 5, row.height), Pink);
-                Text(new Rect(row.x + 16, row.y, row.width - 90, row.height), it.name, 21, Color.white, TextAnchor.MiddleLeft);
-                Text(new Rect(row.xMax - 80, row.y, 70, row.height), SlotName(it.slot), 16, new Color(1, 1, 1, 0.55f), TextAnchor.MiddleRight);
-                if (GUI.Button(row, GUIContent.none, GUIStyle.none)) Equip(it, !on);
-                y += 56;
-            }
-            if (accs == 0)
-                Text(new Rect(r.x + 40 + colW, r.y + 150, colW, 120), "まだ持っていません。\n月見商店街の\n小間物屋で買えます", 20, new Color(1, 1, 1, 0.7f));
-            Text(new Rect(r.x + 26, r.yMax - 150, r.width - 52, 60), $"食べたおやつ：{d.eaten} こ　　服と飾りは月見商店街で買えます", 18, new Color(1, 1, 1, 0.7f));
+            if (k == 0)
+                Text(new Rect(r.x + 26, r.y + 190, r.width - 52, 120), _wardTab == 0 ? "服は浴衣・振袖・ふだん着のお店で買えます" : "まだ持っていません。\n小間物屋（島のあちこちにあります）で買えます", 20, new Color(1, 1, 1, 0.7f));
+            Text(new Rect(r.x + 26, r.yMax - 150, r.width - 52, 60), $"食べたもの：{d.eaten} こ　　服は浴衣・振袖・ふだん着のお店で買えます", 18, new Color(1, 1, 1, 0.7f));
             if (Button(new Rect(r.xMax - 270, r.yMax - 90, 246, 66), "とじる（C / Esc）")) CloseShop();
         }
     }

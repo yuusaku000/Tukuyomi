@@ -10,6 +10,7 @@ namespace Tsukuyomi
     public class ShopStand : MonoBehaviour
     {
         public string id = "";
+        public string group = ""; // 品ぞろえの種類（Catalog の shop）
         public string title = "";
         public string english = "";
         public ItemKind kind;
@@ -24,7 +25,8 @@ namespace Tsukuyomi
         void OnEnable() => All.Add(this);
         void OnDisable() => All.Remove(this);
 
-        public static ShopStand Find(string id) => All.Find(s => s.id == id);
+        public static ShopStand Find(string id) => All.Find(s => s.id == id) ?? All.Find(s => s.group == id);
+
 
         public static ShopStand Near(Vector3 p, float r)
         {

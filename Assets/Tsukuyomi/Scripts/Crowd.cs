@@ -79,7 +79,7 @@ namespace Tsukuyomi
             int k = 0;
             foreach (var shop in ShopStand.All)
             {
-                var keeper = Make("お店の人（" + shop.title + "）", KeeperLook(shop.id), 0.9f);
+                var keeper = Make("お店の人（" + shop.title + "）", KeeperLook(shop.kind), 0.9f);
                 keeper.still = true; keeper.stillYaw = shop.keeperYaw;
                 Place(keeper, shop.keeper, shop.keeperYaw);
                 _walkers.Add(keeper);
@@ -152,14 +152,15 @@ namespace Tsukuyomi
             return L;
         }
 
-        static DollLook KeeperLook(string id)
+        static DollLook KeeperLook(ItemKind kind)
         {
             var L = DollLook.Player;
             L.hair = new Color(0.12f, 0.1f, 0.1f);
             L.longHair = false; L.buns = true;
-            switch (id)
+            switch (kind == ItemKind.Clothes ? "gofuku" : kind == ItemKind.Accessory ? "komono" : "")
             {
-                case "gofuku": L.robe = new Color(0.32f, 0.2f, 0.42f); L.robe2 = new Color(0.22f, 0.14f, 0.3f); L.sleeve = L.robe; L.sash = L.cuff = new Color(0.95f, 0.8f, 0.4f); break;
+                case "gofuku":
+ L.robe = new Color(0.32f, 0.2f, 0.42f); L.robe2 = new Color(0.22f, 0.14f, 0.3f); L.sleeve = L.robe; L.sash = L.cuff = new Color(0.95f, 0.8f, 0.4f); break;
                 case "komono": L.robe = new Color(0.2f, 0.45f, 0.5f); L.robe2 = new Color(0.14f, 0.3f, 0.34f); L.sleeve = L.robe; L.sash = L.cuff = new Color(1f, 0.6f, 0.7f); L.buns = false; L.ponytail = true; break;
                 default: L.robe = new Color(0.95f, 0.92f, 0.85f); L.robe2 = new Color(0.8f, 0.3f, 0.3f); L.sleeve = L.robe; L.sash = L.cuff = new Color(0.8f, 0.3f, 0.3f); L.hair = new Color(0.8f, 0.8f, 0.85f); break;
             }
