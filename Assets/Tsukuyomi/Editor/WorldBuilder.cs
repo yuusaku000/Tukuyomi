@@ -14,7 +14,7 @@ namespace Tsukuyomi.EditorTools
     /// ツクヨミの世界をまるごと組み立てて Assets/Scenes/Tsukuyomi.unity に保存する（乱数の種が固定なので毎回同じ形）。
     ///
     /// 島の形は Tsukuyomi.Island（丸い島・3つの段・川と水路）。上から見て +z が北。
-    ///   海：AR ライブステージ (0,-130) ─ 大鳥居 (0,-82) ─ 高舞台（スポーン）─ 海の回廊 ─ 大門 (0,5)
+    ///   海：AR ライブステージ (0,-178) ─ 大鳥居 (0,-82) ─ 高舞台（スポーン）─ 海の回廊 ─ 大門 (0,5)
     ///   下町：水路と屋形船・風鈴の回廊　中段：月見商店街・大画面広場・釣り堀・千年桜の丘・藤棚・番傘の通り
     ///   上段：千本鳥居の石段・五重塔・竹林・懸造りの展望台・神楽殿・鐘楼　頂上：月の御殿
     /// </summary>
@@ -59,12 +59,13 @@ namespace Tsukuyomi.EditorTools
             Lanes();
             TerrainBuilder.Build(_env);
             Entrance();
-            _stageWarp = Landmarks.SeaStage(_env, _deco, new Vector2(0, -130), -74.2f);
+            _stageWarp = Landmarks.SeaStage(_env, _deco, new Vector2(0, -178), -74.2f, 1.45f); // 大鳥居 (z -82) から 50m ほど離した大きな舞台
             Town.BuildStreets(_env, TerrainBuilder.PavingTex, TerrainBuilder.AlleyTex);
             SaveStreetMap();
             CheckLandmarks();
             LandmarksAll(out var studio);
             Houses();
+            Glitter.Build(_env); // 通りの上の飾り幕・吹き流し・和傘・提灯、町なかの松と桜
             int infillSeed = 5000;
             Infill.Run(_env.Find("町並み"), new[] { _env, _deco }, KeepOpen(), new List<(Vector2, float)> { (BambooC, 20f) }, ref infillSeed);
             Clutter.Build(_env, _deco);
@@ -238,6 +239,9 @@ namespace Tsukuyomi.EditorTools
             ward.doll = pc.doll; ward.cam = cam;
             ward.litTemplate = ColorMat(Color.white);
             ward.glowTemplate = Glow("glow_wear", Color.white, 1.3f, 2.6f);
+            // 段階3：釣りと休憩
+            go.AddComponent<Fishing>();
+            go.AddComponent<Rest>();
             return pc;
         }
 
@@ -247,6 +251,7 @@ namespace Tsukuyomi.EditorTools
         static void Sea()
         {
             var sea = Shaded("water_sea", "Tsukuyomi/Water");
+            sea.SetFloat("_Grid", 0f); // 方眼紙のような線は出さない
             var q = Prim(PrimitiveType.Quad, _env, "海", new Vector3(0, 0, 80), new Vector3(5000, 5000, 1), sea, false, new Vector3(90, 0, 0));
             q.GetComponent<Renderer>().shadowCastingMode = ShadowCastingMode.Off;
             Prim(PrimitiveType.Quad, _env, "海の底", new Vector3(0, -3.6f, 80), new Vector3(5000, 5000, 1), Lit("seabed", new Color(0.12f, 0.2f, 0.22f)), false, new Vector3(90, 0, 0));
@@ -282,7 +287,7 @@ namespace Tsukuyomi.EditorTools
             Box(g, "光の線", new Vector3(0, G + 0.02f, -68), new Vector3(15f, 0.02f, 0.12f), GlowCyan);
 
             const float w = 7f;
-            Box(g, "回廊の床", new Vector3(0, G - 0.5f, -31), new Vector3(w, 1f, 62f), Wood, true);
+            Box(g, "回廊の床", new Vector3(0, G - 0.46f, -31), new Vector3(w, 1f, 62f), Wood, true); // 島の地面と同じ高さだとちらつくので少し上げる
             Box(g, "回廊の桁", new Vector3(0, G - 1.1f, -31), new Vector3(w + 0.3f, 0.4f, 62f), Vermilion);
             foreach (float side in new[] { -1f, 1f })
             {
@@ -290,7 +295,7 @@ namespace Tsukuyomi.EditorTools
                 Box(g, "高欄", new Vector3(x, G + 0.9f, -31), new Vector3(0.14f, 0.12f, 62f), Vermilion);
                 Box(g, "高欄", new Vector3(x, G + 0.45f, -31), new Vector3(0.1f, 0.1f, 62f), Vermilion);
                 Box(g, "見えない柵", new Vector3(x, G + 0.7f, -31), new Vector3(0.3f, 1.4f, 62f), Vermilion, true).GetComponent<Renderer>().enabled = false;
-                Box(g, "光の線", new Vector3(side * (w / 2 - 0.5f), G + 0.02f, -31), new Vector3(0.1f, 0.02f, 61f), GlowCyan);
+                Box(g, "光の線", new Vector3(side * (w / 2 - 0.5f), G + 0.06f, -31), new Vector3(0.1f, 0.02f, 61f), GlowCyan);
                 for (int i = 0; i <= 15; i++)
                 {
                     float z = -62 + i * 4f;
@@ -669,20 +674,26 @@ namespace Tsukuyomi.EditorTools
             }
             var pw = Shaded("water_pond", "Tsukuyomi/Water");
             pw.SetColor("_Deep", new Color(0.05f, 0.22f, 0.22f)); pw.SetColor("_Shallow", new Color(0.12f, 0.45f, 0.4f));
-            pw.SetFloat("_Scale", 0.35f); pw.SetFloat("_Speed", 0.4f); pw.SetFloat("_Alpha", 0.8f); pw.SetFloat("_Grid", 0.4f);
+            pw.SetFloat("_Scale", 0.35f); pw.SetFloat("_Speed", 0.4f); pw.SetFloat("_Alpha", 0.8f); pw.SetFloat("_Grid", 0f);
             Prim(PrimitiveType.Quad, g, "釣り堀の水", new Vector3(pond.center.x, l1 - 0.55f, pond.center.y), new Vector3(pond.width, pond.height, 1), pw, false, new Vector3(90, 0, 0));
+            var koiG = Group(_deco, "池の鯉", Vector3.zero);
+            koiG.gameObject.AddComponent<PondFish>(); // 段階3：鯉が泳ぐ
             for (int i = 0; i < 16; i++)
             {
-                var koi = Ball(g, "鯉", new Vector3(pond.center.x + R(-12, 12), l1 - 0.9f, pond.center.y + R(-6, 6)), new Vector3(0.35f, 0.15f, 0.9f),
+                var koi = Ball(koiG, "鯉", new Vector3(pond.center.x + R(-12, 12), l1 - 0.9f, pond.center.y + R(-6, 6)), new Vector3(0.35f, 0.15f, 0.9f),
                     ColorMat(i % 3 == 0 ? new Color(1f, 0.45f, 0.15f) : i % 3 == 1 ? new Color(0.95f, 0.95f, 0.9f) : new Color(0.9f, 0.2f, 0.15f)));
                 koi.transform.localRotation = Quaternion.Euler(0, R(0, 360), 0);
             }
-            Buildings.TownHouse(g, new Vector3(-40, Hgt(-40, 127), 127), 180, 14f, 7.5f, 1, 0, true, 5).name = "茶屋";
+            var teahouse = Buildings.TownHouse(g, new Vector3(-40, Hgt(-40, 127), 127), 180, 14f, 7.5f, 1, 0, true, 5);
+            teahouse.name = "茶屋";
             for (int i = 0; i < 3; i++) TeaSeat(g, new Vector3(-46 + i * 6, l1, 124.5f), 0);
             // くつろぎ場（ソファは釣り堀の方を向く）。釣り堀の東と南にも
             Palace.Lounge(g, new Vector3(-59, l1, 130f), -49f);
             Palace.TryLounge(g, new Vector2(-21, 110), 90f, 8f, 6f);
             Palace.TryLounge(g, new Vector2(-53, 97), 180f, 8f, 6f);
+            // 段階3：釣り台・蓮・柳と紅葉・長椅子・飛び石・鹿威し・番付の立て札・蛍・茶屋のお店
+            PondGarden.Build(g, _deco, l1, teahouse, 14f, 7.5f);
+            Marker("茶屋の風鈴", new Vector3(-40, l1 + 3f, 122.5f), ChimePts);
             for (int i = 0; i < 4; i++) Toro(g, new Vector3(pond.center.x + (i % 2 == 0 ? -1 : 1) * (pond.width / 2 + 2f), l1, pond.center.y + (i < 2 ? -1 : 1) * (pond.height / 2 + 2f)), true, 0.8f);
 
             // 千年桜の丘
@@ -1335,7 +1346,7 @@ namespace Tsukuyomi.EditorTools
             }
             Vector3 W(float x, float z) => new Vector3(x, Hgt(x, z) + 0.1f, z);
             Z(0, "torii", "海の大鳥居", "GREAT TORII", new Vector2(0, -72), new Vector2(40, 26), new Color(0.9f, 0.3f, 0.2f), new Vector3(0, G + 0.1f, -69), 0);
-            Z(1, "stage", "ARライブステージ", "AR LIVE STAGE", new Vector2(0, -128), new Vector2(66, 66), new Color(0.6f, 0.4f, 1f), _stageWarp, 180, true, 6f);
+            Z(1, "stage", "ARライブステージ", "AR LIVE STAGE", new Vector2(0, -176), new Vector2(96, 96), new Color(0.6f, 0.4f, 1f), _stageWarp, 180, true, 6f);
             Z(2, "corridor", "海の回廊", "SEA CORRIDOR", new Vector2(0, -30), new Vector2(16, 60), new Color(0.8f, 0.4f, 0.3f), new Vector3(0, G + 0.1f, -40), 0, false);
             Z(3, "shitamachi", "水路の下町", "CANAL TOWN", new Vector2(0, 26), new Vector2(240, 46), new Color(0.4f, 0.65f, 0.85f), W(0, 12), 0);
             Z(4, "shopping", "月見商店街", "MOONLIGHT ARCADE", new Vector2(0, 78), new Vector2(60, 62), new Color(0.95f, 0.6f, 0.3f), W(0, 52), 0);

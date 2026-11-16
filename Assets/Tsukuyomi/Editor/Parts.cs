@@ -320,6 +320,10 @@ namespace Tsukuyomi.EditorTools
                 Box(g, "脚", new Vector3((i % 2 == 0 ? -0.9f : 0.9f), 0.2f, (i < 2 ? -0.32f : 0.32f)), new Vector3(0.08f, 0.4f, 0.08f), WoodDark);
             Cyl(g, "傘の柄", new Vector3(0, 1.6f, -0.6f), 0.04f, 3.2f, WoodDark);
             Cyl(g, "野点傘", new Vector3(0, 3.1f, -0.6f), 1.5f, 0.12f, red);
+            // 段階3：座れる（背もたれがないので、近づいた側を向く）
+            var seat = g.gameObject.AddComponent<Seat>();
+            seat.yaw = g.eulerAngles.y; seat.bothSides = true;
+            seat.spots = new[] { g.TransformPoint(new Vector3(-0.5f, 0.535f, 0)), g.TransformPoint(new Vector3(0.5f, 0.535f, 0)) };
         }
     }
 }

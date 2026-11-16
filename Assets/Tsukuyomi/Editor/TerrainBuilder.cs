@@ -48,9 +48,9 @@ namespace Tsukuyomi.EditorTools
         public static Material TopGrass => TexMat("t_grass_tex", "leafy_grass", new Color(0.95f, 1f, 0.95f), 1.2f);
         public static Material Bed => Lit("t_bed", new Color(0.22f, 0.27f, 0.26f), 0.2f);
         public static Material StoneWall => TexMat("t_ishigaki", "stone_wall_05", new Color(0.92f, 0.9f, 0.86f), 1f, 0.15f);
-        public static Material PavingTex => TexMat("t_paving", "stone_tiles_03", new Color(0.95f, 0.93f, 0.9f), 1f, 0.2f);
-        public static Material SquareTex => TexMat("t_square", "stone_tiles_03", new Color(0.7f, 0.7f, 0.72f), 1f, 0.12f);
-        public static Material AlleyTex => TexMat("t_alley_stone", "stone_tiles_03", new Color(0.78f, 0.7f, 0.6f), 1f, 0.15f);
+        public static Material PavingTex => TexMat("t_paving", "stone_tiles_03", new Color(1.3f, 1.16f, 1.04f), 1f, 0.42f); // 明るく暖かい色で、少しつやを出す（濡れた石畳のように灯りを映す）
+        public static Material SquareTex => TexMat("t_square", "stone_tiles_03", new Color(1.1f, 1.0f, 0.95f), 1f, 0.35f);
+        public static Material AlleyTex => TexMat("t_alley_stone", "stone_tiles_03", new Color(1.12f, 0.98f, 0.84f), 1f, 0.3f);
 
         // ───────── 地面 ─────────
 
@@ -333,6 +333,7 @@ namespace Tsukuyomi.EditorTools
             river.SetColor("_Shallow", new Color(0.12f, 0.5f, 0.6f));
             river.SetFloat("_Scale", 0.25f);
             river.SetFloat("_Alpha", 0.82f);
+            river.SetFloat("_Grid", 0f);
             river.SetVector("_Flow", new Vector4(0.3f, 0.2f, 0, 0));
             int ci = 0;
             foreach (var ch in Island.Channels)

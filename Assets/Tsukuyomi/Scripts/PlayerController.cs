@@ -29,8 +29,12 @@ namespace Tsukuyomi
             _safePos = transform.position;
         }
 
+        /// <summary>釣りの最中・座っている間は歩かない（向きは Fishing / Rest が決める）。</summary>
+        public static bool Busy => Fishing.Busy || Rest.Sitting;
+
         void Update()
         {
+            if (Busy) { if (doll != null) doll.speed = 0; return; }
             Vector2 input = Vector2.zero;
             if (!Hud.Blocked && !Ts.ShotMode)
             {

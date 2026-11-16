@@ -46,6 +46,8 @@ namespace Tsukuyomi
             if (Ts.Flag("--fresh")) _data.has = false;
             if (_data.owned == null) _data.owned = new List<string>();
             if (_data.wearing == null) _data.wearing = new List<string>();
+            if (_data.fish == null) _data.fish = new List<FishRecord>();
+            FishBook.RollWeek(_data);
             if (Catalog.Get(_data.clothes) == null) _data.clothes = Catalog.StartClothes;
             bool first = !_data.has;
             var ward = player.GetComponent<Wardrobe>();
@@ -99,6 +101,9 @@ namespace Tsukuyomi
             {
                 var p = item.Split('|');
                 Hud.CloseShop();
+                Hud.CloseBook();
+                Fishing.I?.Stop();
+                Rest.I?.Stand();
 
                 var z = Zone.Find(p[0]);
                 if (z != null) z.WarpTo(player, cam);
@@ -118,6 +123,12 @@ namespace Tsukuyomi
                 if (p.Length > 3 && p[3].StartsWith("shop:")) { var a = p[3].Split(':'); Hud.OpenShopFor(a[1], a.Length > 2 ? a[2] : null, true); }
                 if (p.Length > 3 && p[3] == "wear") Hud.OpenWardrobe();
                 if (p.Length > 3 && p[3].StartsWith("buy:")) Hud.TestBuy(p[3].Substring(4));
+                // 段階3：fish:ready|charge|wait|bite|fight|catch[:魚] で釣り、book / rank で図鑑と番付、sit[:秒] で近くの席に座る
+                bool again = false;
+                if (p.Length > 3 && p[3].StartsWith("fish:")) { Fishing.I?.Test(p[3].Substring(5)); again = true; }
+                if (p.Length > 3 && (p[3] == "book" || p[3] == "rank")) Hud.OpenBook(p[3] == "book" ? 0 : 1);
+                if (p.Length > 3 && p[3].StartsWith("sit")) { Rest.I?.TestSit(p[3].Length > 4 && float.TryParse(p[3].Substring(4), NumberStyles.Float, CultureInfo.InvariantCulture, out var si) ? si : 0f); again = true; }
+                if (again && p.Length > 2) ApplyCam(p[2]);
                 cam.firstPerson = p.Length > 4 && p[4] == "fp";
                 // 6つ目で待ち秒数を変えられる（食べている途中を撮るときなど）
                 float wait = p.Length > 5 && float.TryParse(p[5], NumberStyles.Float, CultureInfo.InvariantCulture, out var wv) ? wv : 3.5f;
@@ -153,6 +164,7 @@ namespace Tsukuyomi
             if (_shotMode || player == null) return;
             var p = player.Position;
             if (player.InWater) return; // 水の中は保存しない（岸にもどされる途中のため）
+            if (Rest.Sitting) { SaveStore.Save(_data); return; } // 座っている間は場所を変えない（ソファの中から始まらないように）
             _data.has = true;
             _data.x = p.x; _data.y = p.y; _data.z = p.z; _data.yaw = player.Yaw;
             _data.camYaw = cam.yaw; _data.camPitch = cam.pitch; _data.camDist = cam.distance; _data.firstPerson = cam.firstPerson;

@@ -8,6 +8,8 @@ namespace Tsukuyomi
         public Transform body, head, armL, armR;
         public float speed;
         public bool dance;
+        /// <summary>座っている（ソファ・縁台・長椅子）。</summary>
+        public bool sit;
         public float danceTempo = 2.1f;
         /// <summary>右手を決まった形にする（0〜1。食べる・傘をさすなど）。</summary>
         public float holdR;
@@ -29,6 +31,16 @@ namespace Tsukuyomi
                 if (armL) armL.localRotation = Quaternion.Euler(Mathf.Sin(b) * 20f, 0, -150f + Mathf.Sin(b) * 25f);
                 if (armR) armR.localRotation = Quaternion.Euler(-Mathf.Sin(b) * 20f, 0, 40f + Mathf.Cos(b * 0.5f) * 50f);
                 if (head) head.localRotation = Quaternion.Euler(0, 0, Mathf.Sin(b * 0.5f) * 10f);
+                return;
+            }
+            if (sit)
+            {
+                // 座っている：少しうしろへもたれて、手はひざの上
+                body.localPosition = new Vector3(0, Mathf.Sin(t * 0.9f) * 0.006f, 0);
+                body.localRotation = Quaternion.Euler(-5f, 0, 0);
+                if (armL) armL.localRotation = Quaternion.Euler(-38f, 0, 12f);
+                if (armR) armR.localRotation = Quaternion.Euler(-38f, 0, -12f);
+                if (head) head.localRotation = Quaternion.Euler(Mathf.Sin(t * 0.21f) * 4f, Mathf.Sin(t * 0.13f) * 18f, 0);
                 return;
             }
             bool moving = speed > 0.1f;

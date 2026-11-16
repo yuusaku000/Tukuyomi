@@ -338,42 +338,43 @@ namespace Tsukuyomi.EditorTools
         /// 海の上の AR ライブステージ（土台）。結晶の舞台・まわりを回る鳥居の輪・光の柱・
         /// スポーンの高舞台から大鳥居をくぐってのびる光の橋と、水面の広場。
         /// </summary>
-        public static Vector3 SeaStage(Transform envParent, Transform decoParent, Vector2 center, float bridgeFromZ)
+        public static Vector3 SeaStage(Transform envParent, Transform decoParent, Vector2 center, float bridgeFromZ, float S = 1f)
         {
             var crystal = Holo("holo_crystal", new Color(0.55f, 0.85f, 1f), 0.5f, 1.8f, 0.2f);
             var crystalPink = Holo("holo_crystal_pink", new Color(1f, 0.55f, 0.85f), 0.5f, 1.8f, 0.2f);
             var floorMat = Lit("glass_floor", new Color(0.1f, 0.25f, 0.35f), 0.95f, 0.2f);
             var g = Group(envParent, "ARライブステージ", new Vector3(center.x, 0, center.y));
             // 水面の広場（ガラスの床）
-            float plazaR = 30f;
+            float plazaR = 30f * S;
             var plaza = Cyl(g, "水面の広場", new Vector3(0, Island.Ground - 0.1f, 0), plazaR, 0.2f, floorMat);
             plaza.AddComponent<MeshCollider>();
             for (int i = 0; i < 3; i++)
             {
-                var ring = Cyl(g, "光の輪", new Vector3(0, Island.Ground + 0.02f, 0), plazaR - i * 9f, 0.02f, GlowCyan);
-                var inner = Cyl(g, "床", new Vector3(0, Island.Ground + 0.025f, 0), plazaR - i * 9f - 0.25f, 0.02f, floorMat);
+                var ring = Cyl(g, "光の輪", new Vector3(0, Island.Ground + 0.02f, 0), plazaR - i * 9f * S, 0.02f, GlowCyan);
+                var inner = Cyl(g, "床", new Vector3(0, Island.Ground + 0.025f, 0), plazaR - i * 9f * S - 0.25f, 0.02f, floorMat);
             }
             // 結晶の舞台（六角）
             var hex = SaveMesh("hex_prism", HexPrism());
-            var stage = MeshObj(g, "結晶の舞台", hex, new Vector3(0, Island.Ground, 6f), Lit("crystal_solid", new Color(0.35f, 0.55f, 0.75f), 0.95f, 0.3f), true);
-            stage.transform.localScale = new Vector3(13f, 2.2f, 13f);
-            var stageGlow = MeshObj(g, "結晶の光", hex, new Vector3(0, Island.Ground, 6f), crystal);
-            stageGlow.transform.localScale = new Vector3(13.1f, 2.25f, 13.1f);
+            var stage = MeshObj(g, "結晶の舞台", hex, new Vector3(0, Island.Ground, 6f * S), Lit("crystal_solid", new Color(0.35f, 0.55f, 0.75f), 0.95f, 0.3f), true);
+            stage.transform.localScale = new Vector3(13f * S, 2.2f, 13f * S);
+            var stageGlow = MeshObj(g, "結晶の光", hex, new Vector3(0, Island.Ground, 6f * S), crystal);
+            stageGlow.transform.localScale = new Vector3(13f * S + 0.1f, 2.25f, 13f * S + 0.1f);
             for (int i = 0; i < 8; i++)
             {
                 float a = i * Mathf.PI / 4;
-                var p = new Vector3(Mathf.Cos(a) * 16f, Island.Ground, 6f + Mathf.Sin(a) * 16f);
+                var p = new Vector3(Mathf.Cos(a) * 16f * S, Island.Ground, (6f + Mathf.Sin(a) * 16f) * S);
                 var shard = MeshObj(g, "結晶", hex, p, i % 2 == 0 ? crystal : crystalPink);
-                shard.transform.localScale = new Vector3(R(1.2f, 2f), R(5f, 11f), R(1.2f, 2f));
+                shard.transform.localScale = new Vector3(R(1.2f, 2f), R(5f, 11f), R(1.2f, 2f)) * S;
                 shard.transform.localRotation = Quaternion.Euler(R(-10, 10), R(0, 60), R(-10, 10));
             }
             for (int i = 0; i < 6; i++)
             {
                 float a = i * Mathf.PI / 3 + 0.3f;
-                Box(g, "光の柱", new Vector3(Mathf.Cos(a) * 24f, 30f, 6f + Mathf.Sin(a) * 24f), new Vector3(0.6f, 60f, 0.6f), i % 2 == 0 ? GlowCyan : GlowPink);
+                Box(g, "光の柱", new Vector3(Mathf.Cos(a) * 24f * S, 30f, (6f + Mathf.Sin(a) * 24f) * S), new Vector3(0.6f, 60f, 0.6f), i % 2 == 0 ? GlowCyan : GlowPink);
             }
             // まわりを回る鳥居の輪
-            var rings = Group(decoParent, "鳥居の輪", new Vector3(center.x, Island.Ground + 3.5f, center.y + 6f));
+            var rings = Group(decoParent, "鳥居の輪", new Vector3(center.x, Island.Ground + 3.5f, center.y + 6f * S));
+            rings.localScale = Vector3.one * S;
             for (int i = 0; i < 12; i++)
             {
                 float a = i * Mathf.PI * 2 / 12;
@@ -381,7 +382,8 @@ namespace Tsukuyomi.EditorTools
                 Town.MiniTorii(t, 3.4f, 4.2f);
             }
             rings.gameObject.AddComponent<Floaty>().spin = 4f;
-            var rings2 = Group(decoParent, "鳥居の輪2", new Vector3(center.x, Island.Ground + 14f, center.y + 6f));
+            var rings2 = Group(decoParent, "鳥居の輪2", new Vector3(center.x, Island.Ground + 14f * S, center.y + 6f * S));
+            rings2.localScale = Vector3.one * S;
             for (int i = 0; i < 8; i++)
             {
                 float a = i * Mathf.PI * 2 / 8;
@@ -398,9 +400,9 @@ namespace Tsukuyomi.EditorTools
                 Box(envParent, "見えない柵", new Vector3(center.x + x * 1.12f, Island.Ground + 0.7f, (z0 + z1) / 2), new Vector3(0.3f, 1.4f, Mathf.Abs(z0 - z1)), Stone, true).GetComponent<Renderer>().enabled = false;
             }
             // 広場のふちの見えない柵（橋の入口だけあける）
-            for (int i = 0; i < 36; i++)
+            for (int i = 0; i < Mathf.RoundToInt(36 * S); i++)
             {
-                float a = i * Mathf.PI * 2 / 36;
+                float a = i * Mathf.PI * 2 / Mathf.RoundToInt(36 * S);
                 var p = new Vector3(Mathf.Cos(a) * plazaR, Island.Ground + 0.7f, Mathf.Sin(a) * plazaR);
                 if (p.z > plazaR - 4f && Mathf.Abs(p.x) < 4f) continue;
                 Box(g, "見えない柵", p, new Vector3(5.4f, 1.4f, 0.3f), Stone, true, new Vector3(0, -a * Mathf.Rad2Deg + 90, 0)).GetComponent<Renderer>().enabled = false;

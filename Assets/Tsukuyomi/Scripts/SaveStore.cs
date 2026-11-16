@@ -21,6 +21,15 @@ namespace Tsukuyomi
         public string clothes = Catalog.StartClothes;
         public List<string> wearing = new List<string>();
         public int eaten;
+        // 段階3：魚の図鑑と、週ごとの大物番付（仮想。ふじゅ〜は増えない）
+        public List<FishRecord> fish = new List<FishRecord>();
+        public int fishTotal;
+        public string weekKey = "";
+        public float weekBest;
+        public string weekFish = "";
+        public int lastWeekRank, lastWeekCount;
+        public float lastWeekCm;
+        public float restMinutes;
     }
 
     /// <summary>%APPDATA%\Tsukuyomi\save.json に、ログアウトした場所などを残す。</summary>

@@ -22,6 +22,7 @@ namespace Tsukuyomi
             public List<Vector3> path; // x, z, 道の半分の幅
             public float s, dir = 1, offset, speed, wait, nextStop, y, yT, rayT, len;
             public bool still, visible = true, near = true;
+            public int bad; // 続けて引き返した回数（はさまれたら別の通りへ移す）
             public float stillYaw;
             public string[] talk; // その人がよく言うこと
         }
@@ -33,6 +34,7 @@ namespace Tsukuyomi
         readonly Color32[] _pix = new Color32[AtlasSize * AtlasSize];
         const int AtlasSize = 64;
         readonly RaycastHit[] _hits = new RaycastHit[6];
+        readonly HashSet<Collider> _fences = new HashSet<Collider>();
         System.Random _rng;
         float R(float a, float b) => a + (float)_rng.NextDouble() * (b - a);
         int Ri(int a, int b) => _rng.Next(a, b);
@@ -50,6 +52,12 @@ namespace Tsukuyomi
             if (Ts.Flag("--no-crowd")) { enabled = false; return; } // 重さを比べる確認用
 
             _rng = new System.Random(seed);
+            // 見えない柵（橋や回廊のふち）の上には立たせない
+            foreach (var c in FindObjectsByType<Collider>(FindObjectsSortMode.None))
+            {
+                var r = c.GetComponent<Renderer>();
+                if (r != null && !r.enabled) _fences.Add(c);
+            }
             _atlas = new Texture2D(AtlasSize, AtlasSize, TextureFormat.RGBA32, false) { filterMode = FilterMode.Point, wrapMode = TextureWrapMode.Clamp, name = "crowd_colors" };
             _mat = new Material(litTemplate) { name = "crowd" };
             _mat.SetTexture("_BaseMap", _atlas);
@@ -122,8 +130,16 @@ namespace Tsukuyomi
         /// <summary>立ち止まる人：地面（橋や石段の上も）に立たせる。水の中なら出さない。</summary>
         void Stand(Walker w, Vector3 p, float yaw)
         {
-            float y = Ground(p.x, p.y + 1.5f, p.z, Island.Height(p.x, p.z));
-            if (y < 0.3f || Mathf.Abs(y - p.y) > 2.5f) { w.root.gameObject.SetActive(false); return; }
+            // 水の中・石垣の上や下（段ちがい）には立たせない。少しずらして8回までさがす
+            float y = 0; bool ok = false;
+            var p0 = p;
+            for (int t = 0; t < 8 && !ok; t++)
+            {
+                if (t > 0) p = p0 + new Vector3(R(-3f, 3f), 0, R(-3f, 3f));
+                y = Ground(p.x, p.y + 1.5f, p.z, Island.Height(p.x, p.z));
+                ok = y >= 0.3f && Mathf.Abs(y - p.y) < 1.2f && !Wet(p.x, p.z, y) && Island.NearestWater(p.x, p.z) > 0.6f;
+            }
+            if (!ok) { w.root.gameObject.SetActive(false); return; }
             w.y = w.yT = y;
             w.root.SetPositionAndRotation(new Vector3(p.x, y, p.z), Quaternion.Euler(0, yaw, 0));
         }
@@ -143,11 +159,12 @@ namespace Tsukuyomi
                 var at = pos + new Vector2(-d.y, d.x) * (w.offset * half);
                 float dist = Vector2.Distance(at, new Vector2(me.x, me.z));
                 if (dist < near || dist > far) continue;
-                if (!float.IsNaN(Island.WaterSurface(at.x, at.y)) && Island.Height(at.x, at.y) < 0.3f) continue;
+                float h = Island.Height(at.x, at.y);
+                float gy = Ground(at.x, h + 1f, at.y, h);
+                if (gy < 0.3f || Wet(at.x, at.y, gy)) continue;
                 w.path = path; w.len = _lens[si]; w.s = pick;
                 w.dir = _rng.NextDouble() < 0.5 ? 1 : -1;
-                float h = Island.Height(at.x, at.y);
-                w.y = w.yT = Ground(at.x, h + 1f, at.y, h);
+                w.y = w.yT = gy;
                 w.rayT = 0; w.wait = 0;
                 w.root.position = new Vector3(at.x, w.y, at.y);
                 float yaw = Mathf.Atan2(d.x * w.dir, d.y * w.dir) * Mathf.Rad2Deg;
@@ -303,13 +320,20 @@ namespace Tsukuyomi
 
         // ───────── 動き ─────────
 
+        /// <summary>そこが水の上か（橋の上ならちがう）。</summary>
+        static bool Wet(float x, float z, float groundY)
+        {
+            float ws = Island.WaterSurface(x, z);
+            return !float.IsNaN(ws) && groundY < ws + 0.25f;
+        }
+
         float Ground(float x, float fromY, float z, float fallback)
         {
             int n = Physics.RaycastNonAlloc(new Vector3(x, fromY + 2.5f, z), Vector3.down, _hits, 9f, ~0, QueryTriggerInteraction.Ignore);
             float best = float.NegativeInfinity;
             for (int i = 0; i < n; i++)
             {
-                if (_hits[i].collider is CharacterController) continue;
+                if (_hits[i].collider is CharacterController || _fences.Contains(_hits[i].collider)) continue;
                 if (_hits[i].point.y > best) best = _hits[i].point.y;
             }
             return best > float.NegativeInfinity ? best : fallback;
@@ -349,7 +373,7 @@ namespace Tsukuyomi
         {
             "plaza" => new[] { "ヤチヨだ！", "大画面きれい〜", "ライブ、ここで見ようかな" },
             "sakura" => new[] { "桜きれい…", "千年も咲いてるんだって", "花びらがふってくる" },
-            "fishing" => new[] { "つれるかな", "大物ねらうぞ〜", "茶屋でひと休みしよう" },
+            "fishing" => new[] { "つれるかな", "大物ねらうぞ〜", "茶屋でひと休みしよう", "鹿威しの音、落ち着くね", "今週の番付、だれが一位かな", "蓮の花がきれい" },
             "lookout" => new[] { "いい眺め！", "海がひろ〜い", "ちょっとこわい…" },
             "palace" => new[] { "月の御殿だ…", "大きいね〜", "ここ、てっぺんだよ" },
             "torii" => new[] { "大鳥居、でっかい", "ここから入ってきたの", "海がきらきら" },
@@ -457,7 +481,30 @@ namespace Tsukuyomi
                 if (w.rayT <= 0)
                 {
                     w.rayT = near ? 0.15f : vis ? 0.4f : 1f;
-                    w.yT = Ground(at.x, w.y, at.y, Island.Height(at.x, at.y));
+                    float gy = Ground(at.x, w.y, at.y, Island.Height(at.x, at.y));
+                    // 水に入りそう（橋のわきなど）なら道のまんなかへ寄る。まんなかもだめ・石垣のような段ちがいなら引き返す
+                    bool bad = Wet(at.x, at.y, gy) || Mathf.Abs(gy - w.y) > 0.9f;
+                    if (bad)
+                    {
+                        float cy = Ground(pos.x, w.y, pos.y, Island.Height(pos.x, pos.y));
+                        if (!Wet(pos.x, pos.y, cy) && Mathf.Abs(cy - w.y) <= 0.9f) { w.offset *= 0.2f; at = pos; gy = cy; }
+                        else if (++w.bad > 3)
+                        {
+                            // 両がわとも行けない（はさまった）：別の通りへ移す
+                            w.bad = 0;
+                            if (!Respawn(w, spawnNear, spawnFar, 12)) { w.root.position = new Vector3(0, -50, 0); w.path = null; }
+                            continue;
+                        }
+                        else
+                        {
+                            w.dir = -w.dir;
+                            w.s = Mathf.Clamp(w.s + w.dir * 1.2f, 0, len);
+                            w.rayT = 0;
+                            continue;
+                        }
+                    }
+                    w.yT = gy;
+                    if (!bad) w.bad = 0;
                 }
                 w.y = Mathf.Lerp(w.y, w.yT, 1 - Mathf.Exp(-10f * dt));
                 w.anim.speed = w.speed;

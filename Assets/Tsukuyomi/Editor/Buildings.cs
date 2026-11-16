@@ -69,6 +69,26 @@ namespace Tsukuyomi.EditorTools
             }
         }
 
+        /// <summary>一階の壁の1面：下は焦げ茶の腰板、上は格子窓（乱数は使わない＝町の並びが変わらない）。</summary>
+        static void GroundFace(Transform p, float width, float dist, float y0, float h, int seed)
+        {
+            Box(p, "腰板", new Vector3(0, y0 + h * 0.17f, dist), new Vector3(width - 0.1f, h * 0.32f, 0.05f), WoodDark);
+            Box(p, "長押", new Vector3(0, y0 + h * 0.86f, dist), new Vector3(width - 0.1f, 0.14f, 0.06f), WoodDark);
+            int n = Mathf.Max(1, Mathf.RoundToInt(width / 2.3f));
+            float ww = Mathf.Min(1.3f, width / n - 0.55f);
+            if (ww < 0.5f) return;
+            for (int i = 0; i < n; i++)
+            {
+                if (((seed * 7 + i * 13) & 7) == 0) continue;
+                float x = -width / 2 + width * (i + 0.5f) / n;
+                Box(p, "窓", new Vector3(x, y0 + h * 0.56f, dist), new Vector3(ww, 0.95f, 0.05f), WindowGlow);
+                Box(p, "窓枠", new Vector3(x, y0 + h * 0.56f + 0.52f, dist + 0.02f), new Vector3(ww + 0.16f, 0.09f, 0.05f), WoodDark);
+                Box(p, "窓枠", new Vector3(x, y0 + h * 0.56f - 0.52f, dist + 0.02f), new Vector3(ww + 0.16f, 0.09f, 0.05f), WoodDark);
+                for (int k = 1; k < 4; k++)
+                    Box(p, "格子", new Vector3(x - ww / 2 + ww * k / 4, y0 + h * 0.56f, dist + 0.03f), new Vector3(0.04f, 0.95f, 0.03f), WoodDark);
+            }
+        }
+
         public static Material DarkBoard => Lit("wall_dark_board", new Color(0.24f, 0.16f, 0.12f), 0.25f);
         public static Material RedLacquer => Lit("wall_red_lacquer", new Color(0.55f, 0.12f, 0.08f), 0.4f);
         public static Material EaveGlow => Glow("glow_eave", new Color(1f, 0.55f, 0.22f), 0.5f, 1.7f);
@@ -141,6 +161,10 @@ namespace Tsukuyomi.EditorTools
             Box(g, "格子", new Vector3(0, y0 + h * 0.62f, wallZ + wallD / 2 + 0.03f), new Vector3(w - 0.6f, h * 0.5f, 0.06f), Lattice);
             Box(g, "腰板", new Vector3(0, y0 + h * 0.16f, wallZ + wallD / 2 + 0.03f), new Vector3(w - 0.6f, h * 0.3f, 0.06f), WoodDark);
             Pillars(g, w, d, y0, h);
+            // 一階の裏と両わき：腰板と、夜に灯る格子窓（真っ白な壁にしない）
+            GroundFace(Group(g, "一階の裏", new Vector3(0, 0, wallZ), 180), w - 0.3f, wallD / 2 + 0.03f, y0, h, seed);
+            GroundFace(Group(g, "一階のわき", new Vector3(0, 0, wallZ), 90), wallD, (w - 0.3f) / 2 + 0.03f, y0, h, seed + 3);
+            GroundFace(Group(g, "一階のわき", new Vector3(0, 0, wallZ), -90), wallD, (w - 0.3f) / 2 + 0.03f, y0, h, seed + 7);
             if (shop)
             {
                 var nm = ColorMat(NorenColors[Ri(0, NorenColors.Length)]);
@@ -176,7 +200,7 @@ namespace Tsukuyomi.EditorTools
             // 上の階の壁：白い漆喰・こげ茶の板・朱塗りのどれか（建物ごと）
             double wv = Rng.NextDouble();
             var upperWall = wv < 0.5 ? WhiteWall : wv < 0.8 ? DarkBoard : RedLacquer;
-            bool neon = Rng.NextDouble() < 0.3;
+            bool neon = Rng.NextDouble() < 0.55;
             for (int f = 1; f < floors; f++)
             {
                 // 下の階の屋根（裳階）と、軒にならぶ灯り
@@ -209,7 +233,7 @@ namespace Tsukuyomi.EditorTools
             MeshObj(g, "屋根の頂", Roof(cw + 2.3f, cd + 2.3f, rh, 0.75f), new Vector3(0, y + 0.02f, 0), RoofOf(roofKind));
             Ridge(g, y + 0.02f + rh, cw, cd);
 
-            if (Rng.NextDouble() < 0.4)
+            if (Rng.NextDouble() < 0.65)
                 Sign(g, (Rng.NextDouble() < 0.5 ? -1 : 1) * (w / 2 - 0.3f), y0 + h + 1.4f, d / 2 + 0.25f, floors >= 2 ? 3.2f : 1.8f, seed);
             return g;
         }

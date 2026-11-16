@@ -24,6 +24,12 @@ namespace Tsukuyomi.EditorTools
             Box(s, "ひじかけ", new Vector3(width / 2 - 0.05f, 0.5f, 0), new Vector3(0.2f, 0.5f, 1.1f), Sofa);
             int n = Mathf.Max(2, Mathf.RoundToInt(width - 0.2f));
             for (int k = 0; k < n; k++) Box(s, "クッション", new Vector3(-width / 2 + 0.6f + k * (width - 1.2f) / Mathf.Max(1, n - 1), 0.62f, 0.25f), new Vector3(0.7f, 0.4f, 0.18f), Cushion, false, new Vector3(-12, 0, 0));
+            // 段階3：座れる（2か所。座ると local -z を向く）
+            var seat = s.gameObject.AddComponent<Seat>();
+            seat.yaw = s.eulerAngles.y + 180f;
+            seat.spots = width >= 3f
+                ? new[] { s.TransformPoint(new Vector3(-width / 4, 0.5f, 0.05f)), s.TransformPoint(new Vector3(width / 4, 0.5f, 0.05f)) }
+                : new[] { s.TransformPoint(new Vector3(0, 0.5f, 0.05f)) };
             var t = Group(s, "低い机", new Vector3(0, 0, -1.8f), 0);
             Box(t, "天板", new Vector3(0, 0.38f, 0), new Vector3(Mathf.Min(1.8f, width - 1f), 0.08f, 0.9f), WoodDark, true);
             foreach (float lx in new[] { -0.7f, 0.7f }) foreach (float lz in new[] { -0.35f, 0.35f }) Box(t, "脚", new Vector3(lx * Mathf.Min(1f, (width - 1f) / 1.8f), 0.17f, lz), new Vector3(0.08f, 0.34f, 0.08f), WoodDark);

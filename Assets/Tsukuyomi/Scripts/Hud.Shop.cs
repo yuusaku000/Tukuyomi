@@ -205,13 +205,13 @@ namespace Tsukuyomi
 
         // ───────── キー ─────────
 
-        void ShopKeys()
+        void ShopKeys(bool usedE)
         {
-            if (_menu || _map) return;
-            if (!ShopOpen && player != null)
+            if (_menu || _map || _book) return;
+            if (!ShopOpen && player != null && !PlayerController.Busy)
             {
                 var near = ShopStand.Near(player.Position, 3.2f);
-                if (near != null && Input.GetKeyDown(KeyCode.E) && !PlayerController.Fly) OpenShop(near, false);
+                if (near != null && Input.GetKeyDown(KeyCode.E) && !usedE && !PlayerController.Fly) OpenShop(near, false);
                 else if (Input.GetKeyDown(KeyCode.C)) OpenWardrobe();
             }
             else if (_wardrobe && Input.GetKeyDown(KeyCode.C)) CloseShop();
@@ -239,7 +239,7 @@ namespace Tsukuyomi
                 Text(new Rect(r.x, r.y + 5, r.width, 18), s.english, 13, new Color(Cyan.r, Cyan.g, Cyan.b, a), TextAnchor.UpperCenter, true);
                 Text(new Rect(r.x, r.y + 22, r.width, 40), s.title, 24, new Color(1, 1, 1, a), TextAnchor.MiddleCenter, false, FontStyle.Bold);
             }
-            var near = ShopStand.Near(player.Position, 3.2f);
+            var near = PlayerController.Busy ? null : ShopStand.Near(player.Position, 3.2f);
             if (near != null)
             {
                 var r = new Rect(W / 2 - 300, H - 330, 600, 60);

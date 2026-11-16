@@ -116,6 +116,71 @@ namespace Tsukuyomi
             });
         }
 
+        /// <summary>浮きが水に落ちる・沈む「ぽちゃん」。</summary>
+        public static AudioClip Plop()
+        {
+            var r = new Rng(31);
+            float lp = 0;
+            return Make("plop", 0.5f, t =>
+            {
+                lp += (r.Next() - lp) * 0.25f;
+                float bub = Mathf.Sin(2 * Mathf.PI * (380f + 900f * t) * t) * Mathf.Exp(-t * 18f);
+                return (bub * 0.5f + lp * Mathf.Exp(-t * 14f) * 0.8f) * Mathf.Clamp01(t * 400f) * 0.7f;
+            });
+        }
+
+        /// <summary>魚がはねる・池にかえす「ばしゃっ」。</summary>
+        public static AudioClip Splash()
+        {
+            var r = new Rng(57);
+            float lp = 0;
+            return Make("splash", 0.9f, t =>
+            {
+                lp += (r.Next() - lp) * 0.45f;
+                return lp * Mathf.Exp(-t * 6f) * Mathf.Clamp01(t * 200f) * (0.7f + 0.3f * Mathf.Sin(t * 70f));
+            });
+        }
+
+        /// <summary>リールを巻く「カチッ」。</summary>
+        public static AudioClip Tick()
+        {
+            var r = new Rng(3);
+            return Make("tick", 0.03f, t => (r.Next() * 0.5f + Mathf.Sin(2 * Mathf.PI * 2600f * t)) * Mathf.Exp(-t * 180f) * 0.35f);
+        }
+
+        /// <summary>糸が切れる「プツン」。</summary>
+        public static AudioClip Snap() =>
+            Make("snap", 0.25f, t => Mathf.Sin(2 * Mathf.PI * (900f - 2400f * t) * t) * Mathf.Exp(-t * 22f) * 0.5f);
+
+        /// <summary>鹿威しの「カコーン」（竹が石を打つ音）。</summary>
+        public static AudioClip Kokon()
+        {
+            return Make("kokon", 1.6f, t =>
+            {
+                float knock = Mathf.Sin(2 * Mathf.PI * 820f * t) * Mathf.Exp(-t * 26f) * 0.6f;
+                float hollow = (Mathf.Sin(2 * Mathf.PI * 410f * t) + 0.5f * Mathf.Sin(2 * Mathf.PI * 1230f * t)) * Mathf.Exp(-t * 4.2f) * 0.35f;
+                return (knock + hollow) * Mathf.Clamp01(t * 900f);
+            });
+        }
+
+        /// <summary>釣れたときの、ちいさな3つの音。</summary>
+        public static AudioClip Jingle(bool big)
+        {
+            float[] notes = big ? new[] { 784f, 988f, 1175f, 1568f } : new[] { 880f, 1175f, 1319f };
+            const float step = 0.11f;
+            return Make("jingle", notes.Length * step + 0.9f, t =>
+            {
+                float v = 0;
+                for (int k = 0; k < notes.Length; k++)
+                {
+                    float nt = t - k * step;
+                    if (nt < 0) continue;
+                    v += (Mathf.Sin(2 * Mathf.PI * notes[k] * nt) + 0.3f * Mathf.Sin(2 * Mathf.PI * notes[k] * 3 * nt) * Mathf.Exp(-nt * 8)) * Mathf.Exp(-nt * 4.5f);
+                }
+                return v * 0.16f * Mathf.Clamp01(t * 600f);
+            });
+        }
+
         /// <summary>花火（ドーン、パチパチ）。</summary>
         public static AudioClip Boom()
         {
