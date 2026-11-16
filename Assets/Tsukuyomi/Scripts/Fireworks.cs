@@ -14,6 +14,27 @@ namespace Tsukuyomi
         AudioClip _boom;
         float _next = 6f;
 
+        public static Fireworks I { get; private set; }
+        void Awake() => I = this;
+
+        readonly System.Collections.Generic.List<(float t, Vector3 pos, Color c)> _queue = new System.Collections.Generic.List<(float, Vector3, Color)>();
+
+        /// <summary>ライブの演出：決まった場所に花火を1つ上げる（delay 秒あとに）。時間に関係なく上がる。</summary>
+        public void Burst(Vector3 pos, Color c, float delay = 0) => _queue.Add((Time.time + delay, pos, c));
+
+        void Shoot(Vector3 pos, Color c, Color c2, int n, float sp)
+        {
+            if (_ps == null) return;
+            for (int i = 0; i < n; i++)
+            {
+                var dir = Random.onUnitSphere;
+                var ep = new ParticleSystem.EmitParams { position = pos, velocity = dir * sp * Random.Range(0.85f, 1f), startColor = i % 4 == 0 ? c2 : c, startLifetime = Random.Range(1.8f, 2.8f) };
+                _ps.Emit(ep, 1);
+            }
+            _audio.transform.position = pos;
+            if (!Ts.ShotMode) _audio.PlayOneShot(_boom, 0.8f * SoundPrefs.Ambient);
+        }
+
         static readonly Color[] Colors =
         {
             new Color(1f, 0.4f, 0.7f), new Color(0.4f, 0.9f, 1f), new Color(1f, 0.85f, 0.4f), new Color(0.7f, 0.5f, 1f), new Color(1f, 0.5f, 0.3f), new Color(0.5f, 1f, 0.6f),
@@ -57,6 +78,13 @@ namespace Tsukuyomi
 
         void Update()
         {
+            for (int i = _queue.Count - 1; i >= 0; i--)
+                if (Time.time >= _queue[i].t)
+                {
+                    var q = _queue[i]; _queue.RemoveAt(i);
+                    Shoot(q.pos, q.c, Colors[Random.Range(0, Colors.Length)], Random.Range(160, 230), Random.Range(18f, 24f));
+                }
+            if (LiveShow.Running) return; // ライブの間はライブの花火だけ
             var h = Ts.Now.Hour;
             if (h < 19 || h >= 23) return;
             _next -= Time.deltaTime;

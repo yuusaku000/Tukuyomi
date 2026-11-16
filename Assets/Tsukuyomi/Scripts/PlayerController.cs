@@ -36,7 +36,7 @@ namespace Tsukuyomi
         {
             if (Busy) { if (doll != null) doll.speed = 0; return; }
             Vector2 input = Vector2.zero;
-            if (!Hud.Blocked && !Ts.ShotMode)
+            if (!Hud.Blocked && !Ts.ShotMode && !LiveShow.AutoCam)
             {
                 if (Input.GetKey(KeyCode.W) || Input.GetKey(KeyCode.UpArrow)) input.y += 1;
                 if (Input.GetKey(KeyCode.S) || Input.GetKey(KeyCode.DownArrow)) input.y -= 1;

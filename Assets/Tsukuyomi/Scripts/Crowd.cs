@@ -123,7 +123,7 @@ namespace Tsukuyomi
                 }
             }
             _atlas.SetPixels32(_pix);
-            _atlas.Apply(false, true);
+            _atlas.Apply(false, false); // ライブの客席の人をあとから足すので、読める形のままにする
             Debug.Log($"[Crowd] people {_walkers.Count}, streets {_streets.Count}, colors {_cells.Count}");
         }
 
@@ -262,6 +262,35 @@ namespace Tsukuyomi
         {
             if (!_tmp.TryGetValue(c, out var m)) { m = new Material(litTemplate); m.SetColor("_BaseColor", c); _tmp[c] = m; }
             return m;
+        }
+
+        // ───────── ライブの客席の人（LiveShow から） ─────────
+
+        /// <summary>客席の人を作れるか（町の人の準備ができているか）。</summary>
+        public bool Ready => _mat != null && _atlas != null;
+        public Material Mat => _mat;
+        public Vector2 Uv(Color c) => Cell(c);
+        public void RefreshColors() { if (_atlas == null) return; _atlas.SetPixels32(_pix); _atlas.Apply(false, false); }
+
+        /// <summary>
+        /// ライブの客席の人：右腕だけ外して体を1つの形にまとめる（右腕とペンライトは LiveShow がまとめて描く）。
+        /// 床（水面の広場）の高さに立たせる。
+        /// </summary>
+        public Transform MakeFan(Vector3 p, float yaw, out float scale, out Color sleeve, out Color skin)
+        {
+            var look = RandomLook();
+            scale = R(0.82f, 0.94f);
+            sleeve = look.sleeve; skin = look.skin;
+            var parts = Doll.Build("客席の人", look, TmpMat, transform);
+            parts.root.transform.localScale = Vector3.one * scale;
+            var anim = parts.root.GetComponent<DollAnimator>();
+            anim.enabled = false;
+            if (parts.armL) parts.armL.localEulerAngles = new Vector3(R(-25f, 5f), 0, -10f);
+            Bake(parts.body, parts.armR, null);
+            if (parts.armR) Destroy(parts.armR.gameObject);
+            float y = Ground(p.x, p.y + 1f, p.z, p.y);
+            parts.root.transform.SetPositionAndRotation(new Vector3(p.x, y, p.z), Quaternion.Euler(0, yaw, 0));
+            return parts.root.transform;
         }
 
         Walker Make(string name, DollLook look, float scale, bool still = false)

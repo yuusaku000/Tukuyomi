@@ -65,6 +65,7 @@ namespace Tsukuyomi.EditorTools
             TerrainBuilder.Build(_env);
             Entrance();
             _stageWarp = Landmarks.SeaStage(_env, _deco, new Vector2(0, -178), -74.2f, 1.45f); // 大鳥居 (z -82) から 50m ほど離した大きな舞台
+            LiveStage.Build(_env, _deco); // 段階4：ライブの舞台装置と、ライブ（乱数は使わない）
             Town.BuildStreets(_env, TerrainBuilder.PavingTex, TerrainBuilder.AlleyTex);
             SaveStreetMap();
             CheckLandmarks();

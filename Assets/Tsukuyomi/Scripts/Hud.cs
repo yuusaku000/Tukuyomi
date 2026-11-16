@@ -227,7 +227,7 @@ namespace Tsukuyomi
         {
             if (Ts.ShotMode)
             {
-                Blocked = ShopOpen || _book;
+                Blocked = ShopOpen || _book || _tipOpen;
 
                 if (_menu || _map) { }
                 Cursor.lockState = CursorLockMode.None;
@@ -236,7 +236,9 @@ namespace Tsukuyomi
             }
             if (Input.GetKeyDown(KeyCode.Escape))
             {
-                if (_talk) CloseTalk();
+                if (_tipOpen) { if (!_tipBusy) _tipOpen = false; }
+                else if (LiveShow.AutoCam) LiveShow.SetAutoCam(false);
+                else if (_talk) CloseTalk();
                 else if (_shipAsk != null) { if (!_shipBusy) _shipAsk = null; }
                 else if (ShopOpen) CloseShop();
                 else if (_map) _map = false;
@@ -249,9 +251,10 @@ namespace Tsukuyomi
             if (Input.GetKeyDown(KeyCode.M) && !_menu) { _map = !_map; _book = false; }
             if (Input.GetKeyDown(KeyCode.F3)) { _debug = !_debug; Toast(_debug ? "デバッグ表示オン（F3 で消す・F12 で写真）" : "デバッグ表示オフ"); }
             if (Input.GetKeyDown(KeyCode.F12)) TakePhoto();
+            bool usedC = LiveKeys();
             bool usedE = ActivityKeys();
-            ShopKeys(usedE);
-            Blocked = _menu || _map || ShopOpen || _book || _shipAsk != null || _talk;
+            ShopKeys(usedE, usedC);
+            Blocked = _menu || _map || ShopOpen || _book || _shipAsk != null || _talk || _tipOpen;
 
             if (Blocked)
             {
@@ -379,8 +382,9 @@ namespace Tsukuyomi
             Text(new Rect(36, 82, 500, 24), "▸ " + (_zone != null ? _zone.title : "ツクヨミのどこか"), 17, new Color(1, 1, 1, 0.75f));
 
             // 座ってしばらくすると、表示を消して景色だけにする
-            bool calm = Rest.Idle > 6f;
-            if (!Blocked && calm) DrawActivity();
+            bool calm = Rest.Idle > 6f || LiveShow.AutoCam; // おまかせカメラの間も表示を消して景色だけにする
+            if (!Blocked && calm && !LiveShow.AutoCam) DrawActivity();
+            if (LiveShow.Running) DrawLive();
             if (!Blocked && !calm)
             {
                 if (CompassOn) Compass();
@@ -444,6 +448,7 @@ namespace Tsukuyomi
             else if (_book) DrawBook();
             else if (_shipAsk != null) DrawShipAsk();
             else if (_talk) DrawTalk();
+            else if (_tipOpen) DrawTip();
             GUI.matrix = Matrix4x4.identity;
         }
 
@@ -564,14 +569,14 @@ namespace Tsukuyomi
         void DrawSound()
         {
             Fill(new Rect(0, 0, W, H), new Color(0.01f, 0.03f, 0.08f, 0.55f));
-            var r = new Rect(W / 2 - 360, H / 2 - 260, 720, 520);
+            var r = new Rect(W / 2 - 360, H / 2 - 300, 720, 600);
             Panel(r);
             Text(new Rect(r.x, r.y + 22, r.width, 22), "SOUND", 18, Cyan, TextAnchor.MiddleCenter, true);
             Text(new Rect(r.x, r.y + 48, r.width, 56), "音量", 44, Color.white, TextAnchor.MiddleCenter, false, FontStyle.Bold);
-            float y = r.y + 130;
+            float y = r.y + 126;
             float Row(string label, float v, string hint)
             {
-                Text(new Rect(r.x + 50, y, 200, 36), label, 26, Color.white, TextAnchor.MiddleLeft);
+                Text(new Rect(r.x + 40, y, 200, 36), label, label.Length > 4 ? 21 : 26, Color.white, TextAnchor.MiddleLeft);
                 Text(new Rect(r.xMax - 140, y, 90, 36), $"{v * 100:0}%", 24, Gold, TextAnchor.MiddleRight, true);
                 var sr = new Rect(r.x + 230, y + 12, r.width - 400, 14);
                 Fill(sr, new Color(0.02f, 0.05f, 0.12f, 0.8f));
@@ -595,6 +600,8 @@ namespace Tsukuyomi
             if (!Mathf.Approximately(a, SoundPrefs.Ambient)) SoundPrefs.Ambient = a;
             float f = Row("効果音", SoundPrefs.Effects, "足音・ボタン・買い物・釣り・遊覧船");
             if (!Mathf.Approximately(f, SoundPrefs.Effects)) SoundPrefs.Effects = f;
+            float mu = Row("ライブの音楽", SoundPrefs.Music, "ヤチヨのライブの曲");
+            if (!Mathf.Approximately(mu, SoundPrefs.Music)) SoundPrefs.Music = mu;
             if (Button(new Rect(r.x + 60, r.yMax - 90, 290, 62), SoundPrefs.Muted ? "ミュート：オン" : "ミュート：オフ")) SoundPrefs.Muted = !SoundPrefs.Muted;
             if (Button(new Rect(r.xMax - 350, r.yMax - 90, 290, 62), "もどる（Esc）")) _sound = false;
         }

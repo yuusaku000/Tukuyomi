@@ -366,6 +366,7 @@ namespace Tsukuyomi.EditorTools
                 var shard = MeshObj(g, "結晶", hex, p, i % 2 == 0 ? crystal : crystalPink);
                 shard.transform.localScale = new Vector3(R(1.2f, 2f), R(5f, 11f), R(1.2f, 2f)) * S;
                 shard.transform.localRotation = Quaternion.Euler(R(-10, 10), R(0, 60), R(-10, 10));
+                if (i == 2 && S > 1.2f) Object.DestroyImmediate(shard); // 客席のまんなか（舞台の正面）の結晶は、ライブが見えないのでのぞく（乱数の順番は変えない）
             }
             for (int i = 0; i < 6; i++)
             {

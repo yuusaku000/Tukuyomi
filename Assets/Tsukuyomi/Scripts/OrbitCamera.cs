@@ -37,12 +37,12 @@ namespace Tsukuyomi
         void LateUpdate()
         {
             if (target == null) return;
-            if (!Hud.Blocked && !Ts.ShotMode && Cursor.lockState == CursorLockMode.Locked)
+            if (!Hud.Blocked && !Ts.ShotMode && !LiveShow.AutoCam && Cursor.lockState == CursorLockMode.Locked)
             {
                 yaw += Input.GetAxis("Mouse X") * sensitivity;
                 pitch -= Input.GetAxis("Mouse Y") * sensitivity;
             }
-            if (!Hud.Blocked && !Ts.ShotMode)
+            if (!Hud.Blocked && !Ts.ShotMode && !LiveShow.AutoCam)
             {
                 if (Input.GetKeyDown(KeyCode.V)) Toggle();
                 float wheel = Input.mouseScrollDelta.y;

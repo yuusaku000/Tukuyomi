@@ -209,7 +209,7 @@ namespace Tsukuyomi
 
         // ───────── キー ─────────
 
-        void ShopKeys(bool usedE)
+        void ShopKeys(bool usedE, bool usedC = false)
         {
             TurnTick();
             if (_menu || _map || _book) return;
@@ -217,7 +217,7 @@ namespace Tsukuyomi
             {
                 var near = ShopStand.Near(player.Position, 3.2f);
                 if (near != null && Input.GetKeyDown(KeyCode.E) && !usedE && !PlayerController.Fly) OpenShop(near, false);
-                else if (Input.GetKeyDown(KeyCode.C)) OpenWardrobe();
+                else if (Input.GetKeyDown(KeyCode.C) && !usedC) OpenWardrobe();
             }
             else if (_wardrobe && Input.GetKeyDown(KeyCode.C)) CloseShop();
             _shopMsgT -= Time.unscaledDeltaTime;

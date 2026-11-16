@@ -133,6 +133,33 @@ namespace Tsukuyomi
                 if (p.Length > 3 && p[3].StartsWith("fish:")) { Fishing.I?.Test(p[3].Substring(5)); again = true; }
                 if (p.Length > 3 && p[3] == "talk") Hud.TestTalk();
                 if (p.Length > 3 && p[3] == "night") YachiyoNpc.I?.MakeNight();
+                // 段階4：live:秒[:c番号][:tip][:ask] ／ live:s1:chorus:2[+秒]… でライブのその場面へ（音は出さない）
+                if (p.Length > 3 && p[3].StartsWith("live:") && LiveShow.I != null)
+                {
+                    var a = p[3].Substring(5).Split(':');
+                    int k = 0; float at;
+                    if (a[0] == "s1" || a[0] == "s2")
+                    {
+                        string liveSpec = a[0] + ":" + a[1] + ":" + (a.Length > 2 && int.TryParse(a[2].Split('+')[0], out var nth) ? nth : 1);
+                        float plus = 0;
+                        var plusPart = a.Length > 2 ? a[2] : a[1];
+                        if (plusPart.Contains("+")) float.TryParse(plusPart.Split('+')[1], NumberStyles.Float, CultureInfo.InvariantCulture, out plus);
+                        at = LiveShow.I.TimeOf(liveSpec, plus);
+                        k = 3;
+                    }
+                    else { float.TryParse(a[0], NumberStyles.Float, CultureInfo.InvariantCulture, out at); k = 1; }
+                    LiveShow.I.Test(at);
+                    LiveShow.ForceShot = -1;
+                    LiveShow.SetAutoCam(false);
+                    for (; k < a.Length; k++)
+                    {
+                        if (a[k].StartsWith("c") && int.TryParse(a[k].Substring(1), out var shot)) { LiveShow.SetAutoCam(true); LiveShow.ForceShot = shot; }
+                        else if (a[k] == "auto") LiveShow.SetAutoCam(true);
+                        else if (a[k] == "tip") LiveShow.I.TestTip(1000);
+                        else if (a[k] == "ask") Hud.TestTipAsk();
+                    }
+                    again = true;
+                }
                 if (p.Length > 3 && (p[3] == "book" || p[3] == "rank")) Hud.OpenBook(p[3] == "book" ? 0 : 1);
                 if (p.Length > 3 && p[3].StartsWith("sit")) { Rest.I?.TestSit(p[3].Length > 4 && float.TryParse(p[3].Substring(4), NumberStyles.Float, CultureInfo.InvariantCulture, out var si) ? si : 0f); again = true; }
                 if (again && p.Length > 2) ApplyCam(p[2]);

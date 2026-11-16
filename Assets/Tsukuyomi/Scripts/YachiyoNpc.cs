@@ -24,7 +24,7 @@ namespace Tsukuyomi
 
         public static YachiyoNpc Near(Vector3 p, float r)
         {
-            if (I == null) return null;
+            if (I == null || !I.isActiveAndEnabled) return null; // ライブの間は舞台にいる
             var d = I.stand - p; d.y *= 0.5f;
             return d.magnitude < r ? I : null;
         }
@@ -83,7 +83,7 @@ namespace Tsukuyomi
         }
     }
 
-    /// <summary>ライブのお願い（段階4で Requested に中身を入れる）。</summary>
+    /// <summary>ライブのお願い。Requested は LiveShow が入れる（ステージの客席へワープして開演）。</summary>
     public static class Live
     {
         public static Action Requested;
