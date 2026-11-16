@@ -92,7 +92,7 @@ namespace Tsukuyomi
                 var line = song.Lyric(st, out float prog, out float la);
                 if (line != null && la > 0)
                 {
-                    float y = H - (auto ? 170 : 300);
+                    float y = H - (auto ? 122 : 178);
                     int size = 40;
                     var full = new GUIContent(line);
                     _label.font = Ts.Font; _label.fontSize = size; _label.fontStyle = FontStyle.Bold;
@@ -118,8 +118,8 @@ namespace Tsukuyomi
             var talk = ls.Talk(out float ta);
             if (talk != null && ta > 0)
             {
-                float y = H - (auto ? 250 : 390);
-                if (song != null && song.Lyric(ls.SongTime, out _, out float la2) != null && la2 > 0) y -= 70;
+                float y = H - (auto ? 128 : 186);
+                if (song != null && song.Lyric(ls.SongTime, out _, out float la2) != null && la2 > 0) y -= 74; // 歌詞があるときは、そのすぐ上
                 _label.font = Ts.Font; _label.fontSize = 28;
                 float w = Mathf.Min(1100, _label.CalcSize(new GUIContent(talk)).x + 60);
                 var r = new Rect(W / 2 - w / 2, y, w, 58);

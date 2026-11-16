@@ -26,6 +26,7 @@ namespace Tsukuyomi
         int ThemeIndex()
         {
             var sec = Sec; var s = Song;
+            if (_aloneK > 0.5f) return 1; // ヤチヨが会いに来ている間は、みんなピンク
             if (_phase == Phase.MC || _phase == Phase.Opening) return 2;
             if (_phase == Phase.Ending) return 1;
             if (sec == null) return 0;
@@ -295,7 +296,7 @@ namespace Tsukuyomi
                         float k = _phase == Phase.Opening ? 0.35f : energy >= 3 ? 0.55f + 0.45f * onBeat : energy == 2 ? 0.5f : 0.35f;
                         if (chorus && !ballad && ((int)beat + i) % 4 == 0) k = 1f; // 順番にまたたく
                         k += _flash * 0.6f;
-                        k *= (1f - _aloneK) * (1f - 0.7f * _freezeK); // ふたりきり・時間が止まっている間は消える
+                        k *= 1f - 0.5f * _aloneK; // ヤチヨが会いに来ている間は、ひかえめに
                         _mpb.SetColor(IdColor, c * k * 0.55f);
                         beams[i].SetPropertyBlock(_mpb);
                     }
@@ -652,7 +653,7 @@ namespace Tsukuyomi
             closeCam.enabled = sing && performer && performer.gameObject.activeSelf;
             if (!closeCam.enabled) return;
             var face = performer.position + Vector3.up * 1.42f;
-            float a = Mathf.Sin(t * 0.21f) * 0.6f;
+            float a = -0.45f + Mathf.Sin(t * 0.21f) * 0.3f; // マイクを持つ手と反対がわから
             closeCam.transform.position = face + new Vector3(Mathf.Sin(a) * 2.1f, 0.15f + Mathf.Sin(t * 0.33f) * 0.1f, Mathf.Cos(a) * 2.1f);
             closeCam.transform.rotation = Quaternion.LookRotation(face - closeCam.transform.position);
         }
@@ -720,7 +721,7 @@ namespace Tsukuyomi
             Vector3 pos, look; float fov;
             switch (shot)
             {
-                case 1: pos = P + new Vector3(0.6f - 1.2f * u, 1.7f, 2.6f); look = F; fov = 30; break;                        // 顔のアップ
+                case 1: pos = P + new Vector3(-0.4f - 1.0f * u, 1.72f, 2.6f); look = F; fov = 30; break;                       // 顔のアップ（マイクと反対がわから）
                 case 2: { float a = (u * 50f + 20f) * Mathf.Deg2Rad; pos = P + new Vector3(Mathf.Sin(a) * 7f, 24f, Mathf.Cos(a) * 7f + 3f); look = P + Vector3.forward * 4f; fov = 55; break; } // 真上から
                 case 3: pos = new Vector3(-13f + 26f * u, P.y + 1.2f, P.z + 8.5f); look = F; fov = 38; break;               // 横に流れる
                 case 4: pos = P + new Vector3(1.2f - 2.4f * u, 2.5f, -3.4f); look = new Vector3(P.x, Island.Ground + 1.6f, P.z + 22f); fov = 62; break; // ヤチヨのうしろから客席

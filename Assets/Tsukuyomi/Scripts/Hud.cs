@@ -170,8 +170,13 @@ namespace Tsukuyomi
             else if (_i != null) _i._menu = false;
         }
 
+        /// <summary>画面の表示をぜんぶ消す（H・メニュー）。景色とライブを見るため。</summary>
+        public static bool HideAll;
+        static float _hideHintT;
+
         public static void Toast(string text)
         {
+            if (LiveShow.Running) return; // ライブの間はお知らせを出さない
             _toast = text;
             _toastT = 4f;
         }
@@ -251,6 +256,8 @@ namespace Tsukuyomi
             if (Input.GetKeyDown(KeyCode.M) && !_menu) { _map = !_map; _book = false; }
             if (Input.GetKeyDown(KeyCode.F3)) { _debug = !_debug; Toast(_debug ? "デバッグ表示オン（F3 で消す・F12 で写真）" : "デバッグ表示オフ"); }
             if (Input.GetKeyDown(KeyCode.F12)) TakePhoto();
+            if (Input.GetKeyDown(KeyCode.H) && !_menu && !_map && !ShopOpen && !_book && !_talk && !_tipOpen && _shipAsk == null) { HideAll = !HideAll; _hideHintT = HideAll ? 2.5f : 0; }
+            _hideHintT -= Time.unscaledDeltaTime;
             bool usedC = LiveKeys();
             bool usedE = ActivityKeys();
             ShopKeys(usedE, usedC);
@@ -368,6 +375,13 @@ namespace Tsukuyomi
             if (_label == null) _label = new GUIStyle(GUI.skin.label) { font = Ts.Font, wordWrap = false, richText = false };
             GUI.matrix = Matrix4x4.Scale(new Vector3(S, S, 1));
             float t = Time.unscaledTime;
+            // 表示を消しているとき：開いている画面（メニューなど）だけ出す
+            if (HideAll && !(_map || _menu || ShopOpen || _book || _shipAsk != null || _talk || _tipOpen))
+            {
+                if (_hideHintT > 0) Text(new Rect(0, H - 60, W, 30), "表示を消しました（H でもどす）", 18, new Color(1, 1, 1, Mathf.Clamp01(_hideHintT)), TextAnchor.MiddleCenter);
+                GUI.matrix = Matrix4x4.identity;
+                return;
+            }
 
             // 画面の四隅のかぎ（スマコンの視野）
             Corners(new Rect(14, 14, W - 28, H - 28), new Color(Cyan.r, Cyan.g, Cyan.b, 0.35f), 70, 2);
@@ -509,7 +523,7 @@ namespace Tsukuyomi
 
         void Keys()
         {
-            var keys = new[] { ("WASD", "移動"), ("SHIFT", "走る"), ("SPACE", "ジャンプ"), ("V", "視点"), ("M", "地図"), ("C", "着がえ"), ("B", "図鑑"), ("ESC", "メニュー") };
+            var keys = new[] { ("WASD", "移動"), ("SHIFT", "走る"), ("SPACE", "ジャンプ"), ("V", "視点"), ("M", "地図"), ("C", "着がえ"), ("B", "図鑑"), ("H", "表示を消す"), ("ESC", "メニュー") };
             float a = _hintT > 0 ? 0.95f : 0.5f;
             float x = W - 36;
             for (int i = keys.Length - 1; i >= 0; i--)
@@ -554,8 +568,9 @@ namespace Tsukuyomi
             y += step;
             if (Button(new Rect(r.x + 110, y, 440, bh), Crowd.BubblesOn ? "吹き出し：オン（押すとオフ）" : "吹き出し：オフ（押すとオン）")) Crowd.BubblesOn = !Crowd.BubblesOn;
             y += step;
-            if (Button(new Rect(r.x + 110, y, 215, bh), CompassOn ? "方位：オン" : "方位：オフ", 22)) CompassOn = !CompassOn;
-            if (Button(new Rect(r.x + 335, y, 215, bh), CrosshairOn ? "照準：オン" : "照準：オフ", 22)) CrosshairOn = !CrosshairOn;
+            if (Button(new Rect(r.x + 110, y, 140, bh), CompassOn ? "方位：オン" : "方位：オフ", 20)) CompassOn = !CompassOn;
+            if (Button(new Rect(r.x + 260, y, 140, bh), CrosshairOn ? "照準：オン" : "照準：オフ", 20)) CrosshairOn = !CrosshairOn;
+            if (Button(new Rect(r.x + 410, y, 140, bh), "表示を消す(H)", 19)) { HideAll = true; _hideHintT = 2.5f; _menu = false; }
             y += step;
             if (Button(new Rect(r.x + 110, y, 440, bh), "ログアウト（終わる）")) GameSession.Instance?.Logout();
             Text(new Rect(r.x, r.yMax - 116, r.width, 110),

@@ -17,8 +17,8 @@ namespace Tsukuyomi
     /// </summary>
     public partial class LiveShow
     {
-        public static readonly string[] HypeFx = { "float", "tunnel", "dragon", "chibi", "flyby", "island", "giant", "rain", "flood", "rise", "shatter", "clones", "sakura" };
-        static readonly string[] AllFx = { "float", "tunnel", "dragon", "chibi", "flyby", "island", "giant", "rain", "flood", "rise", "shatter", "clones", "sakura", "sea", "moon", "alone", "freeze" };
+        public static readonly string[] HypeFx = { "float", "tunnel", "dragon", "chibi", "flyby", "island", "giant", "rain", "flood", "rise", "shatter", "clones", "sakura", "ribbons", "bloom" };
+        static readonly string[] AllFx = { "float", "tunnel", "dragon", "chibi", "flyby", "island", "giant", "rain", "flood", "rise", "shatter", "clones", "sakura", "ribbons", "bloom", "sea", "moon", "alone" };
         public static readonly string[] Openings = { "gate", "stairs", "geyser" };
         /// <summary>確認用：演出・登場を決める（tour の fx= / open=）。</summary>
         public static string ForceFx, ForceOpen;
@@ -87,7 +87,6 @@ namespace Tsukuyomi
                 foreach (var sec in s.secs)
                 {
                     if (sec.name == "bridge") { _plan[sec] = ForceFx ?? (Random.value < 0.7f ? "alone" : "rise"); continue; } // 急にふたりきり／舞台がせり上がる
-                    if (sec.name == "pre") { if (ForceFx != null || Random.value < 0.35f) _plan[sec] = ForceFx ?? "freeze"; continue; } // サビの前に時間が止まる
                     if (sec.name != "chorus" && sec.name != "drop" && sec.name != "inter") continue;
                     if (sec.name == "inter" && Random.value < 0.5f) continue;
                     _plan[sec] = ForceFx ?? NextFx();
@@ -97,7 +96,7 @@ namespace Tsukuyomi
             {
                 // バラード：前半は海の中（か星の雨）、大サビの前に巨大なヤチヨ、最後は月へ
                 float r0 = Random.value;
-                string first = ForceFx ?? (r0 < 0.4f ? "flood" : r0 < 0.8f ? "sea" : "rain");
+                string first = ForceFx ?? (r0 < 0.3f ? "flood" : r0 < 0.6f ? "sea" : r0 < 0.8f ? "bloom" : "rain");
                 bool late = false;
                 foreach (var sec in s.secs)
                 {
@@ -169,7 +168,8 @@ namespace Tsukuyomi
             Shatter(K("shatter"), t, dt);
             Clones(K("clones"), t);
             Sakura(K("sakura"), t);
-            Freeze(K("freeze"));
+            Ribbons(K("ribbons"), t, beat);
+            Bloom(K("bloom"), t, beat, onBeat);
             Moon(K("moon"), dt);
             Constellation();
             SkyLyrics();
@@ -180,8 +180,9 @@ namespace Tsukuyomi
         void Fade(string f, string want, float dt)
         {
             float k = K(f), w = f == want ? 1f : 0f;
-            bool sudden = f == "flood" || f == "alone" || f == "freeze" || f == "shatter"; // 「急に」起こる演出
-            k = Mathf.MoveTowards(k, w, dt / (w > k ? (sudden ? 0.45f : 1.4f) : 1.8f));
+            bool sudden = f == "flood" || f == "shatter"; // 「急に」起こる演出
+            float up = sudden ? 0.45f : f == "alone" ? 2.6f : 1.4f; // ヤチヨが会いに来るのは、ゆっくり
+            k = Mathf.MoveTowards(k, w, dt / (w > k ? up : 1.8f));
             if (k <= 0) _k.Remove(f); else _k[f] = k;
         }
 
@@ -899,44 +900,44 @@ namespace Tsukuyomi
             if (Random.value < 0.8f * k) Emit(_burst, spot + Vector3.up * h + Random.insideUnitSphere * 2f, Vector3.up * Random.Range(2f, 6f), Color.Lerp(new Color(1f, 0.85f, 0.5f), PenColors[2], Random.value), 1.4f, 0.4f);
         }
 
-        // ───────── 急にまわりの人が消えて、ヤチヨがこっちに来る ─────────
+        // ───────── ヤチヨが会いに来る（花びらの道を飛んで、目の前で歌う） ─────────
 
         float _aloneK;
-        bool _fansGone;
         Renderer _aloneLight;
 
         void Alone(float k, float t)
         {
             _aloneK = k;
-            // まわりの人が光になって消える／もどってくる
-            bool gone = k > 0.5f;
-            if (gone != _fansGone)
-            {
-                _fansGone = gone;
-                foreach (var (hand, c) in _hands)
-                    for (int i = 0; i < 6; i++)
-                        Emit(_burst, hand + Vector3.down * Random.Range(0f, 1.6f), Random.insideUnitSphere * 1.5f + Vector3.up, c, Random.Range(0.8f, 1.6f), 0.3f);
-                foreach (var f in _fans) if (f.root) f.root.gameObject.SetActive(!gone);
-                if (gone) Cheer(0f);
-            }
             if (k <= 0) { if (_aloneLight) _aloneLight.enabled = false; return; }
-            // 自分の目の前まで来て、こちらを向いて歌う
+            // 空に弧をえがいて飛んできて、目の前に降りる（客席はそのまま、ペンライトがやさしいピンクにそろう）
             var me = _player != null && PlayerInVenue ? _player.Position : new Vector3(stageCenter.x, Island.Ground, (seatMin.y + seatMax.y) / 2f);
             var dir = spot - me; dir.y = 0;
             dir = dir.sqrMagnitude > 0.01f ? dir.normalized : Vector3.back;
-            var stand = me + dir * 2.4f; stand.y = Island.Ground + 0.05f;
+            var stand = me + dir * 2.6f + FloatHeight * Vector3.up; stand.y = Mathf.Max(stand.y, Island.Ground + 0.6f); // 少し浮いている
             float e = Ease(k);
-            PerformerOffset += (stand - spot) * e;
+            var mid = (spot + stand) / 2f + Vector3.up * 9f;
+            var p = (1 - e) * (1 - e) * spot + 2 * (1 - e) * e * mid + e * e * stand;   // 弧をえがく
+            PerformerOffset += p - spot;
             PerformerYaw = Mathf.LerpAngle(0, Mathf.Atan2(-dir.x, -dir.z) * Mathf.Rad2Deg, e);
-            // まわりは暗くなって、ふたりだけを照らす
-            _skyTint = Color.Lerp(_skyTint, new Color(0.01f, 0.01f, 0.03f), k);
-            _skyK = Mathf.Max(_skyK, k * 0.95f);
-            _fogClose = Mathf.Max(_fogClose, k * 0.75f);
+            // 飛んでくる道に、花びらと光
+            if (k < 0.98f && _petals != null)
+                for (int i = 0; i < 3; i++) Emit(_petals, p + Random.insideUnitSphere * 0.8f, Random.insideUnitSphere * 1.5f, new Color(1f, 0.6f, 0.8f) * 1.3f, 2.5f, 0.22f);
+            // ふたりのまわりを、花びらがゆっくり回る
+            Sakura(0, t);
+            if (_petals != null && Random.value < k)
+                {
+                    float a = Random.Range(0f, Mathf.PI * 2f);
+                    var c0 = (me + stand) / 2f;
+                    Emit(_petals, c0 + new Vector3(Mathf.Cos(a) * 5f, Random.Range(0.2f, 3.5f), Mathf.Sin(a) * 5f), new Vector3(-Mathf.Sin(a), 0.2f, Mathf.Cos(a)) * 2.5f, new Color(1f, 0.7f, 0.85f) * 1.2f, 3.5f, 0.2f);
+                }
+            // まわりは少しだけ暗く、やわらかい色に
+            _skyTint = Color.Lerp(_skyTint, new Color(0.16f, 0.06f, 0.2f), k * 0.7f);
+            _skyK = Mathf.Max(_skyK, k * 0.5f);
             if (_aloneLight == null) { _aloneLight = Cone(_wow, "ふたりの光"); _aloneLight.transform.rotation = Quaternion.LookRotation(Vector3.down); }
             _aloneLight.enabled = true;
             _aloneLight.transform.position = (me + stand) / 2f + Vector3.up * 14f;
             _aloneLight.transform.localScale = new Vector3(3.6f, 3.6f, 15f);
-            _mpb.SetColor(IdColor, new Color(1f, 0.75f, 0.9f) * 0.45f * k);
+            _mpb.SetColor(IdColor, new Color(1f, 0.75f, 0.9f) * 0.35f * k);
             _aloneLight.SetPropertyBlock(_mpb);
             if (Random.value < 0.5f * k) Emit(_motes, stand + new Vector3(Random.Range(-3f, 3f), Random.Range(0f, 3f), Random.Range(-3f, 3f)), Vector3.up * 0.4f, new Color(1f, 0.8f, 0.9f), 4f, 0.3f);
         }
@@ -1032,7 +1033,6 @@ namespace Tsukuyomi
 
         void Sakura(float k, float t)
         {
-            if (k <= 0) return;
             if (_petals == null)
             {
                 _petals = Particles("桜の嵐", 6000, 3f, 4.5f, 0.7f, 1.3f, 0.05f);
@@ -1040,6 +1040,7 @@ namespace Tsukuyomi
                 var nz = _petals.noise; nz.enabled = true; nz.strength = 2f; nz.frequency = 0.25f;
                 _petals.Play();
             }
+            if (k <= 0) return;
             var c = new Vector3(stageCenter.x, Island.Ground, stageCenter.z + 6f);
             int n = Mathf.CeilToInt(80 * k);
             for (int i = 0; i < n; i++)
@@ -1078,6 +1079,98 @@ namespace Tsukuyomi
                 _skyTint = Color.Lerp(_skyTint, new Color(0.18f, 0.2f, 0.26f), k);
                 _skyK = Mathf.Max(_skyK, k * 0.85f);
             }
+        }
+
+        // ───────── 光のリボン（客席をぐるりと巻いて、空までのぼる） ─────────
+
+        Mesh _ribbonMesh;
+        Renderer _ribbonR;
+
+        void Ribbons(float k, float t, float beat)
+        {
+            if (k <= 0) { if (_ribbonR) _ribbonR.enabled = false; return; }
+            if (_ribbonMesh == null)
+            {
+                var g = new GameObject("光のリボン");
+                g.transform.SetParent(_wow, false);
+                _ribbonMesh = new Mesh { name = "ribbons" }; _ribbonMesh.MarkDynamic();
+                g.AddComponent<MeshFilter>().sharedMesh = _ribbonMesh;
+                _ribbonR = g.AddComponent<MeshRenderer>();
+                _ribbonR.sharedMaterial = penMat; _ribbonR.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            }
+            _ribbonR.enabled = true;
+            var v = new List<Vector3>(); var c = new List<Color>(); var uv = new List<Vector2>(); var n = new List<Vector3>(); var tr = new List<int>();
+            var center = new Vector3(stageCenter.x, Island.Ground, (seatMin.y + seatMax.y) / 2f - 4f);
+            const int R = 7, Seg = 90;
+            for (int r = 0; r < R; r++)
+            {
+                var c1 = PenColors[(r * 2 + 1) % PenColors.Length]; var c2 = PenColors[(r * 2 + 2) % PenColors.Length];
+                for (int i = 0; i <= Seg; i++)
+                {
+                    float s = i / (float)Seg;
+                    float grow = Mathf.Clamp01(k * 1.6f - s * 0.6f); // 足もとからのびていく
+                    float a = s * Mathf.PI * 4.5f + t * 0.45f + r * Mathf.PI * 2f / R;
+                    float rad = 7f + s * 26f + Mathf.Sin(s * 9f + t + r) * 1.5f;
+                    var p = center + new Vector3(Mathf.Cos(a) * rad, 0.8f + s * 38f * grow + Mathf.Sin(a * 2f + t) * 0.6f, Mathf.Sin(a) * rad * 0.8f);
+                    var tan = new Vector3(-Mathf.Sin(a), 0.4f, Mathf.Cos(a) * 0.8f).normalized;
+                    var side = Vector3.Cross(tan, Vector3.up).normalized * Mathf.Lerp(0.15f, 1.3f, Mathf.Sin(s * Mathf.PI)) * grow;
+                    var col = Color.Lerp(c1, c2, s) * (0.7f + 0.3f * Mathf.Sin(s * 20f - beat * Mathf.PI)) * k * 0.55f;
+                    v.Add(p - side); v.Add(p + side);
+                    c.Add(col); c.Add(col);
+                    uv.Add(new Vector2(0, 0.5f)); uv.Add(new Vector2(1, 0.5f));
+                    n.Add(Vector3.up); n.Add(Vector3.up);
+                    if (i > 0) { int b = v.Count - 4; tr.Add(b); tr.Add(b + 1); tr.Add(b + 3); tr.Add(b); tr.Add(b + 3); tr.Add(b + 2); }
+                }
+            }
+            _ribbonMesh.Clear();
+            _ribbonMesh.SetVertices(v); _ribbonMesh.SetColors(c); _ribbonMesh.SetUVs(0, uv); _ribbonMesh.SetNormals(n); _ribbonMesh.SetTriangles(tr, 0);
+            _ribbonMesh.bounds = new Bounds(center, Vector3.one * 200f);
+        }
+
+        // ───────── 光の蓮（会場ごと、大きな花の中に入る） ─────────
+
+        Transform _lotus;
+        readonly List<(Transform pivot, Renderer r, float yaw, bool inner)> _petalsL = new List<(Transform, Renderer, float, bool)>();
+
+        void Bloom(float k, float t, float beat, float onBeat)
+        {
+            if (k <= 0) { if (_lotus) _lotus.gameObject.SetActive(false); return; }
+            if (_lotus == null)
+            {
+                _lotus = Group("光の蓮");
+                var outer = HoloM(new Color(1f, 0.55f, 0.82f)); var inner = HoloM(new Color(1f, 0.82f, 0.92f));
+                for (int ring = 0; ring < 2; ring++)
+                {
+                    int cnt = ring == 0 ? 12 : 10;
+                    for (int i = 0; i < cnt; i++)
+                    {
+                        float yaw = (i + ring * 0.5f) * 360f / cnt;
+                        var pv = new GameObject("花びらのつけね").transform;
+                        pv.SetParent(_lotus, false);
+                        float len = ring == 0 ? 30f : 22f;
+                        var pt = Part(PrimitiveType.Sphere, pv, ring == 0 ? outer : inner, new Vector3(0, 0, len / 2f), new Vector3(len * 0.42f, 0.5f, len));
+                        _petalsL.Add((pv, pt.GetComponent<Renderer>(), yaw, ring == 1));
+                    }
+                }
+            }
+            _lotus.gameObject.SetActive(true);
+            var center = new Vector3(stageCenter.x, Island.Ground - 0.5f, (seatMin.y + seatMax.y) / 2f - 6f);
+            _lotus.position = center;
+            float e = Ease(k);
+            foreach (var (pv, r, yaw, inner) in _petalsL)
+            {
+                float r0 = inner ? 20f : 30f;
+                // 閉じたつぼみ（上を向く）→ 開いて、客席をかこむように少し外へひらく
+                float open = Mathf.Lerp(-80f, inner ? -35f : -22f, e) + Mathf.Sin(beat * Mathf.PI * 0.25f + yaw) * 2f;
+                pv.localPosition = Quaternion.Euler(0, yaw, 0) * new Vector3(0, 0, r0 * e);
+                pv.localRotation = Quaternion.Euler(0, yaw, 0) * Quaternion.Euler(open, 0, 0);
+                pv.localScale = Vector3.one * Mathf.Max(0.01f, e);
+                _mpb.SetColor(IdColor, (inner ? new Color(1f, 0.82f, 0.92f) : new Color(1f, 0.55f, 0.82f)) * (0.8f + 0.4f * onBeat));
+                r.SetPropertyBlock(_mpb);
+            }
+            // 花のまんなかから、光の粒がのぼる
+            for (int i = 0; i < 3; i++)
+                if (Random.value < k) Emit(_motes, center + new Vector3(Random.Range(-14f, 14f), 0.6f, Random.Range(-10f, 10f)), Vector3.up * Random.Range(1.5f, 4f), new Color(1f, 0.85f, 0.6f), 6f, 0.4f);
         }
 
         // ───────── 空に浮かぶ歌詞 ─────────

@@ -104,6 +104,7 @@ namespace Tsukuyomi
             _cam = FindFirstObjectByType<OrbitCamera>();
             FxStart();
             WowStart();
+            MicSetup();
             PenColor = Mathf.Clamp(PlayerPrefs.GetInt("tsukuyomi_pen", 1), 0, PenColors.Length - 1);
             _lastAutoDay = PlayerPrefs.GetString("tsukuyomi_live_day", "");
             if (Ts.Arg("--live") != null) Invoke(nameof(StartFromArg), 2.5f);
@@ -502,7 +503,7 @@ namespace Tsukuyomi
 
             Vector3 body = new Vector3(0, 0, Mathf.Sin(beat * Mathf.PI * 0.5f) * (ballad ? 3f : 6f));
             Vector3 head = new Vector3(Mathf.Sin(beat * Mathf.PI) * 3f, 0, Mathf.Sin(beat * Mathf.PI * 0.5f) * 7f);
-            Vector3 armR = new Vector3(-100f, 12f, -32f);   // 右手はマイク
+            Vector3 armR = new Vector3(-92f, 22f, -18f);   // 右手はマイク（あごの下あたり。マイクの先は口を向く）
             Vector3 armL;
             float b4 = Mathf.Repeat(beat, 16f);
             if (_phase == Phase.MC || _phase == Phase.Ending || (_phase == Phase.Song && _si == 0 && _songT < 15f))
@@ -526,6 +527,29 @@ namespace Tsukuyomi
             if (yHead) yHead.localRotation = Quaternion.Slerp(yHead.localRotation, Quaternion.Euler(head), k);
             if (yArmL) yArmL.localRotation = Quaternion.Slerp(yArmL.localRotation, Quaternion.Euler(armL), k);
             if (yArmR) yArmR.localRotation = Quaternion.Slerp(yArmR.localRotation, Quaternion.Euler(armR), k);
+            // マイクは、手もとで口のほうを向く（客席に向けない）
+            if (_micPivot && yHead)
+            {
+                var mouth = yHead.TransformPoint(new Vector3(0, -0.1f, 0.16f));
+                var d = mouth - _micPivot.position;
+                if (d.sqrMagnitude > 0.0001f) _micPivot.rotation = Quaternion.FromToRotation(Vector3.down, d.normalized) ;
+            }
+        }
+
+        Transform _micPivot;
+
+        void MicSetup()
+        {
+            if (!yArmR) return;
+            var mic = yArmR.Find("マイク"); var head = yArmR.Find("マイクの頭");
+            if (!mic) return;
+            _micPivot = new GameObject("マイクの持ち手").transform;
+            _micPivot.SetParent(yArmR, false);
+            _micPivot.localPosition = new Vector3(0, -0.47f, 0.03f);
+            _micPivot.localRotation = Quaternion.identity;
+            _micPivot.gameObject.layer = mic.gameObject.layer;
+            mic.SetParent(_micPivot, true);
+            if (head) head.SetParent(_micPivot, true);
         }
 
         // ───────── 投げ銭とコメント（コメントは空に流れる：Wow） ─────────
