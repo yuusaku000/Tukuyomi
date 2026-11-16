@@ -16,6 +16,8 @@ namespace Tsukuyomi
         public float eyeHeight = 1.52f;
 
         float _cur;
+        readonly RaycastHit[] _hits = new RaycastHit[16];
+
         readonly List<Renderer> _body = new List<Renderer>();
         bool _bodyHidden;
 
@@ -64,16 +66,25 @@ namespace Tsukuyomi
                 SetBodyHidden(true);
                 return;
             }
-            SetBodyHidden(false);
             pitch = Mathf.Clamp(pitch, -25f, 75f);
             var pivot = target.position + Vector3.up * height;
             var r = Quaternion.Euler(pitch, yaw, 0);
             var dir = r * Vector3.back;
+            // 壁などにぶつかったら寄る。ただし提灯・看板・小物のような小さい物では寄らない（頭のドアップになるため）
             float want = distance;
-            if (Physics.SphereCast(pivot, 0.25f, dir, out var hit, distance, ~0, QueryTriggerInteraction.Ignore))
-                want = Mathf.Max(0.5f, hit.distance - 0.1f);
+            int n = Physics.SphereCastNonAlloc(pivot, 0.2f, dir, _hits, distance, ~0, QueryTriggerInteraction.Ignore);
+            for (int i = 0; i < n; i++)
+            {
+                var c = _hits[i].collider;
+                if (c == null || c is CharacterController || _hits[i].distance <= 0f) continue;
+                var e = c.bounds.size;
+                if (Mathf.Max(e.x, Mathf.Max(e.y, e.z)) < 1.6f) continue;
+                want = Mathf.Min(want, Mathf.Max(0.5f, _hits[i].distance - 0.1f));
+            }
             _cur = want < _cur ? want : Mathf.Lerp(_cur, want, 1 - Mathf.Exp(-6f * Time.deltaTime));
             transform.SetPositionAndRotation(pivot + dir * _cur, r);
+            // それでも近づきすぎたら、自分の人形を隠す（頭が画面いっぱいにならないように）
+            SetBodyHidden(_cur < 1.2f);
         }
 
         /// <summary>着がえで人形の部品が増えたり減ったりしたら呼ぶ（一人称で隠す部品を数えなおす）。</summary>

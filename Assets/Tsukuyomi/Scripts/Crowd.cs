@@ -4,9 +4,9 @@ using UnityEngine;
 namespace Tsukuyomi
 {
     /// <summary>
-    /// 町を歩く人たち（30人）とお店の人。起動のときに人形を作り、軽くするために
+    /// 町の人たち：自分のまわりを歩く人（60人）・お店の人・店先と名所で立ち止まっている人。起動のときに人形を作り、軽くするために
     /// 1人を「体・左腕・右腕」の3つの形にまとめ、色は小さな色見本の絵1枚（全員で1つのマテリアル）で塗る。
-    /// 通り（StreetMap）の線の上を行ったり来たりして、ときどき立ち止まる。遠くの人は止めて描かない。
+    /// 歩く人は島じゅうの通り（StreetMap）から自分の近くに出し、離れたら近くへ移す。30m より遠い人は影と腕振りなし、85m より遠い人は描かない。
     /// </summary>
     public class Crowd : MonoBehaviour
     {
@@ -21,8 +21,9 @@ namespace Tsukuyomi
             public Renderer[] rends;
             public List<Vector3> path; // x, z, 道の半分の幅
             public float s, dir = 1, offset, speed, wait, nextStop, y, yT, rayT, len;
-            public bool still, visible = true;
+            public bool still, visible = true, near = true;
             public float stillYaw;
+            public string[] talk; // その人がよく言うこと
         }
 
         readonly List<Walker> _walkers = new List<Walker>();
@@ -30,17 +31,19 @@ namespace Tsukuyomi
         Material _mat;
         readonly Dictionary<Color32, int> _cells = new Dictionary<Color32, int>();
         readonly Color32[] _pix = new Color32[AtlasSize * AtlasSize];
-        const int AtlasSize = 32;
+        const int AtlasSize = 64;
         readonly RaycastHit[] _hits = new RaycastHit[6];
         System.Random _rng;
         float R(float a, float b) => a + (float)_rng.NextDouble() * (b - a);
         int Ri(int a, int b) => _rng.Next(a, b);
 
-        // 通りの名前と人数（30人＝通り 28人＋店先で品物を見ている人 2人）
-        static readonly (string street, int n)[] Plan =
-        {
-            ("月見商店街", 10), ("東西通り", 5), ("大門通り", 4), ("下町の環状通り", 5), ("中段の環状通り", 4),
-        };
+        // 歩く人は自分のまわりに出す（島じゅうの通りから）。離れた人は自分の近くの通りへ移す
+        public int walkers = 60;
+        public float spawnNear = 35f, spawnFar = 75f, recycle = 88f, detail = 30f;
+        readonly List<List<Vector3>> _streets = new List<List<Vector3>>();
+        readonly List<float> _lens = new List<float>();
+        float _totalLen;
+        Transform _cam;
 
         void Start()
         {
@@ -51,50 +54,107 @@ namespace Tsukuyomi
             _mat = new Material(litTemplate) { name = "crowd" };
             _mat.SetTexture("_BaseMap", _atlas);
             _mat.SetColor("_BaseColor", Color.white);
+            _cam = Camera.main != null ? Camera.main.transform : null;
 
             var map = StreetMap.I != null ? StreetMap.I : FindFirstObjectByType<StreetMap>();
-            int made = 0;
-            foreach (var (street, n) in Plan)
-            {
-                var path = map != null ? map.Path(street) : null;
-                if (path == null || path.Count < 2) { Debug.LogWarning("crowd: no street " + street); continue; }
-                float len = Length(path);
-                for (int i = 0; i < n; i++)
+            if (map != null)
+                foreach (var path in map.AllPaths())
                 {
-                    var w = Make("通る人" + made++, RandomLook(), R(0.8f, 0.95f));
-                    w.path = path;
-                    w.s = (i + R(0.1f, 0.9f)) / n * len;
-                    w.dir = _rng.NextDouble() < 0.5 ? 1 : -1;
-                    w.offset = R(-0.55f, 0.55f);
-                    w.speed = R(1.0f, 1.6f);
-                    w.nextStop = R(6f, 20f);
-                    w.len = len;
-                    var (p0, _, _) = At(path, w.s);
-                    w.y = w.yT = Island.Height(p0.x, p0.y);
-                    w.root.position = new Vector3(p0.x, w.y, p0.y);
-                    _walkers.Add(w);
+                    float len = Length(path);
+                    if (len < 8f) continue; // 短すぎるつなぎの道はのぞく
+                    _streets.Add(path); _lens.Add(len); _totalLen += len;
                 }
+
+            // 歩く人（はじめは自分のまわり 5〜75m に）
+            for (int i = 0; i < walkers && _streets.Count > 0; i++)
+            {
+                var w = Make("通る人" + i, RandomLook(), R(0.8f, 0.95f));
+                w.speed = R(1.0f, 1.6f);
+                w.offset = R(-0.55f, 0.55f);
+                w.nextStop = R(6f, 20f);
+                if (!Respawn(w, 5f, spawnFar, 80)) w.root.position = new Vector3(0, -50, 0);
+                _walkers.Add(w);
             }
-            // 店先で品物を見ている人と、お店の人
-            int k = 0;
+
+            // お店の人と、店先の人（どの店にも2人）
             foreach (var shop in ShopStand.All)
             {
-                var keeper = Make("お店の人（" + shop.title + "）", KeeperLook(shop.kind), 0.9f);
+                var keeper = Make("お店の人（" + shop.title + "）", KeeperLook(shop.kind), 0.9f, true);
+                keeper.talk = shop.kind == ItemKind.Food ? KeeperFood : shop.kind == ItemKind.Clothes ? KeeperClothes : KeeperAcc;
                 keeper.still = true; keeper.stillYaw = shop.keeperYaw;
                 Place(keeper, shop.keeper, shop.keeperYaw);
                 _walkers.Add(keeper);
-                if (k++ < 2)
+                for (int k = 0; k < 2; k++)
                 {
-                    var side = Quaternion.Euler(0, shop.standYaw, 0) * Vector3.right * (k == 1 ? 1.6f : -1.6f);
-                    var b = Make("品物を見ている人" + k, RandomLook(), 0.86f);
-                    b.still = true; b.stillYaw = shop.standYaw + (k == 1 ? -15 : 15);
-                    Place(b, shop.stand + side, b.stillYaw);
+                    var rot = Quaternion.Euler(0, shop.standYaw, 0);
+                    var p = shop.stand + rot * new Vector3(k == 0 ? 1.5f : -1.4f, 0, k == 0 ? 0.2f : -1.1f);
+                    var b = Make("店先の人", RandomLook(), R(0.82f, 0.92f), true);
+                    b.talk = shop.kind == ItemKind.Food ? FrontFood : FrontWear;
+                    b.still = true; b.stillYaw = shop.standYaw + R(-25f, 25f);
+                    Stand(b, p, b.stillYaw);
+                    _walkers.Add(b);
+                }
+            }
+
+            // 名所で立ち止まっている人（島じゅう）
+            foreach (var z in Zone.All)
+            {
+                if (z.id == "corridor") continue;
+                int n = z.id == "plaza" ? 6 : z.id == "stage" ? 2 : 3;
+                for (int k = 0; k < n; k++)
+                {
+                    float a = R(0f, Mathf.PI * 2), r = R(3f, 7f);
+                    var p = z.warpPos + new Vector3(Mathf.Cos(a) * r, 0, Mathf.Sin(a) * r);
+                    // 広場は大画面のほうを向く。ほかは、なんとなく名所のほうを見る
+                    float yaw = z.id == "plaza" ? z.warpYaw + R(-20f, 20f) : z.warpYaw + R(-70f, 70f);
+                    var b = Make("名所の人", RandomLook(), R(0.8f, 0.94f), true);
+                    b.talk = ZoneLines(z.id);
+                    b.still = true; b.stillYaw = yaw;
+                    Stand(b, p, yaw);
                     _walkers.Add(b);
                 }
             }
             _atlas.SetPixels32(_pix);
             _atlas.Apply(false, true);
-            Debug.Log($"[Crowd] walkers {_walkers.Count}, colors {_cells.Count}");
+            Debug.Log($"[Crowd] people {_walkers.Count}, streets {_streets.Count}, colors {_cells.Count}");
+        }
+
+        /// <summary>立ち止まる人：地面（橋や石段の上も）に立たせる。水の中なら出さない。</summary>
+        void Stand(Walker w, Vector3 p, float yaw)
+        {
+            float y = Ground(p.x, p.y + 1.5f, p.z, Island.Height(p.x, p.z));
+            if (y < 0.3f || Mathf.Abs(y - p.y) > 2.5f) { w.root.gameObject.SetActive(false); return; }
+            w.y = w.yT = y;
+            w.root.SetPositionAndRotation(new Vector3(p.x, y, p.z), Quaternion.Euler(0, yaw, 0));
+        }
+
+        /// <summary>自分から near〜far の距離にある通りの上に出しなおす。</summary>
+        bool Respawn(Walker w, float near, float far, int tries)
+        {
+            var me = _cam != null ? _cam.position : Vector3.zero;
+            for (int t = 0; t < tries; t++)
+            {
+                // 長い通りほど選ばれやすく
+                float pick = R(0f, _totalLen);
+                int si = 0;
+                while (si < _lens.Count - 1 && pick > _lens[si]) { pick -= _lens[si]; si++; }
+                var path = _streets[si];
+                var (pos, d, half) = At(path, pick);
+                var at = pos + new Vector2(-d.y, d.x) * (w.offset * half);
+                float dist = Vector2.Distance(at, new Vector2(me.x, me.z));
+                if (dist < near || dist > far) continue;
+                if (!float.IsNaN(Island.WaterSurface(at.x, at.y)) && Island.Height(at.x, at.y) < 0.3f) continue;
+                w.path = path; w.len = _lens[si]; w.s = pick;
+                w.dir = _rng.NextDouble() < 0.5 ? 1 : -1;
+                float h = Island.Height(at.x, at.y);
+                w.y = w.yT = Ground(at.x, h + 1f, at.y, h);
+                w.rayT = 0; w.wait = 0;
+                w.root.position = new Vector3(at.x, w.y, at.y);
+                float yaw = Mathf.Atan2(d.x * w.dir, d.y * w.dir) * Mathf.Rad2Deg;
+                w.root.rotation = Quaternion.Euler(0, yaw, 0);
+                return true;
+            }
+            return false;
         }
 
         void Place(Walker w, Vector3 p, float yaw)
@@ -187,12 +247,20 @@ namespace Tsukuyomi
             return m;
         }
 
-        Walker Make(string name, DollLook look, float scale)
+        Walker Make(string name, DollLook look, float scale, bool still = false)
         {
             var parts = Doll.Build(name, look, TmpMat, transform);
             parts.root.transform.localScale = Vector3.one * scale;
             var anim = parts.root.GetComponent<DollAnimator>();
             var rs = new List<Renderer>();
+            if (still)
+            {
+                // 立ち止まっている人は、腕もいっしょに1つの形にして動かさない（軽くするため）
+                rs.Add(Bake(parts.body, null, null));
+                anim.enabled = false;
+                anim.head = null; anim.armL = anim.armR = null;
+                return new Walker { root = parts.root.transform, anim = anim, rends = rs.ToArray(), still = true };
+            }
             rs.Add(Bake(parts.body, parts.armL, parts.armR));
             rs.Add(Bake(parts.armL, null, null));
             rs.Add(Bake(parts.armR, null, null));
@@ -247,25 +315,122 @@ namespace Tsukuyomi
             return best > float.NegativeInfinity ? best : fallback;
         }
 
+        // ───────── 吹き出し ─────────
+
+        /// <summary>近くの人の吹き出し（メニューでオン・オフ。PlayerPrefs に残す）。</summary>
+        public static bool BubblesOn
+        {
+            get => PlayerPrefs.GetInt("tsukuyomi_bubbles", 1) == 1;
+            set { PlayerPrefs.SetInt("tsukuyomi_bubbles", value ? 1 : 0); PlayerPrefs.Save(); if (!value) Bubbles.Clear(); }
+        }
+
+        public class Bubble { public Transform who; public float height, t; public string text; }
+        public static readonly List<Bubble> Bubbles = new List<Bubble>();
+        float _talkT = 1f;
+        readonly List<Walker> _near = new List<Walker>();
+
+
+        static readonly string[] Common =
+        {
+            "ライブよかった〜！", "ヤチヨの新曲、聴いた？", "次のライブいつだろう", "今日も月がきれいだね", "おなかすいた〜",
+            "あの屋台、おいしかったよ", "千年桜、見に行こうよ", "釣り堀で大物がつれたんだって", "ふじゅ〜ためなきゃ…",
+            "この服、新しく買ったの！", "五重塔まで登ってみる？", "空のお魚、かわいい", "迷子になっちゃった…", "ツクヨミ、たのしいね",
+        };
+        static readonly string[] Night = { "夜店がきれい〜", "提灯がいっぱい！", "夜のツクヨミ、好きだな" };
+        static readonly string[] Fireworks = { "花火きれい！", "たまや〜！", "花火、もっと近くで見よう" };
+        static readonly string[] Morning = { "おはよう〜", "朝のツクヨミ、しずかだね" };
+        static readonly string[] KeeperFood = { "おいしいよ〜！", "焼きたてだよ！", "あったかいよ〜", "いらっしゃい！", "ひとつどう？" };
+        static readonly string[] KeeperClothes = { "きっと似合いますよ", "新しい柄、入りました", "試着だけでもどうぞ" };
+        static readonly string[] KeeperAcc = { "かんざし、いかが？", "光る金魚が人気だよ", "つけてみるだけでもどうぞ" };
+        static readonly string[] FrontFood = { "おいしそう…", "どれにしようかな", "これ、おいしいよ！", "いいにおい〜" };
+        static readonly string[] FrontWear = { "この色かわいい", "どっちが似合うかな", "ふじゅ〜足りるかな…" };
+
+        static string[] ZoneLines(string id) => id switch
+        {
+            "plaza" => new[] { "ヤチヨだ！", "大画面きれい〜", "ライブ、ここで見ようかな" },
+            "sakura" => new[] { "桜きれい…", "千年も咲いてるんだって", "花びらがふってくる" },
+            "fishing" => new[] { "つれるかな", "大物ねらうぞ〜", "茶屋でひと休みしよう" },
+            "lookout" => new[] { "いい眺め！", "海がひろ〜い", "ちょっとこわい…" },
+            "palace" => new[] { "月の御殿だ…", "大きいね〜", "ここ、てっぺんだよ" },
+            "torii" => new[] { "大鳥居、でっかい", "ここから入ってきたの", "海がきらきら" },
+            "stage" => new[] { "ここでライブやるんだって", "ライブ楽しみ！", "舞台がひかってる" },
+            "upper" => new[] { "五重塔、たかい！", "お参りしていこう", "鐘の音がきこえる" },
+            "bamboo" => new[] { "竹の音がいいね", "すずしい〜", "竹林、しずか…" },
+            "shitamachi" => new[] { "屋形船、乗りたい", "水路がきれい", "風鈴の音がする" },
+            "shopping" => new[] { "なに買おうかな", "商店街、にぎやか！", "食べ歩きしよう" },
+            _ => Common,
+        };
+
+        string PickLine(Walker w)
+        {
+            var now = Ts.Now; int h = now.Hour;
+            double r = _rng.NextDouble();
+            if (w.talk != null && r < 0.75) return w.talk[_rng.Next(w.talk.Length)];
+            if (h >= 19 && h < 23 && r < 0.85) return Fireworks[_rng.Next(Fireworks.Length)];
+            if ((h >= 18 || h < 4) && r < 0.9) return Night[_rng.Next(Night.Length)];
+            if (h >= 5 && h < 10 && r < 0.9) return Morning[_rng.Next(Morning.Length)];
+            return Common[_rng.Next(Common.Length)];
+        }
+
+        /// <summary>近くの人のだれかに、ときどき吹き出しを出す（同時に4つまで）。</summary>
+        void TalkTick(Vector3 eye)
+        {
+            for (int i = Bubbles.Count - 1; i >= 0; i--)
+            {
+                Bubbles[i].t -= Time.deltaTime;
+                if (Bubbles[i].t <= 0 || Bubbles[i].who == null) Bubbles.RemoveAt(i);
+            }
+            if (!BubblesOn) return;
+            _talkT -= Time.deltaTime;
+            if (_talkT > 0 || Bubbles.Count >= 4) return;
+            _talkT = R(1.2f, 3f);
+            // 近く（20m 以内）の人の中から1人えらぶ
+            _near.Clear();
+            foreach (var w in _walkers)
+                if (w.root.gameObject.activeSelf && (w.root.position - eye).sqrMagnitude < 20f * 20f && !Bubbles.Exists(b => b.who == w.root)) _near.Add(w);
+            if (_near.Count == 0) return;
+            var who = _near[_rng.Next(_near.Count)];
+            Bubbles.Add(new Bubble { who = who.root, height = 1.75f * who.root.localScale.y + 0.25f, t = R(3f, 4.5f), text = PickLine(who) });
+        }
+
         void Update()
         {
-            var c = Camera.main;
-            var eye = c != null ? c.transform.position : Vector3.zero;
+            if (_cam == null && Camera.main != null) _cam = Camera.main.transform;
+            var eye = _cam != null ? _cam.position : Vector3.zero;
             float dt = Time.deltaTime;
+            int respawned = 0;
+            TalkTick(eye);
             foreach (var w in _walkers)
             {
+                if (!w.root.gameObject.activeSelf) continue;
                 var p = w.root.position;
-                bool vis = (p - eye).sqrMagnitude < drawDistance * drawDistance;
+                float d2 = (p - eye).sqrMagnitude;
+
+                // 遠くへ離れた歩く人は、自分の近くの通りへ（1フレームに2人まで）
+                if (!w.still && d2 > recycle * recycle && respawned < 2)
+                {
+                    respawned++;
+                    if (Respawn(w, spawnNear, spawnFar, 12)) { p = w.root.position; d2 = (p - eye).sqrMagnitude; }
+                }
+
+                bool vis = d2 < drawDistance * drawDistance;
+                bool near = d2 < detail * detail;
                 if (vis != w.visible)
                 {
                     w.visible = vis;
                     foreach (var r in w.rends) r.enabled = vis;
-                    w.anim.enabled = vis;
                 }
-                if (w.still) continue;
+                // 遠くの人は影なし・腕振りなし
+                if (near != w.near)
+                {
+                    w.near = near;
+                    var mode = near ? UnityEngine.Rendering.ShadowCastingMode.On : UnityEngine.Rendering.ShadowCastingMode.Off;
+                    foreach (var r in w.rends) r.shadowCastingMode = mode;
+                }
+                if (!w.still) w.anim.enabled = vis && near;
+                if (w.still || w.path == null) continue;
 
                 float len = w.len;
-
                 if (w.wait > 0)
                 {
                     w.wait -= dt;
@@ -291,7 +456,7 @@ namespace Tsukuyomi
                 w.rayT -= dt;
                 if (w.rayT <= 0)
                 {
-                    w.rayT = vis ? 0.15f : 1f;
+                    w.rayT = near ? 0.15f : vis ? 0.4f : 1f;
                     w.yT = Ground(at.x, w.y, at.y, Island.Height(at.x, at.y));
                 }
                 w.y = Mathf.Lerp(w.y, w.yT, 1 - Mathf.Exp(-10f * dt));

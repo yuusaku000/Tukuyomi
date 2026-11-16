@@ -319,7 +319,33 @@ namespace Tsukuyomi
             if (Button(new Rect(r.xMax - 250, by, 226, 66), "とじる（Esc）")) CloseShop();
         }
 
+        /// <summary>近くの人の吹き出し（頭の上に、白い吹き出しと黒い文字）。</summary>
+        void DrawBubbles()
+        {
+            var c = Camera.main;
+            if (c == null || Crowd.Bubbles.Count == 0) return;
+            foreach (var b in Crowd.Bubbles)
+            {
+                if (b.who == null) continue;
+                var wp = b.who.position + Vector3.up * b.height;
+                var v = wp - c.transform.position;
+                if (Vector3.Dot(v, c.transform.forward) < 0.5f) continue;
+                var sp = c.WorldToScreenPoint(wp);
+                float x = sp.x / S, y = (Screen.height - sp.y) / S;
+                float a = Mathf.Clamp01(b.t / 0.4f) * Mathf.Clamp01((20f - v.magnitude) / 4f);
+                if (a <= 0) continue;
+                float w = b.text.Length * 21f + 36f;
+                var r = new Rect(x - w / 2, y - 62, w, 46);
+                Fill(r, new Color(1f, 1f, 1f, 0.92f * a));
+                Frame(r, new Color(Pink.r, Pink.g, Pink.b, 0.8f * a), 2f);
+                // しっぽ
+                for (int i = 0; i < 4; i++) Fill(new Rect(x - 7 + i * 2, r.yMax + i * 3, 14 - i * 4, 3), new Color(1f, 1f, 1f, 0.92f * a));
+                Text(r, b.text, 21, new Color(0.12f, 0.1f, 0.2f, a), TextAnchor.MiddleCenter, false, FontStyle.Normal, false);
+            }
+        }
+
         static string SlotName(Slot s) => s switch
+
         {
             Slot.Hair => "髪", Slot.Head => "頭", Slot.Face => "顔", Slot.Hand => "手", Slot.Shoulder => "肩", Slot.Back => "背中", _ => "",
         };

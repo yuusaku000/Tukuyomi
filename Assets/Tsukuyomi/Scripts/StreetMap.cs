@@ -15,7 +15,21 @@ namespace Tsukuyomi
         public static StreetMap I { get; private set; }
         void Awake() => I = this;
 
+        /// <summary>すべての通りの線（x, z, 道の半分の幅）。</summary>
+        public IEnumerable<List<Vector3>> AllPaths()
+        {
+            int start = 0;
+            for (int i = 0; i < counts.Length; i++)
+            {
+                var l = new List<Vector3>(counts[i]);
+                for (int k = 0; k < counts[i]; k++) l.Add(new Vector3(points[start + k].x, points[start + k].y, halves[i]));
+                start += counts[i];
+                yield return l;
+            }
+        }
+
         /// <summary>名前の通りの線（x, z, 道の半分の幅）。なければ null。</summary>
+
         public List<Vector3> Path(string name)
         {
             if (names == null) return null;

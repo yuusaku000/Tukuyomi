@@ -21,6 +21,7 @@ namespace Tsukuyomi.EditorTools
             public Vector2 near;
             public bool stall;
             public Color cloth;
+            public float t; // 0 より大きいとき：通りの線のこの割合の場所の近く（環状の通りなど）
         }
 
         static Def House(string group, ItemKind kind, string title, string en, string hello, string street, float x, float z) =>
@@ -53,6 +54,34 @@ namespace Tsukuyomi.EditorTools
 
         };
 
+        /// <summary>島全体に置く、まったく同じ店（品ぞろえも名前も同じ）。通りの線の割合 t の近くに置く。</summary>
+        static Def Again(Def d, string street, float t) { d.street = street; d.t = t; d.near = Vector2.zero; return d; }
+
+        static Def[] All()
+        {
+            var l = new System.Collections.Generic.List<Def>(Defs);
+            Def F(string g) => System.Array.Find(Defs, d => d.group == g);
+            // 下町の環状通り
+            l.Add(Again(F("kanmi"), "下町の環状通り", 0.12f));
+            l.Add(Again(F("komono"), "下町の環状通り", 0.28f));
+            l.Add(Again(F("takoyaki"), "下町の環状通り", 0.42f));
+            l.Add(Again(F("yukata"), "下町の環状通り", 0.58f));
+            l.Add(Again(F("ramen"), "下町の環状通り", 0.72f));
+            l.Add(Again(F("crepe"), "下町の環状通り", 0.88f));
+            // 中段の環状通り
+            l.Add(Again(F("yakitori"), "中段の環状通り", 0.2f));
+            l.Add(Again(F("kori"), "中段の環状通り", 0.5f));
+            l.Add(Again(F("fudan"), "中段の環状通り|下町の環状通り", 0.8f));
+            // 上段の環状通り
+            l.Add(Again(F("oden"), "上段の環状通り", 0.15f));
+            l.Add(Again(F("sushi"), "上段の環状通り", 0.4f));
+            l.Add(Again(F("kanmi"), "上段の環状通り", 0.65f));
+            l.Add(Again(F("furisode"), "上段の環状通り|下町の環状通り", 0.04f));
+            // 頂上の参道
+            l.Add(Again(System.Array.Find(Defs, d => d.group == "komono" && d.stall), "頂上の参道|上段の参道", 0.5f));
+            return l.ToArray();
+        }
+
         public static void Build(Transform parent)
         {
             var keep = Rng;
@@ -60,9 +89,10 @@ namespace Tsukuyomi.EditorTools
             var g = Group(parent, "お店", Vector3.zero);
             int made = 0, seed = 0;
             Placed.Clear();
-            foreach (var d in Defs) if (One(g, d, seed++)) made++;
+            var all = All();
+            foreach (var d in all) if (One(g, d, seed++)) made++;
             Rng = keep;
-            Debug.Log($"[Shops] {made}/{Defs.Length} shops");
+            Debug.Log($"[Shops] {made}/{all.Length} shops");
         }
 
         /// <summary>通りの near にいちばん近い所から前後をさがして、平らで空いた場所に置く。</summary>
@@ -94,10 +124,11 @@ namespace Tsukuyomi.EditorTools
         {
             float w = def.stall ? 3.4f : 8f, dep = def.stall ? 3.2f : 9f;
             int nWater = 0, nFree = 0, nStairs = 0, nRoad = 0, nFlat = 0, nLevel = 0;
+            var near = def.t > 0 ? street.pts[Mathf.Clamp((int)(def.t * (street.pts.Count - 1)), 1, street.pts.Count - 2)] : def.near;
             int best = 0; float bd = float.MaxValue;
             for (int i = 1; i < street.pts.Count - 1; i++)
             {
-                float dd = Vector2.Distance(street.pts[i], def.near);
+                float dd = Vector2.Distance(street.pts[i], near);
                 if (dd < bd) { bd = dd; best = i; }
             }
             for (int step = 0; step < 60; step++)
@@ -107,7 +138,7 @@ namespace Tsukuyomi.EditorTools
                 var p = street.pts[i];
                 var dir = (street.pts[i + 1] - street.pts[i - 1]).normalized;
                 // near のある側を先にためす
-                float first = Vector2.Dot(new Vector2(-dir.y, dir.x), def.near - p) >= 0 ? 1 : -1;
+                float first = def.t > 0 ? (((seed & 1) == 0) ? 1 : -1) : Vector2.Dot(new Vector2(-dir.y, dir.x), near - p) >= 0 ? 1 : -1;
                 foreach (float sideSign in new[] { first, -first })
                 {
                     var normal = new Vector2(-dir.y, dir.x) * sideSign;

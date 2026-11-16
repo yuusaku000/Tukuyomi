@@ -371,6 +371,9 @@ namespace Tsukuyomi
                 Keys();
                 // お店の AR 看板と「E で入る」
                 DrawShopSigns();
+                // 近くの人の吹き出し
+                DrawBubbles();
+
                 // 一人称の照準
                 if (cam != null && cam.firstPerson)
                 {
@@ -500,19 +503,21 @@ namespace Tsukuyomi
             Fill(new Rect(r.x + 200, r.y + 124, 220, 2), Pink);
             float y = r.y + 150;
             if (Button(new Rect(r.x + 110, y, 440, 66), "つづける")) _menu = false;
-            y += 82;
+            y += 76;
             if (Button(new Rect(r.x + 110, y, 440, 66), "地図とワープ（M）")) { _menu = false; _map = true; }
-            y += 82;
+            y += 76;
             if (Button(new Rect(r.x + 110, y, 440, 66), cam != null && cam.firstPerson ? "視点：一人称（V で切りかえ）" : "視点：三人称（V で切りかえ）")) cam?.Toggle();
-            y += 82;
+            y += 76;
             if (Button(new Rect(r.x + 110, y, 440, 66), AmbientAudio.Muted ? "音：オフ（押すとオン）" : "音：オン（押すとオフ）")) AmbientAudio.Muted = !AmbientAudio.Muted;
-            y += 82;
+            y += 76;
             if (Button(new Rect(r.x + 110, y, 440, 66), $"画質：{Quality.Name}（押すと切りかえ）")) Quality.Next();
-            y += 82;
+            y += 76;
             if (Button(new Rect(r.x + 110, y, 440, 66), "写真のフォルダを開く")) { System.IO.Directory.CreateDirectory(PhotoDir); Application.OpenURL("file:///" + PhotoDir.Replace('\\', '/')); }
-            y += 82;
+            y += 76;
             if (Button(new Rect(r.x + 110, y, 440, 66), "着がえ（C）")) OpenWardrobe();
-            y += 82;
+            y += 76;
+            if (Button(new Rect(r.x + 110, y, 440, 66), Crowd.BubblesOn ? "吹き出し：オン（押すとオフ）" : "吹き出し：オフ（押すとオン）")) Crowd.BubblesOn = !Crowd.BubblesOn;
+            y += 76;
             if (Button(new Rect(r.x + 110, y, 440, 66), "ログアウト（終わる）")) GameSession.Instance?.Logout();
             Text(new Rect(r.x, r.yMax - 116, r.width, 110),
 
