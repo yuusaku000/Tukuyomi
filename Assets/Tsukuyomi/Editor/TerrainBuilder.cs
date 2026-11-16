@@ -49,7 +49,7 @@ namespace Tsukuyomi.EditorTools
         public static Material Bed => Lit("t_bed", new Color(0.22f, 0.27f, 0.26f), 0.2f);
         public static Material StoneWall => TexMat("t_ishigaki", "stone_wall_05", new Color(0.92f, 0.9f, 0.86f), 1f, 0.15f);
         public static Material PavingTex => TexMat("t_paving", "stone_tiles_03", new Color(0.95f, 0.93f, 0.9f), 1f, 0.2f);
-        public static Material AlleyTex => TexMat("t_alley", "grass_path_2", new Color(0.8f, 0.76f, 0.7f), 1f, 0.1f);
+        public static Material AlleyTex => TexMat("t_alley_stone", "stone_tiles_03", new Color(0.78f, 0.7f, 0.6f), 1f, 0.15f);
 
         // ───────── 地面 ─────────
 
@@ -62,6 +62,7 @@ namespace Tsukuyomi.EditorTools
                 for (int j = 0; j <= nz; j++)
                     H[i, j] = Island.Height(Bounds.xMin + i * Cell, Bounds.yMin + j * Cell);
             FlattenUnderStreets(H, nx, nz);
+            CarveStairs(H, nx, nz);
 
             int count = 0;
             for (int ci = 0; ci < nx; ci += ChunkCells)
@@ -94,12 +95,35 @@ namespace Tsukuyomi.EditorTools
                             float x = Bounds.xMin + i * Cell, z = Bounds.yMin + j * Cell;
                             float d = Vector2.Distance(new Vector2(x, z), p);
                             if (d > reach) continue;
-                            if (Mathf.Abs(H[i, j] - target) > 3.5f) continue;            // 崖・ちがう段はさわらない
+                            if (Mathf.Abs(Island.TerraceHeight(x, z) - target) > 0.3f) continue; // 崖の斜面・丘・ちがう段はさわらない（石段の上が埋まる原因）
                             if (Island.NearestWater(x, z) < 0.6f) continue;
                             float k = 1 - Ts.Smooth(s.half + 0.3f, reach, d);
                             H[i, j] = Mathf.Lerp(H[i, j], target, k);
                         }
                 }
+            }
+        }
+
+        /// <summary>石段の下の地面を、段より低く彫る（崖の上の数段が土に埋まらないように）。</summary>
+        static void CarveStairs(float[,] H, int nx, int nz)
+        {
+            foreach (var c in Town.StairCuts)
+            {
+                var side = new Vector2(c.dir.y, -c.dir.x);
+                float reach = c.width / 2 + 0.8f;
+                var a = c.start + c.dir * c.tBottom; var b = c.start + c.dir * (c.tTop + 0.2f);
+                float xmin = Mathf.Min(a.x, b.x) - reach - 1, xmax = Mathf.Max(a.x, b.x) + reach + 1;
+                float zmin = Mathf.Min(a.y, b.y) - reach - 1, zmax = Mathf.Max(a.y, b.y) + reach + 1;
+                for (int i = Mathf.Max(0, Mathf.FloorToInt((xmin - Bounds.xMin) / Cell)); i <= Mathf.Min(nx, Mathf.CeilToInt((xmax - Bounds.xMin) / Cell)); i++)
+                    for (int j = Mathf.Max(0, Mathf.FloorToInt((zmin - Bounds.yMin) / Cell)); j <= Mathf.Min(nz, Mathf.CeilToInt((zmax - Bounds.yMin) / Cell)); j++)
+                    {
+                        var p = new Vector2(Bounds.xMin + i * Cell, Bounds.yMin + j * Cell) - c.start;
+                        float t = Vector2.Dot(p, c.dir), sd = Mathf.Abs(Vector2.Dot(p, side));
+                        if (sd > reach || t < c.tBottom || t > c.tTop + 0.2f) continue;
+                        int k = Mathf.Clamp(Mathf.FloorToInt((t - c.tBottom) / c.run), 0, c.n - 1);
+                        float limit = c.h0 + k * (c.h1 - c.h0) / c.n - 0.12f;   // ひとつ下の段の面より下
+                        if (H[i, j] > limit) H[i, j] = limit;
+                    }
             }
         }
 
@@ -236,6 +260,7 @@ namespace Tsukuyomi.EditorTools
                     var p0 = P(i); var p1 = P(i + 1);
                     var mid = (p0 + p1) / 2;
                     if (NearStairs(mid, 0.6f)) continue;
+                    if (Island.NearestWater(mid.x, mid.y) < 0.6f) continue;   // 滝のところ（石垣が川をふさがない）
                     var o0 = Out(i); var o1 = Out(i + 1);
                     // 外（低い側）の地面の高さ
                     float bot0 = Island.Height(p0.x + o0.x * 1.2f, p0.y + o0.y * 1.2f) - 0.6f;
@@ -285,10 +310,11 @@ namespace Tsukuyomi.EditorTools
                         var nrm = new Vector2(-d.y, d.x) * side;    // 岸の外向き（陸の方）
                         var p0 = c0 + nrm * ch.half; var p1 = c1 + nrm * ch.half;
                         if (Island.Inside(p0.x, p0.y) < 1f || Island.Inside(p1.x, p1.y) < 1f) continue;
-                        float top0 = Island.SurfaceNoWater(p0.x, p0.y) + 0.04f, top1 = Island.SurfaceNoWater(p1.x, p1.y) + 0.04f;
+                        float top0 = Island.SurfaceNoWater(p0.x, p0.y) + 0.03f, top1 = Island.SurfaceNoWater(p1.x, p1.y) + 0.03f;
+                        if (Mathf.Abs(top0 - top1) > 0.6f) continue;                 // 滝の段差（石垣の切れ目）は作らない
                         float bot0 = top0 - ch.depth - 0.4f, bot1 = top1 - ch.depth - 0.4f;
-                        // 壁の表は水の側（-nrm）
-                        wb.Segment(p0, p1, -nrm, -nrm, bot0, bot1, top0, top1, -0.04f, -0.9f);
+                        // 壁の表は水の側（-nrm）。壁は陸の方へ少し傾け、上のふたは陸の側へ 0.9m
+                        wb.Segment(p0, p1, -nrm, -nrm, bot0, bot1, top0, top1, 0.04f, 0.9f);
                     }
                     wb.Emit(g, ch.name + "の護岸", $"embank_{ci}_{(side > 0 ? "l" : "r")}", StoneWall);
                 }

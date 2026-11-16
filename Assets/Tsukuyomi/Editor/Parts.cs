@@ -144,9 +144,19 @@ namespace Tsukuyomi.EditorTools
         }
 
         /// <summary>石灯籠。light なら夜だけ周りを照らす。</summary>
+        /// <summary>置いた灯籠の場所（灯籠が何本も固まって立たないように）。</summary>
+        public static readonly System.Collections.Generic.List<Vector3> ToroSpots = new System.Collections.Generic.List<Vector3>();
+
+        public static bool ToroNear(Vector3 p, float r)
+        {
+            foreach (var q in ToroSpots) if ((new Vector2(q.x - p.x, q.z - p.z)).sqrMagnitude < r * r) return true;
+            return false;
+        }
+
         public static void Toro(Transform p, Vector3 pos, bool light, float scale = 1f)
         {
             var g = Group(p, "石灯籠", pos);
+            ToroSpots.Add(g.position);
             g.localScale = Vector3.one * scale;
             Cyl(g, "台", new Vector3(0, 0.12f, 0), 0.36f, 0.24f, Stone, true);
             Cyl(g, "竿", new Vector3(0, 0.75f, 0), 0.13f, 1.1f, Stone);

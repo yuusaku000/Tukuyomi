@@ -225,7 +225,7 @@ namespace Tsukuyomi.EditorTools
                 }
                 else if (kind == 2) Pine(gd, Vector3.zero, R(0.6f, 0.9f));
                 else if (kind == 3) { for (int i = 0; i < 4; i++) Ball(gd, "植えこみ", new Vector3(R(-1f, 1f), 0.4f, R(-1f, 1f)), new Vector3(R(0.8f, 1.4f), R(0.6f, 0.9f), R(0.8f, 1.4f)), bush); }
-                else if (kind == 4) { for (int i = 0; i < 3; i++) Ball(gd, "石", new Vector3(R(-1f, 1f), 0.15f, R(-1f, 1f)), new Vector3(R(0.5f, 1.2f), R(0.35f, 0.7f), R(0.5f, 1f)), rock); Toro(gd, new Vector3(0.6f, 0, 0.6f), false, 0.6f); }
+                else if (kind == 4) { for (int i = 0; i < 3; i++) Ball(gd, "石", new Vector3(R(-1f, 1f), 0.15f, R(-1f, 1f)), new Vector3(R(0.5f, 1.2f), R(0.35f, 0.7f), R(0.5f, 1f)), rock); if (!ToroNear(c3, 7f)) Toro(gd, new Vector3(0.6f, 0, 0.6f), false, 0.6f); }
                 else { for (int i = 0; i < 10; i++) Ball(gd, "花", new Vector3(R(-1f, 1f), 0.15f, R(-1f, 1f)), Vector3.one * R(0.2f, 0.32f), flowers[Ri(0, flowers.Length)]); Ball(gd, "葉", new Vector3(0, 0.08f, 0), new Vector3(2.2f, 0.15f, 2.2f), bush); }
                 Town.Reserve(c, 1.8f);
                 gardens++;

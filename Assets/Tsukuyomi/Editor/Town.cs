@@ -18,7 +18,7 @@ namespace Tsukuyomi.EditorTools
         public struct Lot { public Vector3 pos; public float rotY, w, d; public bool facing; }
         public static readonly List<Lot> Lots = new List<Lot>();
 
-        public static void Reset() { Taken.Clear(); Lots.Clear(); BridgesMade.Clear(); StairsList.Clear(); Landmarks.Clear(); }
+        public static void Reset() { Taken.Clear(); Lots.Clear(); BridgesMade.Clear(); StairsList.Clear(); StairCuts.Clear(); Landmarks.Clear(); }
 
         public static void Reserve(Vector2 c, float r) => Taken.Add((c, r));
 
@@ -62,6 +62,23 @@ namespace Tsukuyomi.EditorTools
 
         public static readonly List<Street> Streets = new List<Street>();
 
+        /// <summary>千年桜の丘の上（段の高さではないが、道は地面にそって敷く）。</summary>
+        public static bool OnHill(Vector2 p) => Vector2.Distance(p, Island.HillCenter) < Island.HillRadius + 1.5f;
+
+        /// <summary>そこに石畳が実際に敷かれているか（段の外・水の上・丘のふちでは敷かれない）。</summary>
+        public static bool RibbonAt(Vector2 p, Street except = null)
+        {
+            foreach (var s in Streets)
+            {
+                if (s == except) continue;
+                foreach (var q in s.pts)
+                    if ((q - p).sqrMagnitude < (s.half - 0.2f) * (s.half - 0.2f) && Paved(q, s)) return true;
+            }
+            return false;
+        }
+
+        static bool Paved(Vector2 q, Street s) => (OnLevel(q, s.level) || (s.level >= 0 && OnHill(q))) && Island.NearestWater(q.x, q.y) >= 0.6f;
+
         static bool OnLevel(Vector2 p, int level)
         {
             if (level < 0) return true;
@@ -104,10 +121,19 @@ namespace Tsukuyomi.EditorTools
             {
                 if (cur.Count >= 8)
                 {
+                    int before = Streets.Count;
                     Streets.Add(new Street { name = name + pieces, pts = new List<Vector2>(cur), half = half, level = level });
+                    bool Joined(Vector2 e)
+                    {
+                        for (int k = 0; k < before; k++)
+                            foreach (var q in Streets[k].pts)
+                                if ((q - e).sqrMagnitude < (Streets[k].half + half + 2f) * (Streets[k].half + half + 2f)) return true;
+                        return false;
+                    }
                     if (connect != null)
                         foreach (var end in new[] { cur[0], cur[cur.Count - 1] })
                         {
+                            if (Joined(end)) continue;      // もうほかの道につながっている
                             var to = connect(end);
                             bool clear = true;
                             for (float t = 0; t <= 1f; t += 0.05f) { var q = Vector2.Lerp(end, to, t); foreach (var (lc, lr) in Landmarks) if (Vector2.Distance(lc, q) < lr + half + 1f) clear = false; }
@@ -138,9 +164,11 @@ namespace Tsukuyomi.EditorTools
         public static void BuildStreets(Transform parent, Material paving, Material alley)
         {
             var g = Group(parent, "通り", Vector3.zero);
-            int si = 0;
+            int si = 0, idx = 0;
             foreach (var s in Streets)
             {
+                // 重なった道どうしが同じ高さだと、視点を動かすたびにちらつく。道ごとに数mm ずつずらす（広い道ほど上）
+                float lift = (s.half <= 2.0f ? 0.05f : 0.1f) + 0.007f * (idx++ % 4);
                 var v = new List<Vector3>(); var uv = new List<Vector2>(); var t = new List<int>();
                 bool prevOk = false;
                 int waterStart = -1;
@@ -150,7 +178,8 @@ namespace Tsukuyomi.EditorTools
                     var p = s.pts[i];
                     if (i > 0) along += Vector2.Distance(s.pts[i - 1], p);
                     bool water = Island.NearestWater(p.x, p.y) < 0.6f;
-                    bool ok = OnLevel(p, s.level) && !water;
+                    bool hill = s.level >= 0 && !OnLevel(p, s.level) && OnHill(p);
+                    bool ok = (OnLevel(p, s.level) || hill) && !water;
                     // 水の上：橋の始まりと終わりを覚えておく
                     if (water)
                     {
@@ -165,7 +194,7 @@ namespace Tsukuyomi.EditorTools
                     var dirv = (i < s.pts.Count - 1 ? s.pts[i + 1] - p : p - s.pts[i - 1]).normalized;
                     var side = new Vector2(-dirv.y, dirv.x) * s.half;
                     var l = p + side; var r = p - side;
-                    float sy = s.level >= 0 ? Island.LevelTop(s.level) + 0.05f : H(p) + 0.05f;
+                    float sy = s.level >= 0 && !hill ? Island.LevelTop(s.level) + lift : H(p) + lift;
                     v.Add(new Vector3(l.x, sy, l.y)); v.Add(new Vector3(r.x, sy, r.y));
                     uv.Add(new Vector2(0, along / 3f)); uv.Add(new Vector2(s.half * 2 / 3f, along / 3f));
                     if (prevOk)
@@ -208,12 +237,19 @@ namespace Tsukuyomi.EditorTools
                 var t = Mathf.Clamp01(Vector2.Dot(mid - p0, p1 - p0) / (p1 - p0).sqrMagnitude);
                 if (Vector2.Distance(mid, Vector2.Lerp(p0, p1, t)) <= best + 0.01f) { flow = (p1 - p0).normalized; break; }
             }
-            if (Mathf.Abs(Vector2.Dot(flow, dir)) > 0.92f) return;          // 川ぞいを走っている（渡っていない）
+            if (Mathf.Abs(Vector2.Dot(flow, dir)) > 0.7f) { Debug.Log("[Tsukuyomi] bridge skipped (along the river): " + s.name); return; }
             a -= dir * 1.8f; b += dir * 1.8f;
             float ya = Island.SurfaceNoWater(a.x, a.y), yb = Island.SurfaceNoWater(b.x, b.y);
-            if (Mathf.Abs(ya - yb) > 0.4f) return;                           // 滝のところ
+            if (Mathf.Abs(ya - yb) > 0.4f) { Debug.Log("[Tsukuyomi] bridge skipped (waterfall): " + s.name); return; }
+            for (float t = 0; t <= 1f; t += 0.1f)
+            {
+                var q = Vector2.Lerp(a, b, t);
+                if (Mathf.Abs(Island.SurfaceNoWater(q.x, q.y) - ya) > 0.5f) { Debug.Log("[Tsukuyomi] bridge skipped (over a fall): " + s.name); return; }
+            }
             float span = Vector2.Distance(a, b);
-            if (span < 3f || span > 26f) return;
+            if (span < 3f || span > 18f) { Debug.Log("[Tsukuyomi] bridge skipped (span " + span.ToString("0.0") + "): " + s.name); return; }
+            // 橋をわたった先に、ちゃんと道が続いていること（橋の先が草むら、をなくす）
+            if (!RibbonAt(a - dir * 1.2f) || !RibbonAt(b + dir * 1.2f)) { Debug.Log("[Tsukuyomi] bridge skipped (no road beyond): " + s.name); return; }
             foreach (var (pa, pb) in BridgesMade) if (Vector2.Distance((pa + pb) / 2, (a + b) / 2) < 5f) return;
             BridgesMade.Add((a, b));
             float y = Mathf.Max(ya, yb);
@@ -226,6 +262,9 @@ namespace Tsukuyomi.EditorTools
         // ───────── 石段 ─────────
 
         public struct StairInfo { public bool ok; public Vector2 bottom, top; public float width; }
+        /// <summary>石段の形（地形を彫って、上の数段が土に埋まらないようにする）。</summary>
+        public struct StairCut { public Vector2 start, dir; public float tBottom, tTop, width, h0, h1, run; public int n; }
+        public static readonly List<StairCut> StairCuts = new List<StairCut>();
         public static readonly List<StairInfo> StairsList = new List<StairInfo>();
         /// <summary>名所の場所（路地が通らないように）。</summary>
         public static readonly List<(Vector2 c, float r)> Landmarks = new List<(Vector2, float)>();
@@ -263,6 +302,7 @@ namespace Tsukuyomi.EditorTools
                     if (Island.NearestWater(q.x, q.y) < 0.8f || Island.Inside(q.x, q.y) < 2f) { Debug.LogWarning("[Tsukuyomi] stairs over water: " + name); return none; }
                 }
             var g = Group(parent, name, Vector3.zero);
+            StairCuts.Add(new StairCut { start = start, dir = dir, tBottom = tBottom, tTop = tTop, width = width, h0 = h0, h1 = h1, run = run, n = n });
             float yaw = Mathf.Atan2(dir.x, dir.y) * Mathf.Rad2Deg;
             float bottomY = h0 - 1.2f;
             for (int i = 0; i < n; i++)
@@ -288,10 +328,10 @@ namespace Tsukuyomi.EditorTools
             }
             // 上のおどり場（平らな地面にしっかりのせる）
             var land = start + dir * (tTop + 1.2f);
-            Box(g, "上のおどり場", new Vector3(land.x, (h1 + h1 - 1.5f) / 2 + 0.01f, land.y), new Vector3(width + 1.4f, 1.5f, 2.4f), stone, true, new Vector3(0, yaw, 0));
+            Box(g, "上のおどり場", new Vector3(land.x, (h1 + h1 - 1.5f) / 2 + 0.03f, land.y), new Vector3(width + 1.4f, 1.5f, 2.4f), stone, true, new Vector3(0, yaw, 0));
             // 下のおどり場
             var landB = start + dir * (tBottom - 1f);
-            Box(g, "下のおどり場", new Vector3(landB.x, h0 - 0.55f + 0.01f, landB.y), new Vector3(width + 1.4f, 1.1f, 2f), stone, true, new Vector3(0, yaw, 0));
+            Box(g, "下のおどり場", new Vector3(landB.x, h0 - 0.55f + 0.03f, landB.y), new Vector3(width + 1.4f, 1.1f, 2f), stone, true, new Vector3(0, yaw, 0));
             var topC = start + dir * (tTop + 2.6f);
             var bottomC = start + dir * (tBottom - 2.2f);
             foreach (float sd in new[] { -1f, 1f })
@@ -373,7 +413,7 @@ namespace Tsukuyomi.EditorTools
                         var face = -normal;
                         float rotY = Mathf.Atan2(face.x, face.y) * Mathf.Rad2Deg;
                         float rr = Mathf.Max(w, d) * 0.5f;
-                        if (OnLevel(p, s.level) && Free(c, rr * 0.85f) && Flat(c, w, d, rotY, out float y))
+                        if (OnLevel(p, s.level) && Free(c, rr * 0.85f) && !TerrainBuilder.NearStairs(c, rr + 1.4f) && Flat(c, w, d, rotY, out float y))
                         {
                             if (place(s, placed, c, y, rotY, w, d))
                             {
@@ -402,7 +442,7 @@ namespace Tsukuyomi.EditorTools
                 float w = R(5.5f, 9f), d = R(5.5f, 8f);
                 float rotY = new[] { 0f, 90f, 180f, -90f }[Ri(0, 4)] + R(-8, 8);
                 float rr = Mathf.Max(w, d) * 0.5f;
-                if (!Free(c, rr * 0.86f) || !Flat(c, w, d, rotY, out float y, 0.45f)) continue;
+                if (!Free(c, rr * 0.86f) || TerrainBuilder.NearStairs(c, rr + 1.4f) || !Flat(c, w, d, rotY, out float y, 0.45f)) continue;
                 if (place(placed, c, y, rotY, w, d))
                 {
                     Reserve(c, rr * 0.86f);

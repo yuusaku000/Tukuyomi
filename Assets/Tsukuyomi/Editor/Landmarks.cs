@@ -50,15 +50,19 @@ namespace Tsukuyomi.EditorTools
             var leaf = Lit("bamboo_leaf", new Color(0.3f, 0.5f, 0.22f), 0.1f);
             pathDir.Normalize();
             var side = new Vector2(-pathDir.y, pathDir.x);
-            for (int i = 0; i < 320; i++)
+            Physics.SyncTransforms();
+            int count = Mathf.RoundToInt(320 * radius * radius / 169f);
+            for (int i = 0; i < count; i++)
             {
                 var p = center + Random2() * radius;
                 float off = Vector2.Dot(p - center, side);
                 if (Mathf.Abs(off) < 2.2f) continue; // 小道
                 if (Town.OnAnyStreet(p, 0.8f) || Island.NearestWater(p.x, p.y) < 1.5f) continue;
                 if (Mathf.Abs(Island.TerraceHeight(p.x, p.y) - Island.LevelTop(2)) > 0.2f) continue;
-                float h = R(9f, 15f);
+                if (TerrainBuilder.NearStairs(p, 1f)) continue;
                 float y = Island.Height(p.x, p.y);
+                if (Physics.CheckSphere(new Vector3(p.x, y + 1.5f, p.y), 0.8f, ~0, QueryTriggerInteraction.Ignore)) continue; // 鐘楼などにかぶらない
+                float h = R(9f, 15f);
                 var s = Cyl(g, "竹", new Vector3(p.x, y + h / 2, p.y), R(0.07f, 0.12f), h, stalk);
                 s.transform.localEulerAngles = new Vector3(R(-4, 4), 0, R(-4, 4));
                 if (i % 3 == 0) Ball(g, "笹", new Vector3(p.x, y + h - 0.5f, p.y), new Vector3(R(1.5f, 2.6f), 0.7f, R(1.5f, 2.6f)), leaf);
@@ -74,6 +78,37 @@ namespace Tsukuyomi.EditorTools
                     Cyl(b, "柄", new Vector3(0, 0.4f, 0), 0.08f, 0.8f, stalk);
                     Cyl(b, "灯", new Vector3(0, 0.9f, 0), 0.12f, 0.25f, GlowWarm);
                 }
+            }
+        }
+
+        /// <summary>小さな竹やぶ（空き地や崖の下に）。まん中に細い抜け道を残す。</summary>
+        public static void BambooPatch(Transform parent, Vector2 center, float radius, float y)
+        {
+            var g = Group(parent, "竹やぶ", Vector3.zero);
+            var stalk = Lit("bamboo", new Color(0.42f, 0.62f, 0.3f), 0.45f);
+            var leaf = Lit("bamboo_leaf", new Color(0.3f, 0.5f, 0.22f), 0.1f);
+            int count = Mathf.RoundToInt(radius * radius * 2.6f);
+            for (int i = 0; i < count; i++)
+            {
+                var p = center + Random2() * radius;
+                if (Town.OnAnyStreet(p, 0.6f)) continue;
+                float h = R(7f, 13f);
+                var st = Cyl(g, "竹", new Vector3(p.x, y + h / 2, p.y), R(0.06f, 0.11f), h, stalk);
+                st.transform.localEulerAngles = new Vector3(R(-5, 5), 0, R(-5, 5));
+                if (i % 3 == 0) Ball(g, "笹", new Vector3(p.x, y + h - 0.5f, p.y), new Vector3(R(1.4f, 2.4f), 0.7f, R(1.4f, 2.4f)), leaf);
+            }
+            // 足もとの笹と、竹垣
+            for (int i = 0; i < count / 4; i++)
+            {
+                var p = center + Random2() * radius;
+                Ball(g, "下草", new Vector3(p.x, y + 0.25f, p.y), new Vector3(R(0.8f, 1.4f), 0.5f, R(0.8f, 1.4f)), leaf);
+            }
+            var fence = Lit("bamboo_fence", new Color(0.6f, 0.55f, 0.35f), 0.2f);
+            for (float a = 0; a < 360; a += 18f)
+            {
+                var q = center + new Vector2(Mathf.Cos(a * Mathf.Deg2Rad), Mathf.Sin(a * Mathf.Deg2Rad)) * (radius + 0.2f);
+                if (Town.OnAnyStreet(q, 0.4f)) continue;
+                Cyl(g, "竹垣の杭", new Vector3(q.x, y + 0.45f, q.y), 0.05f, 0.9f, fence);
             }
         }
 
@@ -93,7 +128,7 @@ namespace Tsukuyomi.EditorTools
             float yaw = Mathf.Atan2(outward.x, outward.y) * Mathf.Rad2Deg;
             const float depth = 14f, width = 22f;
             var c = edge + outward * (depth / 2 - 3f);
-            Box(g, "舞台", new Vector3(c.x, top - 0.15f, c.y), new Vector3(width, 0.3f, depth), Wood, true, new Vector3(0, yaw, 0));
+            Box(g, "舞台", new Vector3(c.x, top - 0.12f, c.y), new Vector3(width, 0.3f, depth), Wood, true, new Vector3(0, yaw, 0));
             // 下を支える柱の格子
             for (float a = -width / 2 + 1; a <= width / 2 - 1; a += 3.5f)
                 for (float b = 0; b <= depth - 1; b += 3.5f)
@@ -110,11 +145,14 @@ namespace Tsukuyomi.EditorTools
                 }
             // 手すり（見えない柵つき）
             var front = edge + outward * (depth - 3f);
+            // わきの手すりは、崖のふちから先（宙に出ている所）だけ。陸の上（道のある方）へは出さない
+            const float railLen = depth - 3f - 0.5f;
+            var railC = edge + outward * (0.5f + railLen / 2);
             for (int k = -1; k <= 1; k += 2)
             {
-                var sp = c + side * k * width / 2;
-                Box(g, "高欄", new Vector3(sp.x, top + 0.9f, sp.y), new Vector3(0.14f, 0.12f, depth), Vermilion, false, new Vector3(0, yaw, 0));
-                Box(g, "見えない柵", new Vector3(sp.x, top + 0.7f, sp.y), new Vector3(0.3f, 1.4f, depth), Vermilion, true, new Vector3(0, yaw, 0)).GetComponent<Renderer>().enabled = false;
+                var sp = railC + side * k * width / 2;
+                Box(g, "高欄", new Vector3(sp.x, top + 0.9f, sp.y), new Vector3(0.14f, 0.12f, railLen), Vermilion, false, new Vector3(0, yaw, 0));
+                Box(g, "見えない柵", new Vector3(sp.x, top + 0.7f, sp.y), new Vector3(0.3f, 1.4f, railLen), Vermilion, true, new Vector3(0, yaw, 0)).GetComponent<Renderer>().enabled = false;
             }
             Box(g, "高欄", new Vector3(front.x, top + 0.9f, front.y), new Vector3(width, 0.12f, 0.14f), Vermilion, false, new Vector3(0, yaw, 0));
             Box(g, "見えない柵", new Vector3(front.x, top + 0.7f, front.y), new Vector3(width, 1.4f, 0.3f), Vermilion, true, new Vector3(0, yaw, 0)).GetComponent<Renderer>().enabled = false;
