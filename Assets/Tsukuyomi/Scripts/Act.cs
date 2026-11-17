@@ -73,6 +73,8 @@ namespace Tsukuyomi
         public static readonly Button Book = new("Book", "<Keyboard>/b", "<Gamepad>/dpad/up");
         /// <summary>画面の表示をぜんぶ消す（H）。</summary>
         public static readonly Button HideHud = new("HideHud", "<Keyboard>/h", "<Gamepad>/dpad/down");
+        /// <summary>戦況を見る（Tab）。SENGOKU で、目の前にホログラムの板が開く。</summary>
+        public static readonly Button Info = new("Info", "<Keyboard>/tab", "<Gamepad>/dpad/right");
         /// <summary>左右に回す（お店の人形など）。Move の左右を使う。</summary>
         public static float TurnX => Move.ReadValue<Vector2>().x;
 
@@ -129,7 +131,7 @@ namespace Tsukuyomi
             return a;
         }
 
-        static Button[] All => new[] { Jump, Run, Descend, View, Interact, Cast, Wardrobe, Confirm, Back, Map, Book, HideHud, Light, Heavy, Special, Throw, Super, Crouch };
+        static Button[] All => new[] { Jump, Run, Descend, View, Interact, Cast, Wardrobe, Confirm, Back, Map, Book, HideHud, Info, Light, Heavy, Special, Throw, Super, Crouch };
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
         static void Init()

@@ -41,6 +41,12 @@ namespace Tsukuyomi
         public Vector3 worldOffset = new(0, 0, 1.3f);
         /// <summary>空間の決まった場所に置く板（看板など）。画面モードでも空間に出る。左右だけカメラの方を向く。</summary>
         public bool pinned;
+        /// <summary>画面モードでも、空間（目の前）に浮かべる板（ホログラムの戦況など）。</summary>
+        public bool forceWorld;
+        /// <summary>空間に浮かべるときの、1ピクセルあたりのメートル。</summary>
+        public float worldScale = MetersPerPixel;
+        /// <summary>空間の板が頭についてくる速さ（大きいほどぴったり）。</summary>
+        public float follow = 4f;
         public Vector3 pinPos;
         public float pinScale = 0.01f;
 
@@ -85,7 +91,7 @@ namespace Tsukuyomi
                 root.anchorMin = root.anchorMax = root.pivot = new Vector2(0.5f, 0.5f);
                 root.anchoredPosition = Vector2.zero;
             }
-            else if (Current == Mode.Screen)
+            else if (Current == Mode.Screen && !forceWorld)
             {
                 canvas.renderMode = RenderMode.ScreenSpaceOverlay;
                 sc.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
@@ -102,7 +108,7 @@ namespace Tsukuyomi
                 sc.uiScaleMode = CanvasScaler.ScaleMode.ConstantPixelSize;
                 sc.dynamicPixelsPerUnit = 3f; // 近くで見ても文字がぼやけないように
                 ct.sizeDelta = root.sizeDelta;
-                ct.localScale = Vector3.one * MetersPerPixel;
+                ct.localScale = Vector3.one * worldScale;
                 root.anchorMin = root.anchorMax = root.pivot = new Vector2(0.5f, 0.5f);
                 root.anchoredPosition = Vector2.zero;
                 _placed = false;
@@ -127,7 +133,7 @@ namespace Tsukuyomi
                 if (d.sqrMagnitude > 0.01f) transform.rotation = Quaternion.LookRotation(d, Vector3.up);
                 return;
             }
-            if (Current != Mode.World) return;
+            if (Current != Mode.World && !forceWorld) return;
             var head = cam.transform;
             // 左右の向きだけついてくる（上下を向いても板は水平のまま）
             var yaw = Quaternion.Euler(0, head.eulerAngles.y, 0);
@@ -136,7 +142,7 @@ namespace Tsukuyomi
             if (!_placed) { _pos = want; _rot = face; _placed = true; }
             else
             {
-                float k = 1 - Mathf.Exp(-4f * Time.unscaledDeltaTime);
+                float k = 1 - Mathf.Exp(-follow * Time.unscaledDeltaTime);
                 _pos = Vector3.Lerp(_pos, want, k);
                 _rot = Quaternion.Slerp(_rot, face, k);
             }

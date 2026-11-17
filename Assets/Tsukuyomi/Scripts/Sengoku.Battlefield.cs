@@ -18,21 +18,25 @@ namespace Tsukuyomi
         /// <summary>元の数の位置を、試合場の位置にする。</summary>
         public static Vector3 Sx(Vector3 v) => new(v.x * KX, v.y * KY, v.z * KX);
         static readonly Vector3 N0 = new(0, 12, 47), S0 = new(0, 1, -46);
-        public static readonly Vector3 NorthCapture = Sx(N0), SouthCapture = Sx(S0);
-        static Vector3 Castle0(int team) => new(team == 1 ? -66 : 66, 0, 0);
+        public static Vector3 NorthCapture => ThemeNow == 1 ? Sx(FN_N) : Sx(N0);
+        public static Vector3 SouthCapture => ThemeNow == 1 ? Sx(FN_S) : Sx(S0);
+        static Vector3 Castle0(int team) => ThemeNow == 1 ? new(team == 1 ? -76 : 76, 12, 0) : new(team == 1 ? -66 : 66, 0, 0);
         public static Vector3 CastleOf(int team) => Sx(Castle0(team));
         /// <summary>陣地（城の中）の高台の高さ（元の数。まわりより高い）。</summary>
         public const float CampH = 4f;
-        public static Vector3 DarumaSpot(int team) => Sx(new Vector3(team == 1 ? -55 : 55, CampH, 0));
-        public static Vector3 SpawnOf(int team, int i) => Sx(new Vector3(team == 1 ? -60 : 60, CampH + 0.2f, (i - 1) * 4.5f + 8f));
+        public static Vector3 DarumaSpot(int team) => ThemeNow == 1 ? Sx(new Vector3(team == 1 ? -69 : 69, FBaseH, 0)) : Sx(new Vector3(team == 1 ? -55 : 55, CampH, 0));
+        public static Vector3 SpawnOf(int team, int i) => ThemeNow == 1 ? Sx(new Vector3(team == 1 ? -76 : 76, FBaseH + 0.2f, (i - 1) * 4.5f + 6f)) : Sx(new Vector3(team == 1 ? -60 : 60, CampH + 0.2f, (i - 1) * 4.5f + 8f));
         /// <summary>自分の城（本陣）の城壁の内側か。ここにいると回復する。</summary>
-        public static bool InBase(int team, Vector3 p) => (team == 1 ? p.x < -48f * KX : p.x > 48f * KX) && Mathf.Abs(p.z) < 22f * KX && p.y > -1f;
+        public static bool InBase(int team, Vector3 p) => ThemeNow == 1
+            ? (team == 1 ? p.x < -FBaseX * KX : p.x > FBaseX * KX) && Mathf.Abs(p.z) < FBaseZ * KX && p.y > (FBaseH - 1f) * KY
+            : (team == 1 ? p.x < -48f * KX : p.x > 48f * KX) && Mathf.Abs(p.z) < 22f * KX && p.y > -1f;
 
         static readonly Color Tile = new(0.2f, 0.22f, 0.27f), Plaster = new(0.9f, 0.88f, 0.82f), Timber = new(0.32f, 0.2f, 0.13f),
             Road = new(0.52f, 0.46f, 0.38f), Cliff = new(0.42f, 0.37f, 0.32f), Pink = new(1f, 0.75f, 0.84f), Bamboo = new(0.38f, 0.6f, 0.34f);
 
         void BuildBattlefield()
         {
+            if (_theme == 1) { BuildForestField(); return; } // 森の舞台は、地形から別に作る
             _map = new GameObject("合戦場").transform;
             _map.SetParent(transform, false);
             _rampRoot = new GameObject("合戦場の坂").transform;
@@ -571,7 +575,7 @@ namespace Tsukuyomi
         public static readonly string[] StageLines =
         {
             "白壁の城と、瓦屋根の町並み。屋根の上も道になる。",
-            "巨木と竹やぶの森。木の柵の砦と、川の流れる峡谷。",
+            "高台の砦から、森の谷底へ。岩山と大樹の台地に櫓。",
         };
         int _theme; // 0 城下町・1 森
         Color CStone => _theme == 1 ? new Color(0.36f, 0.26f, 0.17f) : Stone;

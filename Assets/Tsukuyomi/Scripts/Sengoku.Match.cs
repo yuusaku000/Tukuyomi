@@ -42,6 +42,7 @@ namespace Tsukuyomi
         void InitMatch()
         {
             BuildBattlefield();
+            _towers[0].c = NorthCapture; _towers[1].c = SouthCapture; // 舞台ごとの櫓の場所
             foreach (var t in _towers) CollectRing(t);
             BuildGraph();
             BuildDaruma(1); BuildDaruma(2);
@@ -156,7 +157,7 @@ namespace Tsukuyomi
             _myLives = 2; _dead = false; _me.Revive(); _hp = 100;
             Teleport(SpawnOf(1, 0)); _yaw = 90; _pitch = 2;
             _phase = MPhase.Select; _phaseT = 0; _centerT = 0;
-            _feed.Clear();
+            _feed.Clear(); _log.Clear();
             OpenSelect();
         }
 
@@ -300,7 +301,7 @@ namespace Tsukuyomi
             }
         }
 
-        void Feed(string s) { _feed.Insert(0, s); if (_feed.Count > 4) _feed.RemoveAt(4); _feedT = 6f; }
+        void Feed(string s) { IntelLog(s); _feed.Insert(0, s); if (_feed.Count > 4) _feed.RemoveAt(4); _feedT = 6f; }
 
         // ───────── 試合の表示 ─────────
 
@@ -326,41 +327,46 @@ namespace Tsukuyomi
             Board.Ring(r, new Vector2(960, 78), 50, new Color(Board.Teal.r, Board.Teal.g, Board.Teal.b, 0.8f));
             _mClock = Board.Display(r, new Rect(880, 46, 160, 64), "5:00", 44, Color.white);
             _mRound = Board.Label(r, new Rect(860, 140, 200, 26), "", 18, Color.white, TextAnchor.MiddleCenter);
+            Board.Label(r, new Rect(760, 166, 400, 26), "Tab　戦況を見る", 17, new Color(Board.Teal.r, Board.Teal.g, Board.Teal.b, 0.85f), TextAnchor.MiddleCenter);
             for (int i = 0; i < 4; i++)
             {
                 var c = new Vector2(i < 2 ? 870 - i * 26 : 1050 + (i - 2) * 26, 78);
                 _mWins[i] = Board.Panel(r, new Rect(c.x - 8, c.y - 8, 16, 16), new Color(1, 1, 1, 0.2f)); _mWins[i].sprite = Board.DiscSprite;
             }
+            // 櫓・両軍・大将落とし・記録は、ふだんは隠す（Tab のホログラムの戦況で見る）
+            var info = new GameObject("ふだんは隠す一覧", typeof(RectTransform)).GetComponent<RectTransform>();
+            info.SetParent(r, false); info.anchorMin = info.anchorMax = info.pivot = new Vector2(0, 1); info.anchoredPosition = Vector2.zero; info.sizeDelta = r.sizeDelta;
+            info.gameObject.SetActive(false);
             // 櫓
             for (int i = 0; i < 2; i++)
             {
                 float x = i == 0 ? 760 : 1060;
-                _mTowerImg[i] = Board.Panel(r, new Rect(x, 180, 100, 100), new Color(0.03f, 0.05f, 0.12f, 0.8f)); _mTowerImg[i].sprite = Board.DiscSprite;
-                Board.Ring(r, new Vector2(x + 50, 230), 50, new Color(1, 1, 1, 0.8f), false);
-                _mTowerFill[i] = Board.Panel(r, new Rect(x - 6, 174, 112, 112), Board.Teal);
+                _mTowerImg[i] = Board.Panel(info, new Rect(x, 180, 100, 100), new Color(0.03f, 0.05f, 0.12f, 0.8f)); _mTowerImg[i].sprite = Board.DiscSprite;
+                Board.Ring(info, new Vector2(x + 50, 230), 50, new Color(1, 1, 1, 0.8f), false);
+                _mTowerFill[i] = Board.Panel(info, new Rect(x - 6, 174, 112, 112), Board.Teal);
                 _mTowerFill[i].sprite = Board.ThickRingSprite; _mTowerFill[i].type = Image.Type.Filled; _mTowerFill[i].fillMethod = Image.FillMethod.Radial360; _mTowerFill[i].fillOrigin = 2;
-                _mTower[i] = Board.Label(r, new Rect(x, 200, 100, 60), i == 0 ? "北" : "南", 34, Color.white, TextAnchor.MiddleCenter);
+                _mTower[i] = Board.Label(info, new Rect(x, 200, 100, 60), i == 0 ? "北" : "南", 34, Color.white, TextAnchor.MiddleCenter);
                 _mTower[i].font = Board.Mincho;
-                Board.Panel(r, new Rect(x, 290, 100, 6), new Color(0, 0, 0, 0.6f));
-                _mTowerBar[i] = (RectTransform)Board.Panel(r, new Rect(x + 50, 290, 0, 6), Board.Teal).transform;
+                Board.Panel(info, new Rect(x, 290, 100, 6), new Color(0, 0, 0, 0.6f));
+                _mTowerBar[i] = (RectTransform)Board.Panel(info, new Rect(x + 50, 290, 0, 6), Board.Teal).transform;
             }
-            _mCold = Board.Label(r, new Rect(760, 300, 400, 30), "", 20, Board.Gold, TextAnchor.MiddleCenter);
-            _mDar = Board.Label(r, new Rect(560, 330, 800, 34), "", 24, Color.white, TextAnchor.MiddleCenter);
+            _mCold = Board.Label(info, new Rect(760, 300, 400, 30), "", 20, Board.Gold, TextAnchor.MiddleCenter);
+            _mDar = Board.Label(info, new Rect(560, 330, 800, 34), "", 24, Color.white, TextAnchor.MiddleCenter);
             // 両軍の一覧
-            Board.Display(r, new Rect(60, 150, 300, 50), "西軍", 36, Board.Teal, TextAnchor.MiddleLeft);
-            Board.Display(r, new Rect(1560, 150, 300, 50), "東軍", 36, Board.Vermilion, TextAnchor.MiddleRight);
+            Board.Display(info, new Rect(60, 150, 300, 50), "西軍", 36, Board.Teal, TextAnchor.MiddleLeft);
+            Board.Display(info, new Rect(1560, 150, 300, 50), "東軍", 36, Board.Vermilion, TextAnchor.MiddleRight);
             for (int i = 0; i < 6; i++)
             {
                 bool w = i < 3; float y = 205 + (i % 3) * 44;
                 float x = w ? 60 : 1560;
-                var name = Board.Label(r, new Rect(x, y, 300, 24), "", 19, Color.white, w ? TextAnchor.MiddleLeft : TextAnchor.MiddleRight);
-                Board.Panel(r, new Rect(x, y + 26, 300, 8), new Color(0, 0, 0, 0.55f));
-                var hp = (RectTransform)Board.Panel(r, new Rect(x, y + 26, 300, 8), w ? Board.Teal : Board.Vermilion).transform;
+                var name = Board.Label(info, new Rect(x, y, 300, 24), "", 19, Color.white, w ? TextAnchor.MiddleLeft : TextAnchor.MiddleRight);
+                Board.Panel(info, new Rect(x, y + 26, 300, 8), new Color(0, 0, 0, 0.55f));
+                var hp = (RectTransform)Board.Panel(info, new Rect(x, y + 26, 300, 8), w ? Board.Teal : Board.Vermilion).transform;
                 if (!w) { hp.pivot = new Vector2(1, 1); hp.anchoredPosition = new Vector2(x + 300, -(y + 26)); }
-                var lives = Board.Label(r, new Rect(x, y, 300, 24), "", 18, Board.Gold, w ? TextAnchor.MiddleRight : TextAnchor.MiddleLeft);
+                var lives = Board.Label(info, new Rect(x, y, 300, 24), "", 18, Board.Gold, w ? TextAnchor.MiddleRight : TextAnchor.MiddleLeft);
                 _mRows.Add((name, hp, lives));
             }
-            _mFeed = Board.Label(r, new Rect(1360, 350, 500, 120), "", 18, new Color(1, 1, 1, 0.85f), TextAnchor.UpperRight);
+            _mFeed = Board.Label(info, new Rect(1360, 350, 500, 120), "", 18, new Color(1, 1, 1, 0.85f), TextAnchor.UpperRight);
             _mLives = Board.Label(r, new Rect(120, 880, 400, 30), "", 20, Board.Gold);
             _mCenter = Board.Display(r, new Rect(0, 400, 1920, 160), "", 110, Board.Teal);
             _mSub = Board.Label(r, new Rect(0, 560, 1920, 44), "", 30, Color.white, TextAnchor.MiddleCenter);
@@ -484,6 +490,9 @@ namespace Tsukuyomi
             {
                 case "fight":
                     s._phase = MPhase.Fight; s._centerT = 0;
+                    break;
+                case "intel":
+                    s._phase = MPhase.Fight; s._centerT = 0; s._intelOpen = true; s.Feed("確認：北の櫓を西軍が占拠"); s.Feed("確認：疾風（東）が倒れた");
                     break;
                 case "overview":
                     s._phase = MPhase.Fight; s._centerT = 0;

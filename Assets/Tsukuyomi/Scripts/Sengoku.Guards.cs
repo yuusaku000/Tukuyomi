@@ -25,7 +25,7 @@ namespace Tsukuyomi
         void BuildGuards()
         {
             // 持ち場（元の数の位置。西は x を負に）。弓の見張りは少しうしろから射る
-            var posts = new[]
+            var posts = _theme == 1 ? FGuardPosts : new[]
             {
                 (new Vector3(36, 0, 9), false), (new Vector3(20, 0, -9), false), (new Vector3(20, 0, 24), true), (new Vector3(20, 0, -24), true),
                 (new Vector3(31, 0, 39), false), (new Vector3(31, 0, -47), false), (new Vector3(42, 0, 0), true), (new Vector3(36, 0, -9), false),

@@ -46,6 +46,7 @@ namespace Tsukuyomi
 
         void BuildGraph()
         {
+            if (_theme == 1) { BuildForestGraph(); return; }
             int Side(float s, out int sp, out int dar, out int gate, out int c36, out int c20, out int n36, out int n20, out int brn, out int s36, out int s20, out int brs,
                      out int n36b, out int mt0, out int mt1, out int mt2, out int mt3, out int lk0, out int lk1, out int lk2, out int vw1)
             {
@@ -614,7 +615,7 @@ namespace Tsukuyomi
             return true;
         }
 
-        static bool InLake(Vector3 p) => p.z < -34 * KX && Mathf.Abs(p.x) < 26 * KX && p.y < -0.4f * KY && !(Mathf.Abs(p.x) < 6 * KX && p.z > -52 * KX && p.z < -40 * KX);
+        static bool InLake(Vector3 p) => ThemeNow == 0 && p.z < -34 * KX && Mathf.Abs(p.x) < 26 * KX && p.y < -0.4f * KY && !(Mathf.Abs(p.x) < 6 * KX && p.z > -52 * KX && p.z < -40 * KX);
 
         Vector3 Follow(Unit u, Vector3 p, Vector3 goal)
         {

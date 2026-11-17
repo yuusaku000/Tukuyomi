@@ -34,6 +34,7 @@ namespace Tsukuyomi
             var s = go.AddComponent<Sengoku>();
             s._match = match; s._level = Mathf.Clamp(level, 0, 2);
             s._theme = theme < 0 ? Random.Range(0, StageNamesSg.Length) : Mathf.Clamp(theme, 0, StageNamesSg.Length - 1); // 舞台は試合ごとにランダム
+            ThemeNow = s._theme;
             s.Init();
         }
 
@@ -60,7 +61,7 @@ namespace Tsukuyomi
         void OnDestroy()
         {
             if (I == this) I = null;
-            foreach (var b in new[] { _hud, _pauseB, _resultB, _selB }) if (b != null) Destroy(b.gameObject);
+            foreach (var b in new[] { _hud, _pauseB, _resultB, _selB, _intel }) if (b != null) Destroy(b.gameObject);
             if (_rt != null) { _rt.Release(); Destroy(_rt); }
             foreach (var u in _units) if (u.tag != null) Destroy(u.tag.gameObject);
             if (_viewRoot != null) Destroy(_viewRoot.gameObject);
@@ -120,6 +121,7 @@ namespace Tsukuyomi
             if (_paused) { if (Act.Back.Down) Resume(); HudTick(); return; }
             if (!Ts.ShotMode && !result && Act.Back.Down) { Pause(); return; }
             if (_match) { MatchTick(dt); UnitsTick(dt); }
+            if (_match) IntelTick(Time.unscaledDeltaTime);
             if (_me != null) { _me.frontGuard = _w == 2 && _ride ? 0.7f : 0f; _me.facing = Forward; }
 
             if (play)

@@ -235,7 +235,7 @@ namespace Tsukuyomi
             else if (_daruma[1].active) items.Add((DarumaSpot(1) + Vector3.up * 6f, "守れ：西の大将落とし", Board.Vermilion));
             if (!_dead && _me.hp < 40 && !InBase(1, _rig.transform.position)) items.Add((SpawnOf(1, 1) + Vector3.up * 2f, "本陣で回復", Board.Gold));
             float s = Screen.height / 1080f, halfW = Screen.width / 2f / s;
-            bool show = _phase == MPhase.Fight || _phase == MPhase.Intro;
+            bool show = (_phase == MPhase.Fight || _phase == MPhase.Intro) && _intelT <= 0.01f; // 戦況の板を開いているあいだは隠す
             for (int i = 0; i < _marks.Count; i++)
             {
                 var m = _marks[i];
@@ -270,7 +270,7 @@ namespace Tsukuyomi
             else if (_daruma[2].active) { goal = $"東の城の二の丸へ！　大将落としを近接攻撃（F でも殴れる）で叩き落とせ（あと {_daruma[2].left} 段）"; gc = Board.Teal; }
             else if (Owned(1) == 0) goal = "まずは櫓を取れ：北の山か、南の湖の浮き島へ";
             else goal = "櫓を守りながら、もう一つの櫓も取ろう";
-            if (_dead || _phase != MPhase.Fight) goal = "";
+            if (_dead || _phase != MPhase.Fight || _intelT > 0.01f) goal = "";
             _goalText.font = Ts.Font; _goalText.text = goal; _goalText.color = gc;
             _hitT -= Time.unscaledDeltaTime;
             if (_hitX) { var c2 = _hitX.color; c2.a = Mathf.Clamp01(_hitT * 6f); _hitX.color = c2; }
