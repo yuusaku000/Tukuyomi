@@ -202,7 +202,7 @@ namespace Tsukuyomi
                 : $"桟橋からすぐ出航して、空を{SkyShip.Laps}周（約4分）して桟橋にもどります。", 21, new Color(1, 1, 1, 0.85f), TextAnchor.MiddleCenter);
             Text(new Rect(r.x, r.y + 172, r.width, 40), $"{SkyShip.Price} ふじゅ〜で乗りますか？", 30, Gold, TextAnchor.MiddleCenter);
             Text(new Rect(r.x, r.y + 214, r.width, 28), _shipMsg ?? BalanceText(), 19, _shipMsg != null ? Pink : new Color(1, 1, 1, 0.7f), TextAnchor.MiddleCenter);
-            if (_shipBusy) { Text(new Rect(r.x, r.y + 290, r.width, 40), "ミニヤチヨにふじゅ〜を送っています…", 22, Gold, TextAnchor.MiddleCenter); return; }
+            if (_shipBusy) { Text(new Rect(r.x, r.y + 290, r.width, 40), "支払っています…", 22, Gold, TextAnchor.MiddleCenter); return; }
             bool can = SkyShip.I != null && SkyShip.I.CanBook(_shipAsk.atLookout) == null;
             if (can && Button(new Rect(r.x + 70, r.y + 280, 290, 70), "はい、乗る")) BuyShip();
             if (Button(new Rect(r.xMax - 360, r.y + 280, 290, 70), "やめる（Esc）")) _shipAsk = null;

@@ -5,7 +5,7 @@ namespace Tsukuyomi
 {
     /// <summary>
     /// 月見商店街のお店と、着がえの画面。
-    ///   店先で E → お店（品物をえらぶと試着・買うときは確認してからミニヤチヨのふじゅ〜で払う）
+    ///   店先で E → お店（品物をえらぶと試着・買うときは確認してからツクヨミのふじゅ〜で払う）
     ///   C → 着がえ（持っている服と飾り）
     /// </summary>
     public partial class Hud
@@ -64,7 +64,7 @@ namespace Tsukuyomi
             _i.RestoreCam();
         }
 
-        /// <summary>確認用：品物を本当に買う（テスト用のミニヤチヨに向けて使う）。</summary>
+        /// <summary>確認用：品物を本当に買う（ツクヨミのふじゅ〜で）。</summary>
         public static void TestBuy(string id)
         {
             var it = Catalog.Get(id);
@@ -164,7 +164,7 @@ namespace Tsukuyomi
         {
             if (_busy) return;
             _busy = true; _confirm = false;
-            Msg("ミニヤチヨにふじゅ〜を送っています…");
+            Msg("支払っています…");
             StartCoroutine(Fuju.Buy(it, r =>
             {
                 _busy = false;
@@ -276,7 +276,7 @@ namespace Tsukuyomi
             Text(new Rect(r.x + 26, r.y + 18, 400, 20), _shop.english, 16, Cyan, TextAnchor.UpperLeft, true);
             Text(new Rect(r.x + 24, r.y + 38, 500, 56), _shop.title, 40, Color.white, TextAnchor.UpperLeft, false, FontStyle.Bold);
             Text(new Rect(r.x + 300, r.y + 20, 376, 26), BalanceText(), _balanceErr != null ? 16 : 21, _balanceErr != null ? Pink : Gold, TextAnchor.UpperRight);
-            Text(new Rect(r.x + 300, r.y + 50, 376, 22), "支払いはミニヤチヨのふじゅ〜", 15, new Color(1, 1, 1, 0.6f), TextAnchor.UpperRight);
+            Text(new Rect(r.x + 300, r.y + 50, 376, 22), "支払いはツクヨミのふじゅ〜（両替は Esc のメニュー）", 15, new Color(1, 1, 1, 0.6f), TextAnchor.UpperRight);
             Fill(new Rect(r.x + 24, r.y + 98, 220, 2), Pink);
 
             var list = Items(_shop.group);

@@ -76,6 +76,7 @@ namespace Tsukuyomi
             _data.lastLogin = now;
             _data.logins++;
             Hud.Welcome(first, Ts.Arg("--from"));
+            if (Fuju.GiveLoginBonus(_data)) { SaveItems(); Hud.Toast($"初ログインボーナス！ {Fuju.LoginBonus:N0} ふじゅ〜をもらいました（Esc のメニューで残高と両替）"); }
 
             if (Ts.Arg("--shot") != null) StartCoroutine(Shot(Ts.Arg("--shot"), Ts.ArgFloat("--shot-delay", 6f)));
             if (Ts.Arg("--tour") != null) StartCoroutine(Tour(Ts.Arg("--tour"), Ts.Arg("--tour-dir") ?? Ts.DataDir));
@@ -124,9 +125,10 @@ namespace Tsukuyomi
                 if (p.Length > 2) ApplyCam(p[2]);
                 Hud.OpenMap(p.Length > 3 && p[3] == "map");
                 Hud.OpenMenu(p.Length > 3 && p[3] == "menu");
-                // shop:gofuku[:品物] でお店の画面、wear で着がえ、buy:品物 で本当に買う（テスト用のミニヤチヨで）
+                // shop:gofuku[:品物] でお店の画面、wear で着がえ、buy:品物 で本当に買う（ツクヨミのふじゅ〜で）
                 if (p.Length > 3 && p[3].StartsWith("shop:")) { var a = p[3].Split(':'); Hud.OpenShopFor(a[1], a.Length > 2 ? a[2] : null, true); }
                 if (p.Length > 3 && p[3] == "wear") Hud.OpenWardrobe();
+                if (p.Length > 3 && p[3].StartsWith("exchange")) Hud.OpenExchange(p[3].StartsWith("exchange:") ? int.Parse(p[3].Substring(9)) : 0);   // exchange[:金額] で両替の板（金額があれば本当に両替）
                 if (p.Length > 3 && p[3].StartsWith("buy:")) Hud.TestBuy(p[3].Substring(4));
                 // 段階3：fish:ready|charge|wait|bite|fight|catch[:魚] で釣り、book / rank で図鑑と番付、sit[:秒] で近くの席に座る
                 bool again = false;

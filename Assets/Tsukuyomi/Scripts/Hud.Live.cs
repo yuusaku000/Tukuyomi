@@ -196,7 +196,7 @@ namespace Tsukuyomi
             Panel(r);
             Text(new Rect(r.x, r.y + 20, r.width, 22), "SUPER FUJU", 16, Cyan, TextAnchor.MiddleCenter, true);
             Text(new Rect(r.x, r.y + 46, r.width, 50), "ヤチヨに投げ銭", 38, Color.white, TextAnchor.MiddleCenter, false, FontStyle.Bold);
-            Text(new Rect(r.x, r.y + 98, r.width, 26), "ミニヤチヨの本物のふじゅ〜から払います。コメントが空で光って流れ、ステージに招待されます", 18, new Color(1, 1, 1, 0.7f), TextAnchor.MiddleCenter);
+            Text(new Rect(r.x, r.y + 98, r.width, 26), "ツクヨミのふじゅ〜から払います。コメントが空で光って流れ、ステージに招待されます", 18, new Color(1, 1, 1, 0.7f), TextAnchor.MiddleCenter);
             // 金額
             float bw = 150, gap = 12, bx = r.x + (r.width - (bw * TipAmounts.Length + gap * (TipAmounts.Length - 1))) / 2, by = r.y + 140;
             for (int i = 0; i < TipAmounts.Length; i++)
@@ -220,7 +220,7 @@ namespace Tsukuyomi
                 if (!_tipBusy && GUI.Button(mr, GUIContent.none, GUIStyle.none)) { _tipMsg = i; Sfx.Click(); }
             }
             Text(new Rect(r.x, r.y + 400, r.width, 28), _tipErr ?? BalanceText(), 19, _tipErr != null ? Pink : new Color(1, 1, 1, 0.7f), TextAnchor.MiddleCenter);
-            if (_tipBusy) { Text(new Rect(r.x, r.y + 470, r.width, 40), "ミニヤチヨにふじゅ〜を送っています…", 22, Gold, TextAnchor.MiddleCenter); return; }
+            if (_tipBusy) { Text(new Rect(r.x, r.y + 470, r.width, 40), "支払っています…", 22, Gold, TextAnchor.MiddleCenter); return; }
             if (Button(new Rect(r.x + 90, r.yMax - 110, 330, 70), $"{TipAmounts[_tipAmt]:N0} ふじゅ〜 送る")) SendTip();
             if (Button(new Rect(r.xMax - 420, r.yMax - 110, 330, 70), "やめる（Esc）")) _tipOpen = false;
         }

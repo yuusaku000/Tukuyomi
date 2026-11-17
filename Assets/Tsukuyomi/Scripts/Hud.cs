@@ -232,7 +232,7 @@ namespace Tsukuyomi
         {
             if (Ts.ShotMode)
             {
-                Blocked = ShopOpen || _book || _tipOpen;
+                Blocked = ShopOpen || _book || _tipOpen || _exchange;
 
                 if (_menu || _map) { }
                 Cursor.lockState = CursorLockMode.None;
@@ -243,6 +243,7 @@ namespace Tsukuyomi
             {
                 if (_tipOpen) { if (!_tipBusy) _tipOpen = false; }
                 else if (LiveShow.AutoCam) LiveShow.SetAutoCam(false);
+                else if (_exchange) CloseExchange();
                 else if (_talk) CloseTalk();
                 else if (_shipAsk != null) { if (!_shipBusy) _shipAsk = null; }
                 else if (ShopOpen) CloseShop();
@@ -253,15 +254,15 @@ namespace Tsukuyomi
                 else if (!_menu && Rest.Sitting) Rest.I.Stand();
                 else _menu = !_menu;
             }
-            if (Act.Map.Down && !_menu) { _map = !_map; _book = false; }
+            if (Act.Map.Down && !_menu && !_exchange) { _map = !_map; _book = false; }
             if (Input.GetKeyDown(KeyCode.F3)) { _debug = !_debug; Toast(_debug ? "デバッグ表示オン（F3 で消す・F12 で写真）" : "デバッグ表示オフ"); }
             if (Input.GetKeyDown(KeyCode.F12)) TakePhoto();
-            if (Act.HideHud.Down && !_menu && !_map && !ShopOpen && !_book && !_talk && !_tipOpen && _shipAsk == null) { HideAll = !HideAll; _hideHintT = HideAll ? 2.5f : 0; }
+            if (Act.HideHud.Down && !_exchange && !_menu && !_map && !ShopOpen && !_book && !_talk && !_tipOpen && _shipAsk == null) { HideAll = !HideAll; _hideHintT = HideAll ? 2.5f : 0; }
             _hideHintT -= Time.unscaledDeltaTime;
-            bool usedC = LiveKeys();
-            bool usedE = ActivityKeys();
-            ShopKeys(usedE, usedC);
-            Blocked = _menu || _map || ShopOpen || _book || _shipAsk != null || _talk || _tipOpen;
+            bool usedC = !_exchange && LiveKeys();
+            bool usedE = !_exchange && ActivityKeys();
+            if (!_exchange) ShopKeys(usedE, usedC);
+            Blocked = _menu || _map || ShopOpen || _book || _shipAsk != null || _talk || _tipOpen || _exchange;
 
             if (Blocked)
             {
@@ -294,6 +295,7 @@ namespace Tsukuyomi
             }
             _toastT -= Time.unscaledDeltaTime;
             NoticeTick();
+            ExchangeTick();
             _bannerT -= Time.unscaledDeltaTime;
             _fpsFrames++; _fpsT += Time.unscaledDeltaTime;
             if (_fpsT > 0.5f) { _fps = _fpsFrames / _fpsT; _fpsFrames = 0; _fpsT = 0; }
@@ -554,7 +556,8 @@ namespace Tsukuyomi
             y += step;
             if (Button(new Rect(r.x + 110, y, 440, bh), $"画質：{Quality.Name}（押すと切りかえ）")) Quality.Next();
             y += step;
-            if (Button(new Rect(r.x + 110, y, 440, bh), "写真のフォルダを開く")) { System.IO.Directory.CreateDirectory(PhotoDir); Application.OpenURL("file:///" + PhotoDir.Replace('\\', '/')); }
+            if (Button(new Rect(r.x + 330, y, 220, bh), $"ふじゅ〜 {Mathf.Max(0, Fuju.Last):N0}（両替）", 20)) OpenExchange();
+            if (Button(new Rect(r.x + 110, y, 210, bh), "写真のフォルダ", 20)) { System.IO.Directory.CreateDirectory(PhotoDir); Application.OpenURL("file:///" + PhotoDir.Replace('\\', '/')); }
             y += step;
             if (Button(new Rect(r.x + 110, y, 440, bh), "着がえ（C）")) OpenWardrobe();
             y += step;

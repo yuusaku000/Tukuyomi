@@ -3,7 +3,7 @@ using UnityEngine;
 namespace Tsukuyomi
 {
     /// <summary>
-    /// 理髪店：髪の色（12色）と形（5種）をえらぶと、その場で試せる。「これにする」で 300 ふじゅ〜（ミニヤチヨ）を払って決まる。
+    /// 理髪店：髪の色（12色）と形（5種）をえらぶと、その場で試せる。「これにする」で 300 ふじゅ〜を払って決まる。
     /// 払わずに閉じたら、もとの髪にもどす。
     /// </summary>
     public partial class Hud
@@ -96,7 +96,7 @@ namespace Tsukuyomi
         {
             if (_busy) return;
             _busy = true; _confirm = false;
-            Msg("ミニヤチヨにふじゅ〜を送っています…");
+            Msg("支払っています…");
             var ticket = new Item { id = "barber", name = "理髪店", price = BarberPrice, kind = ItemKind.Accessory };
             Color c = _hairSel; int st = _styleSel;
             StartCoroutine(Fuju.Buy(ticket, res =>

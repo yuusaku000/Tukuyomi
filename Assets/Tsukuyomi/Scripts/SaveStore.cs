@@ -34,6 +34,9 @@ namespace Tsukuyomi
         public bool hairSet;
         public Color hairColor = new Color(0.16f, 0.12f, 0.16f);
         public int hairStyle = 1;
+        // ふじゅ〜（ツクヨミのお金）。ミニヤチヨから独立。fujuBonus は初ログインボーナスをもらったか
+        public int fuju;
+        public bool fujuBonus;
     }
 
     /// <summary>%APPDATA%\Tsukuyomi\save.json に、ログアウトした場所などを残す。</summary>

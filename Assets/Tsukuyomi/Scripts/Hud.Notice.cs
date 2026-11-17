@@ -12,7 +12,7 @@ namespace Tsukuyomi
 
         void NoticeTick()
         {
-            bool panelOpen = _map || _menu || ShopOpen || _book || _shipAsk != null || _talk || _tipOpen;
+            bool panelOpen = _exchange || _map || _menu || ShopOpen || _book || _shipAsk != null || _talk || _tipOpen;
             float a = (_toastT > 0 && !string.IsNullOrEmpty(_toast) && (!HideAll || panelOpen)) ? Mathf.Clamp01(_toastT / 0.5f) : 0f;
             if (_notice == null)
             {

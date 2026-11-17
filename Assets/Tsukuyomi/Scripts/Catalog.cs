@@ -33,7 +33,7 @@ namespace Tsukuyomi
 
     /// <summary>
     /// 島のお店で売っているもの。値段は「安め」（食べ物 100〜500、飾り 1000〜3000、服 2000〜6000 ふじゅ〜）。
-    /// 支払いはミニヤチヨの本物のふじゅ〜（Fuju.cs）。持ち物はツクヨミの save.json に残す。
+    /// 支払いはツクヨミのふじゅ〜（Fuju.cs。save.json の fuju）。持ち物はツクヨミの save.json に残す。
     /// お店の種類（shop）：
     ///   服　yukata 浴衣の店／furisode 振袖と晴れ着の店／fudan ふだん着の店
     ///   飾り komono 小間物屋（どの支店も同じ品ぞろえ）
