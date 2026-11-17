@@ -216,6 +216,7 @@ namespace Tsukuyomi
                 if (t == null || t.Down || (team != 0 && t.team == team) || !done.Add(t)) continue;
                 var pt = col.ClosestPoint(o);
                 t.Hit(dmg, pt, a, heavy);
+                if (team == 1 && t.team == 2) HitMark(t.Down);
                 if (shove > 0) { t.Shove(a * shove); if (t == _me) _vel += a * shove * 0.8f + Vector3.up * 3f; }
                 Sparks(pt, heavy ? new Color(1f, 0.6f, 0.3f) : new Color(0.5f, 1f, 1f), heavy ? 14 : 8);
                 any = true;
@@ -297,7 +298,7 @@ namespace Tsukuyomi
                     }
                     else
                     {
-                        if (t != null && !t.Down && s.dmg > 0) { t.Hit(s.dmg, h.point, s.v, s.heavy); Play(s.heavy ? _sHeavy : _sHit, 0.8f); }
+                        if (t != null && !t.Down && s.dmg > 0) { t.Hit(s.dmg, h.point, s.v, s.heavy); Play(s.heavy ? _sHeavy : _sHit, 0.8f); if (s.team == 1 && t.team == 2) HitMark(t.Down); }
                         if (s.aoe > 0) Explode(h.point, s.aoe, s.kind == ShotKind.Ball ? 4.5f : 3.5f, s.heavy, s.team);
                         else Sparks(h.point, s.kind == ShotKind.Arrow ? new Color(0.8f, 0.95f, 1f) : new Color(0.4f, 1f, 1f), 7);
                         gone = true;
@@ -325,6 +326,7 @@ namespace Tsukuyomi
                 var pt = col.ClosestPoint(at);
                 float k = 1f - Mathf.Clamp01(Vector3.Distance(pt, at) / radius) * 0.6f;
                 t.Hit(dmg * k, pt, pt - at, heavy);
+                if (team == 1 && t.team == 2) HitMark(t.Down);
                 t.Shove((pt - at).normalized * 6f);
             }
             Boom(at, radius / 3f, new Color(1f, 0.6f, 0.25f));

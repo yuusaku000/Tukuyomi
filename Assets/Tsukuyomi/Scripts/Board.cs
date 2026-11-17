@@ -292,6 +292,18 @@ namespace Tsukuyomi
         /// <summary>名札の明朝。</summary>
         public static Font Mincho => _mincho != null ? _mincho : (_mincho = Font.CreateDynamicFontFromOSFont(new[] { "Yu Mincho", "游明朝", "MS Mincho" }, 48));
 
+        /// <summary>画像を写す枠（RenderTexture の見本など）。</summary>
+        public static RawImage Raw(RectTransform parent, Rect r)
+        {
+            var i = Node<RawImage>(parent, "写し", r);
+            i.raycastTarget = false;
+            return i;
+        }
+
+        static Sprite _thick;
+        /// <summary>太めの輪（占拠の進み具合を、円が満ちていく形で見せる）。</summary>
+        public static Sprite ThickRingSprite => _thick != null ? _thick : (_thick = MakeCircle(256, 1f, 0.8f));
+
         static Sprite _ring, _disc;
         public static Sprite RingSprite => _ring != null ? _ring : (_ring = MakeCircle(256, 0.985f, 0.955f));
         public static Sprite DiscSprite => _disc != null ? _disc : (_disc = MakeCircle(128, 1f, 0f));

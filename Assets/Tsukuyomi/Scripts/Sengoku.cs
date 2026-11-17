@@ -59,7 +59,8 @@ namespace Tsukuyomi
         void OnDestroy()
         {
             if (I == this) I = null;
-            foreach (var b in new[] { _hud, _pauseB, _resultB }) if (b != null) Destroy(b.gameObject);
+            foreach (var b in new[] { _hud, _pauseB, _resultB, _selB }) if (b != null) Destroy(b.gameObject);
+            if (_rt != null) { _rt.Release(); Destroy(_rt); }
             foreach (var u in _units) if (u.tag != null) Destroy(u.tag.gameObject);
             if (_viewRoot != null) Destroy(_viewRoot.gameObject);
             Time.timeScale = 1f;
@@ -110,7 +111,7 @@ namespace Tsukuyomi
         void Update()
         {
             float dt = Time.deltaTime;
-            bool result = _match && _phase == MPhase.Result;
+            bool result = _match && (_phase == MPhase.Result || _phase == MPhase.Select);
             bool play = !_paused && !Ts.ShotMode && !result && (!_match || (!_dead && _phase == MPhase.Fight));
             bool lockIt = !_paused && !Ts.ShotMode && !result;
             Cursor.lockState = lockIt ? CursorLockMode.Locked : CursorLockMode.None;
@@ -125,10 +126,14 @@ namespace Tsukuyomi
                 var m = Act.LookMouse + Act.LookStick;
                 _yaw += m.x * 2.2f;
                 _pitch = Mathf.Clamp(_pitch - m.y * 2.2f, -85f, 85f);
-                for (int i = 0; i < Weapons.Length; i++) if (Act.Number(i)) Select(i);
-                float sc = Act.Scroll;
-                if (sc > 0.5f) Select((_w + Weapons.Length - 1) % Weapons.Length);
-                if (sc < -0.5f) Select((_w + 1) % Weapons.Length);
+                if (!_match)
+                {
+                    // 練習場では、いつでも持ちかえられる（試合はラウンドの始めにえらぶ）
+                    for (int i = 0; i < Weapons.Length; i++) if (Act.Number(i)) Select(i);
+                    float sc = Act.Scroll;
+                    if (sc > 0.5f) Select((_w + Weapons.Length - 1) % Weapons.Length);
+                    if (sc < -0.5f) Select((_w + 1) % Weapons.Length);
+                }
                 WeaponInput(dt);
             }
             if (!_frozen) Move(play, dt);
@@ -182,7 +187,7 @@ namespace Tsukuyomi
         {
             if (_cam == null) return;
             if (SpectateCam()) return;
-            if (_viewRoot != null && !_camOverride && !_viewRoot.gameObject.activeSelf) _viewRoot.gameObject.SetActive(true);
+            if (_viewRoot != null && !_camOverride && !_viewRoot.gameObject.activeSelf && !(_match && _phase == MPhase.Select)) _viewRoot.gameObject.SetActive(true);
             if (_camOverride) { _cam.transform.position = _camPos; _cam.transform.rotation = Quaternion.LookRotation(_camLook - _camPos); _cam.fieldOfView = 60; return; }
             _cam.transform.position = EyePos;
             _cam.transform.rotation = Quaternion.Euler(_pitch, _yaw, 0) * Quaternion.Euler(_tilt);
@@ -244,7 +249,7 @@ namespace Tsukuyomi
             for (int i = 0; i < 6; i++)
                 _wList[i] = Board.Label(r, new Rect(1440, 640 + i * 30, 350, 28), "", 18, Color.white, TextAnchor.MiddleRight);
             _hint = Board.Label(r, new Rect(980, 900, 810, 140), "", 18, new Color(1, 1, 1, 0.85f), TextAnchor.UpperRight);
-            Board.Label(r, new Rect(60, 1010, 900, 30), "WASD 移動　Shift 走る　Space ジャンプ　1〜6・ホイール 武器　Esc 一時停止", 16, new Color(1, 1, 1, 0.7f), TextAnchor.MiddleLeft);
+            Board.Label(r, new Rect(60, 1010, 900, 30), _match ? "WASD 移動　Shift 走る　Space ジャンプ　Esc 一時停止　自分の城の中で回復" : "WASD 移動　Shift 走る　Space ジャンプ　1〜6・ホイール 武器　Esc 一時停止", 16, new Color(1, 1, 1, 0.7f), TextAnchor.MiddleLeft);
             for (int i = 0; i < 14; i++)
             {
                 var t = Board.Display(r, new Rect(0, 0, 200, 50), "", 34, Board.Gold);
@@ -271,7 +276,7 @@ namespace Tsukuyomi
             _wName.text = w.en;
             for (int i = 0; i < 6; i++)
             {
-                _wList[i].text = $"{Weapons[i].name}　{i + 1}";
+                _wList[i].text = _match ? (i == _w ? $"{Owners[i]}の{Weapons[i].name}" : "") : $"{Weapons[i].name}　{i + 1}";
                 _wList[i].color = i == _w ? Board.Teal : new Color(1, 1, 1, 0.55f);
                 _wList[i].fontSize = i == _w ? 22 : 18;
             }

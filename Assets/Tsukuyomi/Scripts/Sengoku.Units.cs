@@ -18,7 +18,8 @@ namespace Tsukuyomi
             public Vector3 vel; public float cd, cd2, respawnT, stuckT, repathT, attackPose;
             public Vector3 lastPos, goal = new(999, 0, 0);
             public List<Vector3> path = new List<Vector3>(); public int pathI;
-            public SengokuTarget enemy; public float thinkT; public bool healing;
+            public SengokuTarget enemy; public float thinkT, strafeT, strafeDir = 1; public bool healing;
+            public int task, stuck, avoidSide = 1; public Vector3 taskGoal;
             public Board tag; public RectTransform hpFill;
             public bool Dead => target.Down;
             public Vector3 Pos => go.transform.position;
@@ -190,6 +191,7 @@ namespace Tsukuyomi
 
         void UnitsTick(float dt)
         {
+            PlanTeams(dt);
             foreach (var u in _units)
             {
                 if (u.Dead)
@@ -229,75 +231,153 @@ namespace Tsukuyomi
             return true;
         }
 
+        // ───────── 組ごとの作戦（1秒ごと）─────────
+        //  自分の大将落としが出ていたら、いちばん近い1人が守る。
+        //  持っていない櫓へ、近い順に1人ずつ。のこりは、相手の大将落としが出ていれば攻め、出ていなければ近い櫓を助ける。
+
+        float _planT;
+
+        void PlanTeams(float dt)
+        {
+            _planT -= dt;
+            if (_planT > 0) return;
+            _planT = 1f;
+            for (int team = 1; team <= 2; team++) Plan(team);
+        }
+
+        void Plan(int team)
+        {
+            var free = new List<Unit>();
+            foreach (var u in _units) if (u.team == team && !u.Dead && u.go.activeSelf && !u.healing) free.Add(u);
+            Unit Take(Vector3 at)
+            {
+                Unit best = null; float bd = float.MaxValue;
+                foreach (var u in free) { float d = Vector3.Distance(u.Pos, at); if (d < bd) { bd = d; best = u; } }
+                if (best != null) free.Remove(best);
+                return best;
+            }
+            float side = team == 1 ? -1 : 1;
+            var ownDar = _daruma[team]; var enemyDar = _daruma[team == 1 ? 2 : 1];
+            if (ownDar.active)
+            {
+                var d = Take(DarumaSpot(team));
+                if (d != null) { d.task = 3; d.taskGoal = DarumaSpot(team) + new Vector3(-side * 5f, 0, 2f); }
+            }
+            for (int i = 0; i < 2; i++)
+            {
+                var t = _towers[i];
+                if (t.owner == team && Mathf.Abs(t.prog) >= 1f) continue;
+                var u = Take(t.c);
+                if (u != null) { u.task = 1 + i; u.taskGoal = t.c + new Vector3(side * 1.5f, 0, (u.role - 1) * 1.6f); }
+            }
+            foreach (var u in free)
+            {
+                if (enemyDar.active) { u.task = 4; u.taskGoal = DarumaSpot(team == 1 ? 2 : 1) + new Vector3(side * 3.5f, 0, (u.role - 1) * 1.8f); }
+                else
+                {
+                    // 相手が持っている櫓、なければ近い櫓へ
+                    int ti = _towers[0].owner != team ? 0 : _towers[1].owner != team ? 1 : (Vector3.Distance(u.Pos, _towers[0].c) < Vector3.Distance(u.Pos, _towers[1].c) ? 0 : 1);
+                    u.task = 1 + ti; u.taskGoal = _towers[ti].c + new Vector3(side * 2.5f, 0, (u.role - 1) * 2f);
+                }
+            }
+        }
+
         void Think(Unit u, float dt)
         {
             u.thinkT -= dt;
             if (u.thinkT > 0) return;
             u.thinkT = AiThink[_level] * Random.Range(0.8f, 1.2f);
-            // 近くの敵
-            SengokuTarget best = null; float bd = 26f;
-            foreach (var e in Enemies(u.team))
-            {
-                float d = Vector3.Distance(u.Pos, e.transform.position);
-                if (d < bd && Visible(u.Eye, e)) { bd = d; best = e; }
-            }
-            u.enemy = best;
-            // 目的地：櫓、または敵の大将落とし
-            var enemyDar = _daruma[u.team == 1 ? 2 : 1];
-            Vector3 goal;
-            bool attackDar = enemyDar.active && (u.role != 1 || Owned(u.team) == 2);
             // 体力が減ったら本陣へもどって回復する（満タン近くまで）
             if (u.target.hp < 35f) u.healing = true;
             if (u.healing && u.target.hp > 90f) u.healing = false;
-            if (u.healing) { u.enemy = u.target.hp < 20f ? null : u.enemy; goal = SpawnOf(u.team, u.role + 1) + new Vector3(u.team == 1 ? 3f : -3f, 0, 0); }
-            else if (attackDar) goal = DarumaSpot(u.team == 1 ? 2 : 1) + new Vector3(u.team == 1 ? -3.5f : 3.5f, 0, (u.role - 1) * 1.5f);
-            else
+            // 近くの敵：近い・弱っている・目的地の近くにいる敵ほどねらう
+            SengokuTarget best = null; float bs = float.MaxValue;
+            foreach (var e in Enemies(u.team))
             {
-                int ti = u.role == 0 ? 0 : u.role == 1 ? 1 : (_towers[0].owner == u.team ? 1 : 0);
-                var c = ti == 0 ? NorthCapture : SouthCapture;
-                goal = c + new Vector3((u.team == 1 ? -1 : 1) * 2f, 0, (u.role - 1) * 1.5f);
+                float d = Vector3.Distance(u.Pos, e.transform.position);
+                if (d > 30f || !Visible(u.Eye, e)) continue;
+                float score = d - (e.hp < e.maxHp * 0.4f ? 6f : 0f) - (Vector3.Distance(e.transform.position, u.taskGoal) < 10f ? 5f : 0f);
+                if (score < bs) { bs = score; best = e; }
             }
+            u.enemy = u.healing && u.target.hp < 20f ? null : best;
+            var goal = u.healing ? SpawnOf(u.team, u.role + 1) + new Vector3(u.team == 1 ? 3f : -3f, 0, 0) : u.taskGoal;
             if (Vector3.Distance(goal, u.goal) > 2f || u.repathT <= 0)
             {
                 u.goal = goal; u.path = FindPath(u.Pos, goal); u.pathI = 0; u.repathT = 6f;
             }
         }
 
+        Vector3 VelOf(SengokuTarget t)
+        {
+            if (t == _me) return _vel;
+            foreach (var o in _units) if (o.target == t) return new Vector3(o.vel.x, 0, o.vel.z);
+            return Vector3.zero;
+        }
+
         void Drive(Unit u, float dt)
         {
-            u.cd -= dt; u.cd2 -= dt; u.repathT -= dt; u.attackPose -= dt;
+            u.cd -= dt; u.cd2 -= dt; u.repathT -= dt; u.attackPose -= dt; u.strafeT -= dt;
+            if (u.strafeT <= 0) { u.strafeDir = Random.value < 0.5f ? -1 : 1; u.strafeT = Random.Range(0.8f, 2f); }
             var p = u.Pos;
             Vector3 want = Vector3.zero; Vector3 face = u.go.transform.forward;
-            bool ranged = u.weapon == 3 || u.weapon == 4;
-            if (u.enemy != null && !u.enemy.Down && u.enemy.gameObject.activeInHierarchy)
+            bool ranged = u.weapon == 3 || u.weapon == 4, hybrid = u.weapon == 0 || u.weapon == 2;
+            float run = 1f;
+            var dar = _daruma[u.team == 1 ? 2 : 1];
+            bool atDar = u.task == 4 && dar.active && Vector3.Distance(p, dar.target.transform.position) < 9f * K;
+            var enemy = u.enemy != null && !u.enemy.Down && u.enemy.gameObject.activeInHierarchy ? u.enemy : null;
+            float ed = enemy != null ? Vector3.Distance(p, enemy.transform.position) : 999f;
+            // 目的地の仕事中で、敵が遠ければ相手にしない（撃てる武器は撃ちながら進む）
+            bool chase = enemy != null && (ed < 14f || u.task == 3 || Vector3.Distance(enemy.transform.position, u.taskGoal) < 12f) && !atDar;
+
+            if (chase)
             {
-                var ep = u.enemy.transform.position; var to = ep - p; to.y = 0;
-                float d = to.magnitude;
+                var to = enemy.transform.position - p; to.y = 0;
                 face = to.normalized;
-                float near = ranged ? 9f : 1.9f, far = ranged ? 18f : 2.4f;
-                if (d > far)
+                var strafe = Vector3.Cross(Vector3.up, face) * u.strafeDir;
+                if (ranged)
                 {
-                    if (DirectOk(p, ep)) want = to.normalized;
-                    else want = Follow(u, p, ep);
+                    if (ed > 24f) want = DirectOk(p, enemy.transform.position) ? face : Follow(u, p, enemy.transform.position);
+                    else if (ed < 10f) want = (-face + strafe * 0.6f).normalized;
+                    else want = strafe * 0.8f;
                 }
-                else if (d < near && ranged) want = -to.normalized * 0.7f;
-                else want = Vector3.Cross(Vector3.up, to.normalized) * Mathf.Sin(Time.time * 0.8f + u.role) * 0.6f; // 横に回りこむ
-                Attack(u, u.enemy, d);
+                else
+                {
+                    float near = hybrid ? 2.2f : 2.0f;
+                    if (ed > near + 0.4f)
+                    {
+                        want = DirectOk(p, enemy.transform.position) ? (face + strafe * (ed > 6 ? 0.35f : 0f)).normalized : Follow(u, p, enemy.transform.position);
+                        if (ed < 7f) run = 1.35f; // 間合いに飛びこむ
+                    }
+                    else want = strafe * 0.7f;
+                }
+                // 自分（プレイヤー）にねらわれていたら、横にかわす（強いほどよく動く）
+                if (enemy == _me && _level > 0 && ed < 35f && Vector3.Angle(Aim, (u.Eye - EyePos).normalized) < 7f)
+                {
+                    want = (want + strafe * (0.8f + _level * 0.4f)).normalized;
+                    if (_level == 2 && u.cc.isGrounded && Random.value < dt * 0.8f) u.vel.y = 7f;
+                }
+                Attack(u, enemy, ed);
             }
             else
             {
-                var dar = _daruma[u.team == 1 ? 2 : 1];
-                if (dar.active && Vector3.Distance(p, dar.target.transform.position) < 8f)
+                if (atDar)
                 {
                     var to = dar.target.transform.position - p; to.y = 0; face = to.normalized;
-                    if (to.magnitude > (ranged ? 7f : 2.2f)) want = to.normalized;
+                    if (to.magnitude > (ranged ? 8f : 2.6f)) want = face;
+                    else want = Vector3.Cross(Vector3.up, face) * u.strafeDir * 0.4f;
                     Attack(u, dar.target, to.magnitude);
                 }
-                else if (Vector3.Distance(new Vector3(p.x, 0, p.z), new Vector3(u.goal.x, 0, u.goal.z)) > 1.2f) want = Follow(u, p, u.goal);
+                else if (Vector3.Distance(new Vector3(p.x, 0, p.z), new Vector3(u.goal.x, 0, u.goal.z)) > 1.5f)
+                {
+                    want = Follow(u, p, u.goal);
+                    run = Vector3.Distance(p, u.goal) > 20f ? 1.2f : 1f;
+                }
+                if (enemy != null && (ranged || hybrid)) { Attack(u, enemy, ed); }
             }
-            if (want.sqrMagnitude > 0.01f && u.enemy == null) face = new Vector3(want.x, 0, want.z).normalized;
+            want = Avoid(u, p, want);
+            if (want.sqrMagnitude > 0.01f && !chase && !atDar) face = new Vector3(want.x, 0, want.z).normalized;
 
-            float speed = (u.weapon == 4 ? 5.2f : 6.2f) * (InLake(p) ? 0.55f : 1f);
+            float speed = (u.weapon == 4 ? 5.2f : 6.2f) * run * (InLake(p) ? 0.55f : 1f);
             var flat = new Vector3(u.vel.x, 0, u.vel.z);
             flat = Vector3.Lerp(flat, want * speed, 1 - Mathf.Exp(-10f * dt));
             u.vel.x = flat.x; u.vel.z = flat.z;
@@ -309,15 +389,42 @@ namespace Tsukuyomi
             u.doll.holdR = u.attackPose > 0 ? 1 : 0;
             u.doll.holdREuler = new Vector3(-95, 0, 0);
 
-            // 引っかかったら跳んで、道を引きなおす
+            // 引っかかったら、まず跳ぶ。それでもだめなら、よける向きを変えて道を引きなおす
             u.stuckT += dt;
-            if (u.stuckT > 1.2f)
+            if (u.stuckT > 1f)
             {
-                if (want.sqrMagnitude > 0.2f && Vector3.Distance(u.lastPos, p) < 0.5f && u.cc.isGrounded) { u.vel.y = 7.5f; u.vel += Random.insideUnitSphere * 3f; u.repathT = 0; u.thinkT = 0; }
+                if (want.sqrMagnitude > 0.2f && Vector3.Distance(u.lastPos, p) < 0.6f)
+                {
+                    u.stuck++;
+                    if (u.cc.isGrounded) u.vel.y = 7.5f;
+                    if (u.stuck >= 2) { u.avoidSide = -u.avoidSide; u.repathT = 0; u.thinkT = 0; u.vel += Random.insideUnitSphere * 3f; }
+                }
+                else u.stuck = 0;
                 u.lastPos = p; u.stuckT = 0;
             }
             if (p.y < -19f) Respawn(u);
             if (InBase(u.team, p)) u.target.hp = Mathf.Min(u.target.maxHp, u.target.hp + 25f * dt);
+        }
+
+        /// <summary>前に壁や建物があれば横へよける。味方とは間をあける。</summary>
+        Vector3 Avoid(Unit u, Vector3 p, Vector3 want)
+        {
+            if (want.sqrMagnitude < 0.01f) return want;
+            var dir = new Vector3(want.x, 0, want.z).normalized;
+            if (Physics.SphereCast(p + Vector3.up * 0.9f, 0.35f, dir, out var h, 1.6f, ~0, QueryTriggerInteraction.Ignore)
+                && h.collider != u.cc && h.normal.y < 0.6f && h.collider.GetComponentInParent<SengokuTarget>() == null)
+            {
+                var side = Quaternion.Euler(0, 60f * u.avoidSide, 0) * dir;
+                if (Physics.Raycast(p + Vector3.up * 0.9f, side, 1.6f, ~0, QueryTriggerInteraction.Ignore)) { u.avoidSide = -u.avoidSide; side = Quaternion.Euler(0, 60f * u.avoidSide, 0) * dir; }
+                dir = side;
+            }
+            foreach (var o in _units)
+            {
+                if (o == u || o.team != u.team || o.Dead) continue;
+                var off = p - o.Pos; off.y = 0;
+                if (off.sqrMagnitude < 2f && off.sqrMagnitude > 0.001f) dir += off.normalized * 0.5f;
+            }
+            return dir.normalized * Mathf.Min(1f, want.magnitude);
         }
 
         static bool InLake(Vector3 p) => p.z < -34 * K && Mathf.Abs(p.x) < 26 * K && p.y < -0.4f * K && !(Mathf.Abs(p.x) < 6 * K && p.z > -52 * K && p.z < -40 * K);
@@ -328,8 +435,15 @@ namespace Tsukuyomi
             while (u.pathI < u.path.Count - 1)
             {
                 var n = u.path[u.pathI]; var d = n - p;
-                if (new Vector2(d.x, d.z).magnitude < 1.6f && Mathf.Abs(d.y) < 3f) u.pathI++;
+                if (new Vector2(d.x, d.z).magnitude < 1.8f && Mathf.Abs(d.y) < 3f) u.pathI++;
                 else break;
+            }
+            // 次の次の点まで、まっすぐ行けるなら近道する
+            if (u.pathI + 1 < u.path.Count)
+            {
+                var nn = u.path[u.pathI + 1];
+                var a = p + Vector3.up * 0.9f; var b = nn + Vector3.up * 0.9f;
+                if (DirectOk(p, nn) && !Physics.Raycast(a, (b - a).normalized, Vector3.Distance(a, b), ~0, QueryTriggerInteraction.Ignore)) u.pathI++;
             }
             var t = u.path[Mathf.Min(u.pathI, u.path.Count - 1)] - p; t.y = 0;
             return t.sqrMagnitude > 0.04f ? t.normalized : Vector3.zero;
@@ -343,7 +457,7 @@ namespace Tsukuyomi
             var eye = u.Eye;
             Vector3 AimDir(float speed, float grav)
             {
-                var d = aimAt - eye; float tt = d.magnitude / Mathf.Max(1, speed);
+                var d = aimAt + VelOf(t) * (Vector3.Distance(aimAt, eye) / Mathf.Max(1, speed)) * (0.5f + 0.25f * _level) - eye; float tt = d.magnitude / Mathf.Max(1, speed);
                 var dir = (d + Vector3.up * 0.5f * grav * tt * tt).normalized;
                 return Quaternion.Euler(Random.Range(-1f, 1f) * AiErr[_level], Random.Range(-1f, 1f) * AiErr[_level], 0) * dir;
             }

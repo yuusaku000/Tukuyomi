@@ -12,7 +12,7 @@ namespace Tsukuyomi
     /// </summary>
     public partial class Sengoku
     {
-        enum MPhase { Intro, Fight, RoundEnd, Result }
+        enum MPhase { Select, Intro, Fight, RoundEnd, Result }
 
         bool _match;
         int _level = 1, _round, _winsW, _winsE, _myLives = 2;
@@ -48,6 +48,7 @@ namespace Tsukuyomi
             _me.onDown = t => OnDown("あなた", 1);
             SpawnUnits();
             BuildMatchHud();
+            BuildMarkers();
             _round = 0;
             NextRound();
         }
@@ -107,11 +108,27 @@ namespace Tsukuyomi
 
         readonly List<(Transform t, Vector3 v, float life)> _flyers = new List<(Transform, Vector3, float)>();
 
+        /// <summary>前のラウンドの名残を全部片づける（飛んでいる弾・飛んでいる段・光・移動わざ・櫓の色・武者の目標）。</summary>
+        void ClearRoundLeftovers()
+        {
+            foreach (var s in _shots) if (s.tr) Destroy(s.tr.gameObject);
+            _shots.Clear(); _boomer = null;
+            foreach (var f in _fx) if (f.tr) Destroy(f.tr.gameObject);
+            _fx.Clear();
+            _flyers.Clear();
+            EndAbilities();
+            _vel = Vector3.zero; _fuel = 1; _cd = _cd2 = _abilityCd = 0; _charge = 0; _zoom = false; _dashT = 0; _swing = 0;
+            _hurt = 0; _healing = false; _deadT = 0; _coldT = 0; _planT = 0; _ropeShow = 0; _flameT = 0;
+            Time.timeScale = 1f;
+            foreach (var t in _towers) { t.owner = 0; t.prog = 0; foreach (var r in t.ring) r.sharedMaterial = Mat(Color.white, true); }
+            foreach (var u in _units) { u.cd = u.cd2 = 0; u.healing = false; u.enemy = null; u.task = 0; u.stuck = 0; u.attackPose = 0; u.vel = Vector3.zero; }
+        }
+
         void NextRound()
         {
             _round++;
+            ClearRoundLeftovers();
             _clock = 300f; _coldT = 0;
-            foreach (var t in _towers) { t.owner = 0; t.prog = 0; }
             for (int team = 1; team <= 2; team++)
             {
                 var d = _daruma[team];
@@ -127,9 +144,9 @@ namespace Tsukuyomi
             foreach (var u in _units) { u.lives = 2; u.respawnT = 0; Respawn(u); }
             _myLives = 2; _dead = false; _me.Revive(); _hp = 100;
             Teleport(SpawnOf(1, 0)); _yaw = 90; _pitch = 2;
-            _phase = MPhase.Intro; _phaseT = 0;
-            Center(_round == 3 ? "FINAL ROUND" : $"ROUND {_round}", Board.Teal, 2.2f, "櫓を取って、東の大将落としを叩き落とせ！（自分の城の中で回復）");
+            _phase = MPhase.Select; _phaseT = 0; _centerT = 0;
             _feed.Clear();
+            OpenSelect();
         }
 
         // ───────── 毎フレーム ─────────
@@ -143,6 +160,9 @@ namespace Tsukuyomi
             if (_healing) _me.hp = Mathf.Min(_me.maxHp, _me.hp + 25f * dt);
             switch (_phase)
             {
+                case MPhase.Select:
+                    SelectTick(dt);
+                    break;
                 case MPhase.Intro:
                     if (_phaseT > 2.2f) { _phase = MPhase.Fight; _phaseT = 0; Center("出陣！", Board.Gold, 1f, ""); Play(_sBoom, 0.5f); }
                     break;
@@ -276,7 +296,7 @@ namespace Tsukuyomi
         Text _mClock, _mRound, _mCenter, _mSub, _mFeed, _mDar, _mCold, _mLives;
         readonly Text[] _mTower = new Text[2];
         readonly RectTransform[] _mTowerBar = new RectTransform[2];
-        readonly Image[] _mTowerImg = new Image[2];
+        readonly Image[] _mTowerImg = new Image[2], _mTowerFill = new Image[2];
         readonly List<(Text name, RectTransform hp, Text lives)> _mRows = new List<(Text, RectTransform, Text)>();
         readonly Image[] _mWins = new Image[4];
         Image _hurtImg;
@@ -306,6 +326,8 @@ namespace Tsukuyomi
                 float x = i == 0 ? 760 : 1060;
                 _mTowerImg[i] = Board.Panel(r, new Rect(x, 180, 100, 100), new Color(0.03f, 0.05f, 0.12f, 0.8f)); _mTowerImg[i].sprite = Board.DiscSprite;
                 Board.Ring(r, new Vector2(x + 50, 230), 50, new Color(1, 1, 1, 0.8f), false);
+                _mTowerFill[i] = Board.Panel(r, new Rect(x - 6, 174, 112, 112), Board.Teal);
+                _mTowerFill[i].sprite = Board.ThickRingSprite; _mTowerFill[i].type = Image.Type.Filled; _mTowerFill[i].fillMethod = Image.FillMethod.Radial360; _mTowerFill[i].fillOrigin = 2;
                 _mTower[i] = Board.Label(r, new Rect(x, 200, 100, 60), i == 0 ? "北" : "南", 34, Color.white, TextAnchor.MiddleCenter);
                 _mTower[i].font = Board.Mincho;
                 Board.Panel(r, new Rect(x, 290, 100, 6), new Color(0, 0, 0, 0.6f));
@@ -359,6 +381,9 @@ namespace Tsukuyomi
                 _mTowerBar[i].sizeDelta = new Vector2(w, 6);
                 _mTowerBar[i].pivot = new Vector2(t.prog >= 0 ? 0 : 1, 1);
                 _mTowerBar[i].GetComponent<Image>().color = t.prog >= 0 ? Board.Teal : Board.Vermilion;
+                _mTowerFill[i].fillAmount = Mathf.Abs(t.prog);
+                _mTowerFill[i].fillClockwise = t.prog >= 0;
+                _mTowerFill[i].color = t.prog >= 0 ? Board.Teal : Board.Vermilion;
             }
             int both = Owned(1) == 2 ? 1 : Owned(2) == 2 ? 2 : 0;
             _mCold.text = both != 0 ? $"{(both == 1 ? "西軍" : "東軍")}のコールド勝ちまで {Mathf.Max(0, 30 - _coldT):0} 秒" : "";
@@ -383,6 +408,7 @@ namespace Tsukuyomi
             float a = Mathf.Clamp01(_centerT / 0.4f);
             _mCenter.canvasRenderer.SetAlpha(a); _mSub.canvasRenderer.SetAlpha(a);
             _hurtImg.color = new Color(0.8f, 0.05f, 0.05f, _hurt * 0.35f + (_dead ? 0.25f : 0));
+            MarkersTick();
         }
 
         /// <summary>自分がやられていて残機もないとき：生きている味方のうしろから見る。</summary>
@@ -439,6 +465,7 @@ namespace Tsukuyomi
         {
             var s = I;
             if (s == null || !s._match) return;
+            if (pose != "select") { s._pick = s._w; s.ConfirmPick(); }
             switch (pose)
             {
                 case "fight":
@@ -464,6 +491,19 @@ namespace Tsukuyomi
                     s.Towers(0);
                     s._daruma[2].target.Hit(210, DarumaSpot(2), Vector3.right, false);
                     s.Teleport(DarumaSpot(2) + new Vector3(-9, 0.3f, -2)); s._yaw = 80; s._pitch = 8;
+                    foreach (var u in s._units) if (u.team == 2) u.go.SetActive(false);
+                    break;
+                case "round2":
+                    // 1ラウンド目に櫓を取り、大将落としを3段落とし、弾を飛ばしたまま次のラウンドへ → 名残が消えているかを見る
+                    s._phase = MPhase.Fight;
+                    s._towers[0].owner = 1; s._towers[0].prog = 1; s.Towers(0);
+                    s._daruma[2].target.Hit(300, DarumaSpot(2), Vector3.right, false);
+                    for (int i = 0; i < 4; i++) s.Fire(s.EyePos, Vector3.forward * 5f, 0, 10, 0, false, ShotKind.Spark);
+                    s.EndRound(1, "確認");
+                    s.NextRound(); s._pick = s._w; s.ConfirmPick(); s._centerT = 0;
+                    s._phase = MPhase.Fight;
+                    s._towers[0].owner = 1; s._towers[0].prog = 1; s.Towers(0); s._centerT = 0;
+                    s.Teleport(DarumaSpot(2) + K * new Vector3(-9, 0.3f, -2)); s._yaw = 80; s._pitch = 10;
                     foreach (var u in s._units) if (u.team == 2) u.go.SetActive(false);
                     break;
                 case "result":
