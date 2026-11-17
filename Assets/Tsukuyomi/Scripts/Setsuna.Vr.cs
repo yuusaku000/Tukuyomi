@@ -79,6 +79,7 @@ namespace Tsukuyomi
         string VrSwing()
         {
             if (!VrOn) return null;
+            if (_testPlay) Vr.SimSwing = true; // 確認用：前の試合の片づけが遅れて消しても、振りつづける
             float dt = Time.deltaTime;
             _swingCdR -= dt; _swingCdL -= dt;
             float r = Vr.RightVel.magnitude, l = Vr.LeftVel.magnitude;

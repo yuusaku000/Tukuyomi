@@ -100,6 +100,7 @@ namespace Tsukuyomi
         /// <summary>右手を振った（近接の武器のとき、左クリックの代わり）。</summary>
         bool SwingRight(float dt)
         {
+            if (_testPlay) Vr.SimSwing = true; // 確認用：前の試合の片づけが遅れて消しても、振りつづける
             _swingCdR -= dt;
             if (!VrOn || _swingCdR > 0 || Vr.RightVel.magnitude < SwingSpeed) return false;
             _swingCdR = 0.32f;
