@@ -40,15 +40,15 @@ namespace Tsukuyomi
         MItem[] MItems => _mItems ??= new[]
         {
             new MItem { group = "遊ぶ", name = "つづける", en = "RESUME", kind = MKind.Action, desc = "メニューを閉じて、島にもどります。", act = () => _menu = false },
-            new MItem { group = "遊ぶ", name = "地図とワープ", en = "MAP", kind = MKind.Action, desc = "島の地図。行きたい場所をえらんでワープできます。（M）", act = () => { _menu = false; _map = true; } },
-            new MItem { group = "遊ぶ", name = "図鑑と番付", en = "BOOK", kind = MKind.Action, desc = "釣った魚の図鑑と、大物番付。（B）", act = () => OpenBook(0) },
-            new MItem { group = "遊ぶ", name = "着がえ", en = "WARDROBE", kind = MKind.Action, desc = "買った服や髪型にかえます。（C）", act = () => { _menu = false; OpenWardrobe(); } },
+            new MItem { group = "遊ぶ", name = "地図とワープ", en = "MAP", kind = MKind.Action, desc = "島の地図。行きたい場所をえらんでワープできます。（M）", act = () => Sub(() => { _menu = false; _map = true; }) },
+            new MItem { group = "遊ぶ", name = "図鑑と番付", en = "BOOK", kind = MKind.Action, desc = "釣った魚の図鑑と、大物番付。（B）", act = () => Sub(() => OpenBook(0)) },
+            new MItem { group = "遊ぶ", name = "着がえ", en = "WARDROBE", kind = MKind.Action, desc = "買った服や髪型にかえます。（C）", act = () => Sub(() => { _menu = false; OpenWardrobe(); }) },
             new MItem { group = "設定", name = "音", en = "SOUND", kind = MKind.Page, desc = "全体・環境音・効果音・ライブの音楽の大きさ。" },
             new MItem { group = "設定", name = "画面と表示", en = "DISPLAY", kind = MKind.Page, desc = "画質・視点・方位の帯・照準・吹き出し。" },
             new MItem { group = "設定", name = "操作", en = "CONTROLS", kind = MKind.Page, desc = "見回す速さ・上下の向き・キーの一覧。" },
             new MItem { group = "設定", name = "VR", en = "VR", kind = MKind.Page, desc = "VR モードの設定（準備中）。" },
-            new MItem { group = "そのほか", name = "遊び方", en = "HOW TO PLAY", kind = MKind.Action, desc = "操作や遊び方を、ページをめくって読めます。", act = () => OpenGuide() },
-            new MItem { group = "そのほか", name = "ふじゅ〜と両替", en = "FUJU", kind = MKind.Action, desc = "残高を見る・ミニヤチヨから両替する（片道）。", act = () => OpenExchange() },
+            new MItem { group = "そのほか", name = "遊び方", en = "HOW TO PLAY", kind = MKind.Action, desc = "操作や遊び方を、ページをめくって読めます。", act = () => Sub(() => OpenGuide()) },
+            new MItem { group = "そのほか", name = "ふじゅ〜と両替", en = "FUJU", kind = MKind.Action, desc = "残高を見る・ミニヤチヨから両替する（片道）。", act = () => Sub(() => OpenExchange()) },
             new MItem { group = "そのほか", name = "写真のフォルダ", en = "PHOTOS", kind = MKind.Action, desc = "F12 で撮った写真のフォルダを開きます。", act = () => { System.IO.Directory.CreateDirectory(PhotoDir); Application.OpenURL("file:///" + PhotoDir.Replace('\\', '/')); } },
             new MItem { group = "そのほか", name = "ログアウト", en = "LOGOUT", kind = MKind.Action, desc = "ツクヨミを終わります。", act = () => { _mbConfirm = true; ShowMenuPane(); } },
         };
@@ -100,8 +100,78 @@ namespace Tsukuyomi
             _mbPane.SetParent(r, false);
             _mbPane.anchorMin = _mbPane.anchorMax = _mbPane.pivot = new Vector2(0, 1);
             _mbPane.sizeDelta = new Vector2(MbW, MbH); _mbPane.anchoredPosition = Vector2.zero;
-            Board.Label(r, new Rect(0, MbH - 58, MbW, 26), "↑↓ えらぶ　　→・Enter 決める　　←→ 値を変える　　Q・E 設定の分類　　Esc もどる・閉じる", 16, new Color(1, 1, 1, 0.55f), TextAnchor.MiddleCenter);
+            Board.Label(r, new Rect(0, MbH - 58, MbW, 26), "↑↓ えらぶ　　→・Enter 決める　　←→ 値を変える　　Q・E 設定の分類　　Ctrl+Z ひとつ前にもどす　　Esc もどる・閉じる", 16, new Color(1, 1, 1, 0.55f), TextAnchor.MiddleCenter);
         }
+
+        /// <summary>メニューから開いた画面（地図・図鑑・着がえ・遊び方・両替）を閉じたら、メニューのこの分類にもどる。</summary>
+        int _returnItem = -1;
+        void Sub(Action open) { _returnItem = _mbItem; open(); }
+
+        // ───────── ひとつ前にもどす（設定の取り消し）─────────
+
+        struct MSnap
+        {
+            public float ma, am, fx, mu, look; public bool mute, fp, comp, cross, bub, inv; public int q;
+        }
+
+        readonly List<MSnap> _mbUndo = new List<MSnap>();
+
+        MSnap Snap() => new MSnap
+        {
+            ma = SoundPrefs.Master, am = SoundPrefs.Ambient, fx = SoundPrefs.Effects, mu = SoundPrefs.Music, mute = SoundPrefs.Muted,
+            q = Quality.Level, fp = cam != null && cam.firstPerson, comp = CompassOn, cross = CrosshairOn, bub = Crowd.BubblesOn,
+            look = Act.LookSpeed, inv = Act.InvertY,
+        };
+
+        void Restore(MSnap s)
+        {
+            if (SoundPrefs.Master != s.ma) SoundPrefs.Master = s.ma;
+            if (SoundPrefs.Ambient != s.am) SoundPrefs.Ambient = s.am;
+            if (SoundPrefs.Effects != s.fx) SoundPrefs.Effects = s.fx;
+            if (SoundPrefs.Music != s.mu) SoundPrefs.Music = s.mu;
+            if (SoundPrefs.Muted != s.mute) SoundPrefs.Muted = s.mute;
+            if (Quality.Level != s.q) Quality.Apply(s.q);
+            if (cam != null && cam.firstPerson != s.fp) cam.Toggle();
+            if (CompassOn != s.comp) CompassOn = s.comp;
+            if (CrosshairOn != s.cross) CrosshairOn = s.cross;
+            if (Crowd.BubblesOn != s.bub) Crowd.BubblesOn = s.bub;
+            if (Act.LookSpeed != s.look) Act.LookSpeed = s.look;
+            if (Act.InvertY != s.inv) Act.InvertY = s.inv;
+        }
+
+        /// <summary>設定を変えるときに通す：変わっていたら、変える前の値を取り消し用に積む。</summary>
+        void Track(Action a)
+        {
+            var before = Snap();
+            a();
+            if (!before.Equals(Snap())) { _mbUndo.Add(before); if (_mbUndo.Count > 50) _mbUndo.RemoveAt(0); }
+        }
+
+        void Undo()
+        {
+            if (_mbUndo.Count == 0) { Toast("もどせる変更はありません"); return; }
+            Restore(_mbUndo[_mbUndo.Count - 1]);
+            _mbUndo.RemoveAt(_mbUndo.Count - 1);
+            Sfx.Click();
+        }
+
+        void UndoRow() => AddRow("ひとつ前にもどす", "直前に変えた設定を取り消します（Ctrl+Z・Backspace）", () => _mbUndo.Count > 0 ? $"{_mbUndo.Count} 回分" : "なし", null, Undo, null, false);
+
+        /// <summary>確認用（tour の menutest）：取り消しを試して記録し、メニューから地図を開く。</summary>
+        public static void TestMenu()
+        {
+            if (_i == null) return;
+            var h = _i; h._menu = true; h.BuildMenuBoard(); h._mbItem = 5; h.ShowMenuPane();
+            bool c0 = CompassOn; float m0 = SoundPrefs.Master;
+            h.Track(() => CompassOn = !CompassOn);
+            h.Track(() => SoundPrefs.Master = 0.3f);
+            h.Undo(); bool okM = Mathf.Approximately(SoundPrefs.Master, m0);
+            h.Undo(); bool okC = CompassOn == c0;
+            Debug.Log($"[MenuTest] undoMaster={okM} undoCompass={okC} left={h._mbUndo.Count}");
+            h._mbItem = 1; h.MItems[1].act();
+            Debug.Log($"[MenuTest] mapOpen={h._map} menu={h._menu} return={h._returnItem}");
+        }
+        public static void TestCloseMap() { if (_i != null) _i._map = false; }
 
         static void NoSelect() { if (EventSystem.current != null) EventSystem.current.SetSelectedGameObject(null); }
 
@@ -134,6 +204,7 @@ namespace Tsukuyomi
                     Slider("効果音", "足音・ボタン・買い物・釣り・合戦", () => SoundPrefs.Effects, v => SoundPrefs.Effects = v);
                     Slider("ライブの音楽", "ヤチヨのライブの曲", () => SoundPrefs.Music, v => SoundPrefs.Music = v);
                     Toggle("ミュート", "すべての音を消す", () => SoundPrefs.Muted, v => SoundPrefs.Muted = v);
+                    UndoRow();
                     AddRow("初期設定にもどす", "音の設定を最初の値にもどします", null, null, () => { SoundPrefs.Master = 0.8f; SoundPrefs.Ambient = 0.7f; SoundPrefs.Effects = 0.8f; SoundPrefs.Music = 0.8f; SoundPrefs.Muted = false; Sfx.Click(); });
                     break;
                 case "画面と表示":
@@ -143,15 +214,17 @@ namespace Tsukuyomi
                     Toggle("照準", "一人称のときの、まん中の印", () => CrosshairOn, v => CrosshairOn = v);
                     Toggle("人の吹き出し", "近くの人のひとこと", () => Crowd.BubblesOn, v => Crowd.BubblesOn = v);
                     AddRow("表示を消す", "景色だけにする（H でもどす）", null, null, () => { HideAll = true; _hideHintT = 2.5f; _menu = false; });
+                    UndoRow();
                     AddRow("初期設定にもどす", "画面と表示の設定を最初の値にもどします", null, null, () => { Quality.Apply(1); CompassOn = true; CrosshairOn = true; Crowd.BubblesOn = true; Sfx.Click(); });
                     break;
                 case "操作":
                     AddRow("見回す速さ", "マウスと右スティックで見回す速さ", () => $"× {Act.LookSpeed:0.0}", d => Act.LookSpeed = Mathf.Round((Act.LookSpeed + d * 0.1f) * 10f) / 10f, null);
                     Toggle("上下を逆にする", "マウスを上に動かすと下を向く", () => Act.InvertY, v => Act.InvertY = v);
+                    UndoRow();
                     AddRow("初期設定にもどす", "操作の設定を最初の値にもどします", null, null, () => { Act.LookSpeed = 1f; Act.InvertY = false; Sfx.Click(); });
                     LayoutRows(276);
-                    Board.Label(p, new Rect(PaneX, 276 + 3 * 58 + 18, PaneW, 26), "キーの一覧", 18, Board.Cyan);
-                    Board.Label(p, new Rect(PaneX, 276 + 3 * 58 + 46, PaneW, 150),
+                    Board.Label(p, new Rect(PaneX, 276 + 4 * 58 + 18, PaneW, 26), "キーの一覧", 18, Board.Cyan);
+                    Board.Label(p, new Rect(PaneX, 276 + 4 * 58 + 46, PaneW, 150),
                         "WASD・矢印　歩く　　Shift　走る　　Space　ジャンプ　　V　視点　　ホイール　近づく・離れる\n" +
                         "E　お店・話す・座る・釣り　　C　着がえ　　M　地図　　B　図鑑　　H　表示を消す\n" +
                         "F12　写真　　Esc　閉じる・メニュー　　（KASSEN の操作は、それぞれの板に出ます）", 17, new Color(1, 1, 1, 0.8f), TextAnchor.UpperLeft);
@@ -175,8 +248,10 @@ namespace Tsukuyomi
 
         readonly List<Func<float>> _mbBars = new List<Func<float>>();
 
-        void AddRow(string label, string hint, Func<string> value, Action<int> change, Action press, Func<float> bar = null)
+        void AddRow(string label, string hint, Func<string> value, Action<int> change, Action press, Func<float> bar = null, bool track = true)
         {
+            if (track && change != null) { var c0 = change; change = d => Track(() => c0(d)); }
+            if (track && press != null) { var p0 = press; press = () => Track(p0); }
             _mbRows.Add(new MRow { label = label, hint = hint, value = value, change = change, press = press });
             _mbBars.Add(bar);
         }
@@ -232,9 +307,15 @@ namespace Tsukuyomi
         /// <summary>毎フレーム：表示・キー操作・値の文字。</summary>
         void MenuTick()
         {
+            // メニューから開いた画面を閉じたら、メニューにもどる
+            if (_returnItem >= 0 && !_menu && !_map && !_book && !ShopOpen && !_guide && !_exchange)
+            {
+                MenuStart = _returnItem; _returnItem = -1; _menu = true;
+            }
             if (_menu && _mb == null) BuildMenuBoard();
             if (_mb == null) return;
             _mb.Alpha = _menu ? 1f : 0f;
+            if (_menu && !_mbWasOpen && MenuStart < 0) _mbUndo.Clear(); // 新しく開いたときだけ、取り消しの履歴をまっさらに
             if (_menu && !_mbWasOpen) { _mbItem = Mathf.Clamp(MenuStart, 0, MItems.Length - 1); MenuStart = -1; _mbRow = 0; _mbFocus = 0; _mbConfirm = false; ShowMenuPane(); }
             _mbWasOpen = _menu;
             if (!_menu) return;
@@ -249,6 +330,8 @@ namespace Tsukuyomi
             bool ok = Key(UnityEngine.InputSystem.Key.Enter) || Key(UnityEngine.InputSystem.Key.NumpadEnter) || (gp != null && gp.buttonSouth.wasPressedThisFrame);
             bool prevTab = Key(UnityEngine.InputSystem.Key.Q) || (gp != null && gp.leftShoulder.wasPressedThisFrame);
             bool nextTab = Key(UnityEngine.InputSystem.Key.E) || (gp != null && gp.rightShoulder.wasPressedThisFrame);
+            bool undo = (k != null && ((k.ctrlKey.isPressed && k.zKey.wasPressedThisFrame) || k.backspaceKey.wasPressedThisFrame)) || (gp != null && gp.buttonWest.wasPressedThisFrame);
+            if (undo) Undo();
 
             if (prevTab || nextTab)
             {

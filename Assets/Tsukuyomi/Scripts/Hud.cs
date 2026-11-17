@@ -647,6 +647,7 @@ namespace Tsukuyomi
 
         void Warp(Zone z)
         {
+            _returnItem = -1; // ワープしたら、メニューにはもどらない
             z.WarpTo(player, cam);
             _map = false;
             _zone = null;

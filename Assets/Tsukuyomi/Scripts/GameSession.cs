@@ -181,6 +181,8 @@ namespace Tsukuyomi
                     again = true;
                 }
                 if (p.Length > 3 && (p[3] == "book" || p[3] == "rank")) Hud.OpenBook(p[3] == "book" ? 0 : 1);
+                if (p.Length > 3 && p[3] == "menutest") Hud.TestMenu();
+                if (p.Length > 3 && p[3] == "mapclose") Hud.TestCloseMap();
                 if (p.Length > 3 && p[3].StartsWith("guide")) Hud.OpenGuide(p[3].Length > 6 && int.TryParse(p[3].Substring(6), out var gpg) ? gpg : 0);
                 if (p.Length > 3 && p[3].StartsWith("sit")) { Rest.I?.TestSit(p[3].Length > 4 && float.TryParse(p[3].Substring(4), NumberStyles.Float, CultureInfo.InvariantCulture, out var si) ? si : 0f); again = true; }
                 if (again && p.Length > 2) ApplyCam(p[2]);
