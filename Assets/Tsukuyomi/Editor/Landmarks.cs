@@ -128,7 +128,8 @@ namespace Tsukuyomi.EditorTools
             float yaw = Mathf.Atan2(outward.x, outward.y) * Mathf.Rad2Deg;
             const float depth = 14f, width = 22f;
             var c = edge + outward * (depth / 2 - 3f);
-            Box(g, "舞台", new Vector3(c.x, top - 0.12f, c.y), new Vector3(width, 0.3f, depth), Wood, true, new Vector3(0, yaw, 0));
+            // 床の上の面は地面＋12cm（段のふちの石垣のふた＝地面＋4cm と 1cm しか違わず、ちらついていた。2026-11-18）
+            Box(g, "舞台", new Vector3(c.x, top - 0.03f, c.y), new Vector3(width, 0.3f, depth), Wood, true, new Vector3(0, yaw, 0));
             // 下を支える柱の格子
             for (float a = -width / 2 + 1; a <= width / 2 - 1; a += 3.5f)
                 for (float b = 0; b <= depth - 1; b += 3.5f)
@@ -162,12 +163,12 @@ namespace Tsukuyomi.EditorTools
                 Cyl(g, "親柱", new Vector3(pp.x, top + 0.5f, pp.y), 0.08f, 1f, Vermilion);
             }
             // 舞台の上の東屋（屋根だけ。道はふさがない）
-            var az = Group(g, "展望台の東屋", new Vector3(c.x, top, c.y), yaw);
+            var az = Group(g, "展望台の東屋", new Vector3(c.x, top + 0.12f, c.y), yaw); // 床の上の面（地面＋12cm）に置く
             foreach (float x in new[] { -4f, 4f }) foreach (float z in new[] { -2.5f, 2.5f }) Cyl(az, "柱", new Vector3(x, 1.6f, z), 0.14f, 3.2f, Vermilion);
             MeshObj(az, "屋根", Roof(11f, 8f, 2.4f, 0.8f), new Vector3(0, 3.2f, 0), RoofCopper);
             for (int i = 0; i < 2; i++) TeaSeat(az, new Vector3(-2f + i * 4f, 0, 0), 0);
             Lamp(g, new Vector3(c.x, top + 2.5f, c.y), new Color(1f, 0.65f, 0.45f), 18f, 2f);
-            return new Vector3(front.x - outward.x * 2, top + 0.1f, front.y - outward.y * 2);
+            return new Vector3(front.x - outward.x * 2, top + 0.2f, front.y - outward.y * 2);
         }
 
         /// <summary>神楽殿（四方が開いた舞の舞台）。</summary>

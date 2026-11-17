@@ -173,6 +173,7 @@ namespace Tsukuyomi
         }
 
         bool _frozen;
+        int _airJumps = 1; // 団扇の2段ジャンプの残り（地面に着くと 1 にもどる）
         /// <summary>練習場の立ち位置：城の前の段と大きな箱（x -57〜-47）より東。わら人形の手前。</summary>
         static Vector3 PracticeSpawn => WestCastle + new Vector3(21.5f, 0.3f, 0);
 
@@ -197,7 +198,18 @@ namespace Tsukuyomi
                     flat = Vector3.Lerp(flat, wish, 1 - Mathf.Exp(-14f * dt));
                     if (play && Act.Jump.Down) { _vel.y = 7.5f; _grounded = false; Play(_sJump, 0.4f); }
                 }
-                else flat = Vector3.MoveTowards(flat, wish, 9f * dt) + (flat.magnitude > wish.magnitude + 0.5f ? Vector3.zero : Vector3.zero);
+                else
+                {
+                    flat = Vector3.MoveTowards(flat, wish, 9f * dt);
+                    // 団扇：空中でもう一度だけ跳べる（2段ジャンプ）。地面に着いたら回復（ユーザーの指示）
+                    if (play && _w == 5 && _airJumps > 0 && Act.Jump.Down)
+                    {
+                        _airJumps--; _vel.y = 7.5f;
+                        Play(_sJump, 0.5f); Swing(0.3f);
+                        Sparks(_rig.transform.position + Vector3.up * 0.3f, new Color(1f, 0.95f, 0.5f), 8); // あおいだ風
+                    }
+                }
+                if (_grounded) _airJumps = 1;
                 _vel.x = flat.x; _vel.z = flat.z;
                 _vel.y -= Gravity * dt;
             }

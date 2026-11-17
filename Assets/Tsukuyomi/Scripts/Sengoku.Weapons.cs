@@ -25,7 +25,7 @@ namespace Tsukuyomi
             new() { name = "傘", en = "UMBRELLA", hint = "左クリック 突き\n右クリック ブーメランのように投げる（もどってくる）\nE 乗物（吹き抜けの駕籠）に乗って浮かぶ（すべって速い・水の上も渡れる・前の攻撃を防ぐ・Space でおりる）" },
             new() { name = "弓", en = "BOW", hint = "左クリック 長押しでためて、離して射る\n右クリック 長押しで狙う（ズーム）\nE 自分が矢になって飛ぶ（当たると痛い）" },
             new() { name = "金棒", en = "KANABO", hint = "左クリック 振りおろす（重い一撃・吹き飛ばす）\n右クリック 金の弾を撃つ\nE 大きく振って、ねらった方へ大きく跳ぶ（当たると痛い）" },
-            new() { name = "団扇", en = "THUNDER FAN", hint = "左クリック あおぎ打ち（少し遠くまで届く・押し返す）\n右クリック 地雷を置く（3つまで。2m まで近づかないと見えない）\nE あおいで、反対方向へ飛ぶ" },
+            new() { name = "団扇", en = "THUNDER FAN", hint = "左クリック あおぎ打ち（少し遠くまで届く・押し返す）\n右クリック 地雷を置く（3つまで。2m まで近づかないと見えない）\nE あおいで、反対方向へ飛ぶ　Space 空中でもう一度跳べる（2段ジャンプ）" },
         };
 
         int _w;
@@ -574,7 +574,16 @@ namespace Tsukuyomi
                     pos += new Vector3(_zoom ? -0.12f : 0, _zoom ? -0.08f : 0, -0.06f * _charge);
                     var arrow = m.Find("弓/矢"); if (arrow) arrow.localPosition = new Vector3(0.02f, 0, 0.25f - 0.2f * _charge);
                     break;
-                case 4: pos += new Vector3(0, 0, -0.12f * Mathf.Clamp01(_cd / 1.6f) * 3f * Mathf.Clamp01(_cd - 1.2f)); break;
+                case 4: // 金棒：振りかぶって、前へ大きく振りおろす（ユーザーの指示）
+                    {
+                        float t01 = _swingLen > 0 ? Mathf.Clamp01(1 - _swing / _swingLen) : 1;
+                        // はじめの3割で振りかぶり（うしろへ倒す）、のこりで一気に振りおろす
+                        float a = t01 < 0.3f ? -45f * (t01 / 0.3f) : Mathf.Lerp(-45f, 95f, Mathf.SmoothStep(0, 1, (t01 - 0.3f) / 0.7f));
+                        if (_swing <= 0) a = 0;
+                        rot = new Vector3(a, -18f * k, -10f * k);
+                        pos += new Vector3(-0.05f * k, -0.04f * k, 0.18f * k);
+                    }
+                    break;
                 case 5: rot = new Vector3(60 * k, -30 * k, 0); break;
             }
             m.localPosition = Vector3.Lerp(m.localPosition, pos, 1 - Mathf.Exp(-25f * dt));

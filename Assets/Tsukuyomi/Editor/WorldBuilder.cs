@@ -612,9 +612,10 @@ namespace Tsukuyomi.EditorTools
             var edge = c + dir * (Island.Levels[2].RadiusAt(Mathf.PI / 2) - 0.5f);
             var deckC = edge + dir * 3.5f;
             var deck = Group(g, "月見台", new Vector3(deckC.x, 0, deckC.y));
-            Box(deck, "舞台", new Vector3(0, -0.11f, 0), new Vector3(14f, 0.3f, 9f), Wood, true); // 頂上の地面より 4cm 上（重なってちらつかないように）
+            // 頂上の地面より 12cm 上。段のふちの石垣のふた（地面＋4cm）と同じ高さで重なってちらついていたので、はっきり上げる（2026-11-18）
+            Box(deck, "舞台", new Vector3(0, -0.03f, 0), new Vector3(14f, 0.3f, 9f), Wood, true);
             // 頂上の段とのすき間をなくす：うしろ（御殿のほう）へ床をのばし、段のふちの石垣の上にかぶせる
-            Box(deck, "つなぎの床", new Vector3(0, -0.11f, -7.25f), new Vector3(14f, 0.3f, 6f), Wood, true);
+            Box(deck, "つなぎの床", new Vector3(0, -0.03f, -7.25f), new Vector3(14f, 0.3f, 6f), Wood, true);
             Box(deck, "つなぎの梁", new Vector3(0, -0.5f, -4.4f), new Vector3(14.2f, 0.5f, 0.4f), Vermilion);
             _lookDeck = deck;
             foreach (float x in new[] { -6.8f, 6.8f })
