@@ -41,11 +41,10 @@ namespace Tsukuyomi
             _ex.Apply();
             var r = _ex.root;
             var c = Board.Cyan;
-            Board.Panel(r, new Rect(0, 0, w, h));
-            Board.Corners(r, new Rect(0, 0, w, h), new Color(c.r, c.g, c.b, 0.9f));
-            Board.Label(r, new Rect(0, 22, w, 22), "FUJU EXCHANGE", 16, c, TextAnchor.MiddleCenter, true);
+            Board.Frame(r, new Rect(0, 0, w, h));
+            Board.Display(r, new Rect(0, 14, w, 34), "FUJU EXCHANGE", 24, Board.Teal);
             Board.Label(r, new Rect(0, 48, w, 50), "ふじゅ〜の両替", 38, Color.white, TextAnchor.MiddleCenter, false, FontStyle.Bold);
-            Board.Panel(r, new Rect(w / 2 - 110, 102, 220, 2), Board.Pink);
+            Board.Panel(r, new Rect(w / 2 - 110, 102, 220, 2), Board.Vermilion);
             Board.Label(r, new Rect(0, 116, w, 26), "ミニヤチヨ → ツクヨミ（1:1・片道です。ツクヨミからはもどせません）", 18, new Color(1, 1, 1, 0.75f), TextAnchor.MiddleCenter);
             _exBal = Board.Label(r, new Rect(0, 156, w, 34), "", 24, Board.Gold, TextAnchor.MiddleCenter);
             float bx = 60, bw = 140, gap = (w - 120 - bw * 4) / 3f;

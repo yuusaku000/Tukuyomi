@@ -42,6 +42,7 @@ namespace Tsukuyomi
     public static class Catalog
     {
         public const string StartClothes = "shiraume";
+        public const string KitsuneKigurumi = "kitsune_kigurumi";
 
         static Color C(float r, float g, float b) => new Color(r, g, b);
 
@@ -233,6 +234,11 @@ namespace Tsukuyomi
             Food("crepe", "taiyaki", "たい焼き", 150, FoodShape.Fish, Brown, Brown, "しっぽまであんこ入り。", "たい焼きをたべた。しっぽまであんこがぎっしり！"),
             Food("crepe", "ringoame", "りんご飴", 200, FoodShape.Round, C(0.85f, 0.08f, 0.12f), C(0.85f, 0.75f, 0.55f), "つやつやの、まっかなりんご飴。", "りんご飴をかじった。カリッ、あまずっぱい！"),
             Food("crepe", "wataame", "わたあめ", 200, FoodShape.Puff, C(1f, 0.82f, 0.9f), C(0.85f, 0.75f, 0.55f), "ふわふわの雲みたい。", "わたあめをたべた。口のなかで、すっと消えた。"),
+            // KASSEN のごほうび（お店では売らない。SETSUNA の「つよい」に初めて勝つともらえる）
+            new Item { shop = "kassen", id = KitsuneKigurumi, name = "狐のきぐるみ", price = 0, kind = ItemKind.Clothes, style = 4,
+                desc = "SETSUNA の『つよい』に勝った証。耳つきフードとしっぽの、全身の狐の着ぐるみ。",
+                robe = C(0.87f, 0.6f, 0.44f), robe2 = C(0.98f, 0.92f, 0.82f), sleeve = C(0.87f, 0.6f, 0.44f), cuff = C(0.38f, 0.24f, 0.17f),
+                sash = C(0.87f, 0.6f, 0.44f), accent = C(0.98f, 0.92f, 0.82f) },
         };
 
         public static Item Get(string id) => All.Find(i => i.id == id);

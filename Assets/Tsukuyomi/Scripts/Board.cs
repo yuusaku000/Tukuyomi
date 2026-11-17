@@ -39,6 +39,10 @@ namespace Tsukuyomi
         public Vector2 screenAnchor = new(0.5f, 0.5f), screenOffset;
         /// <summary>VR モードの置き場所（目から見て、右・上・前 のメートル）。</summary>
         public Vector3 worldOffset = new(0, 0, 1.3f);
+        /// <summary>空間の決まった場所に置く板（看板など）。画面モードでも空間に出る。左右だけカメラの方を向く。</summary>
+        public bool pinned;
+        public Vector3 pinPos;
+        public float pinScale = 0.01f;
 
         float _alpha = 1f;
         Vector3 _pos; Quaternion _rot; bool _placed;
@@ -69,7 +73,19 @@ namespace Tsukuyomi
         {
             var sc = GetComponent<CanvasScaler>();
             var ct = (RectTransform)canvas.transform;
-            if (Current == Mode.Screen)
+            if (pinned)
+            {
+                canvas.renderMode = RenderMode.WorldSpace;
+                canvas.worldCamera = Camera.main;
+                sc.uiScaleMode = CanvasScaler.ScaleMode.ConstantPixelSize;
+                sc.dynamicPixelsPerUnit = 3f;
+                ct.sizeDelta = root.sizeDelta;
+                ct.localScale = Vector3.one * pinScale;
+                ct.position = pinPos;
+                root.anchorMin = root.anchorMax = root.pivot = new Vector2(0.5f, 0.5f);
+                root.anchoredPosition = Vector2.zero;
+            }
+            else if (Current == Mode.Screen)
             {
                 canvas.renderMode = RenderMode.ScreenSpaceOverlay;
                 sc.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
@@ -102,9 +118,16 @@ namespace Tsukuyomi
 
         void LateUpdate()
         {
-            if (Current != Mode.World || !canvas.enabled) return;
+            if (!canvas.enabled) return;
             var cam = Camera.main;
             if (cam == null) return;
+            if (pinned)
+            {
+                var d = transform.position - cam.transform.position; d.y = 0;
+                if (d.sqrMagnitude > 0.01f) transform.rotation = Quaternion.LookRotation(d, Vector3.up);
+                return;
+            }
+            if (Current != Mode.World) return;
             var head = cam.transform;
             // 左右の向きだけついてくる（上下を向いても板は水平のまま）
             var yaw = Quaternion.Euler(0, head.eulerAngles.y, 0);
@@ -138,6 +161,155 @@ namespace Tsukuyomi
             Panel(parent, new Rect(r.xMax - len, r.y, len, th), c); Panel(parent, new Rect(r.xMax - th, r.y, th, len), c);
             Panel(parent, new Rect(r.x, r.yMax - th, len, th), c); Panel(parent, new Rect(r.x, r.yMax - len, th, len), c);
             Panel(parent, new Rect(r.xMax - len, r.yMax - th, len, th), c); Panel(parent, new Rect(r.xMax - th, r.yMax - len, th, len), c);
+        }
+
+        // ───────── ツクヨミ風の部品（扇の飾り・縦書きの名札・丸い輪・光る大きな文字）─────────
+
+        public static readonly Color Teal = new(0.13f, 0.86f, 0.86f);
+        public static readonly Color Vermilion = new(0.9f, 0.32f, 0.24f);
+        public static readonly Color Paper = new(0.96f, 0.95f, 0.92f);
+        public static readonly Color Ink = new(0.08f, 0.08f, 0.09f);
+        public static readonly Color Night = new(0.03f, 0.05f, 0.12f, 0.82f);
+
+        /// <summary>角の扇（細い線が放射状に広がる）。corner：0 左上・1 右上・2 左下・3 右下。</summary>
+        public static void Fan(RectTransform parent, Rect r, int corner, Color c, float len = 70, int rays = 7)
+        {
+            bool right = corner == 1 || corner == 3, bottom = corner >= 2;
+            var o = new Vector2(right ? r.xMax : r.x, bottom ? r.yMax : r.y);
+            for (int i = 0; i < rays; i++)
+            {
+                float a = i / (float)(rays - 1) * 90f; // 0＝横、90＝縦
+                bool edge = i == 0 || i == rays - 1;
+                float l = edge ? len : len * (0.55f + 0.25f * Mathf.Sin(i * 1.7f));
+                var img = Node<Image>(parent, "扇", new Rect(o.x, o.y, l, edge ? 1.6f : 1f));
+                img.color = c; img.raycastTarget = false;
+                var rt = (RectTransform)img.transform;
+                rt.pivot = new Vector2(0, 0.5f);
+                rt.anchoredPosition = new Vector2(o.x, -o.y);
+                // 画面の座標は上が＋。左上の角なら、右（0度）から下（-90度）へ広げる
+                float deg = right ? 180f + a : -a;
+                if (bottom) deg = right ? 180f - a : a;
+                rt.localEulerAngles = new Vector3(0, 0, deg);
+            }
+            var dot = Node<Image>(parent, "要", new Rect(o.x - 3, o.y - 3, 6, 6));
+            dot.sprite = DiscSprite; dot.color = c; dot.raycastTarget = false;
+            for (int i = 1; i < 8; i++)
+            {
+                float a = i / 8f * 90f * Mathf.Deg2Rad;
+                float x = Mathf.Cos(a) * len * 1.12f, y = Mathf.Sin(a) * len * 1.12f;
+                var d = Node<Image>(parent, "弧", new Rect(o.x + (right ? -x : x) - 1.5f, o.y + (bottom ? -y : y) - 1.5f, 3, 3));
+                d.sprite = DiscSprite; d.color = new Color(c.r, c.g, c.b, c.a * 0.6f); d.raycastTarget = false;
+            }
+        }
+
+        /// <summary>四隅すべてに扇。</summary>
+        public static void Fans(RectTransform parent, Rect r, Color c, float len = 70)
+        {
+            for (int i = 0; i < 4; i++) Fan(parent, r, i, c, len);
+        }
+
+        /// <summary>縦書きの白い名札（黒い明朝の字）。横に色の帯。barLeft で帯を左に。</summary>
+        public static Text NameTag(RectTransform parent, Rect r, string text, Color bar, bool barLeft = false, int size = 30)
+        {
+            Panel(parent, r, Paper);
+            Panel(parent, barLeft ? new Rect(r.x - 9, r.y, 9, r.height) : new Rect(r.xMax, r.y, 9, r.height), bar);
+            Panel(parent, new Rect(r.x + 4, r.y + 4, r.width - 8, 1.2f), new Color(Ink.r, Ink.g, Ink.b, 0.5f));
+            Panel(parent, new Rect(r.x + 4, r.yMax - 5, r.width - 8, 1.2f), new Color(Ink.r, Ink.g, Ink.b, 0.5f));
+            var t = Label(parent, new Rect(r.x, r.y + 10, r.width, r.height - 20), Vertical(text), size, Ink, TextAnchor.UpperCenter);
+            t.font = Mincho; t.lineSpacing = 0.92f; t.fontStyle = FontStyle.Bold;
+            Destroy(t.GetComponent<Shadow>());
+            return t;
+        }
+
+        /// <summary>縦書き用に1文字ずつ改行する。</summary>
+        public static string Vertical(string s)
+        {
+            var sb = new System.Text.StringBuilder();
+            for (int i = 0; i < s.Length; i++) { if (i > 0) sb.Append('\n'); sb.Append(s[i] == 'ー' ? '｜' : s[i]); }
+            return sb.ToString();
+        }
+
+        /// <summary>光る大きな斜体の文字（「12 HIT」「ROUND 1」など）。外側に同じ色のにじみ。</summary>
+        public static Text Display(RectTransform parent, Rect r, string text, int size, Color c, TextAnchor align = TextAnchor.MiddleCenter)
+        {
+            var t = Label(parent, r, text, size, c, align);
+            t.font = DisplayFont;
+            t.fontStyle = FontStyle.BoldAndItalic;
+            Destroy(t.GetComponent<Shadow>());
+            var o = t.gameObject.AddComponent<Outline>();
+            o.effectColor = new Color(c.r, c.g, c.b, 0.35f); o.effectDistance = new Vector2(3, -3);
+            var o2 = t.gameObject.AddComponent<Outline>();
+            o2.effectColor = new Color(c.r * 0.3f, c.g * 0.3f, c.b * 0.4f, 0.8f); o2.effectDistance = new Vector2(1.2f, -1.2f);
+            return t;
+        }
+
+        /// <summary>細い輪（タイマーや丸いボタンの枠）。dotted で内側に点の輪も。</summary>
+        public static void Ring(RectTransform parent, Vector2 center, float radius, Color c, bool dotted = true)
+        {
+            var a = Node<Image>(parent, "輪", new Rect(center.x - radius, center.y - radius, radius * 2, radius * 2));
+            a.sprite = RingSprite; a.color = c; a.raycastTarget = false;
+            if (!dotted) return;
+            int n = Mathf.Clamp((int)(radius * 0.5f), 12, 48);
+            float r2 = radius * 0.8f;
+            for (int i = 0; i < n; i++)
+            {
+                float ang = i / (float)n * Mathf.PI * 2;
+                var d = Node<Image>(parent, "点", new Rect(center.x + Mathf.Cos(ang) * r2 - 1.5f, center.y + Mathf.Sin(ang) * r2 - 1.5f, 3, 3));
+                d.sprite = DiscSprite; d.color = new Color(c.r, c.g, c.b, c.a * 0.7f); d.raycastTarget = false;
+            }
+        }
+
+        /// <summary>丸いボタン（二重の輪と中の文字）。</summary>
+        public static UnityEngine.UI.Button RoundButton(RectTransform parent, Vector2 center, float radius, string text, int size, Action onClick)
+        {
+            var img = Node<Image>(parent, "丸ボタン", new Rect(center.x - radius, center.y - radius, radius * 2, radius * 2));
+            img.sprite = DiscSprite; img.color = new Color(0.04f, 0.1f, 0.18f, 0.85f);
+            var b = img.gameObject.AddComponent<UnityEngine.UI.Button>();
+            var cb = b.colors; cb.highlightedColor = new Color(1.5f, 1.6f, 1.6f, 1f); cb.selectedColor = cb.highlightedColor; b.colors = cb;
+            if (onClick != null) b.onClick.AddListener(() => onClick());
+            var rt = (RectTransform)img.transform;
+            Ring(rt, new Vector2(radius, radius), radius, new Color(Paper.r, Paper.g, Paper.b, 0.9f), false);
+            Ring(rt, new Vector2(radius, radius), radius * 0.86f, new Color(Teal.r, Teal.g, Teal.b, 0.8f), false);
+            Label(rt, new Rect(0, 0, radius * 2, radius * 2), text, size, Color.white, TextAnchor.MiddleCenter);
+            return b;
+        }
+
+        /// <summary>ツクヨミ風の大きな枠：夜の地・細い白い縁・四隅の扇。</summary>
+        public static void Frame(RectTransform parent, Rect r)
+        {
+            Panel(parent, r, Night);
+            var w = new Color(Paper.r, Paper.g, Paper.b, 0.55f);
+            Panel(parent, new Rect(r.x + 10, r.y + 10, r.width - 20, 1), w);
+            Panel(parent, new Rect(r.x + 10, r.yMax - 11, r.width - 20, 1), w);
+            Panel(parent, new Rect(r.x + 10, r.y + 10, 1, r.height - 20), w);
+            Panel(parent, new Rect(r.xMax - 11, r.y + 10, 1, r.height - 20), w);
+            Fans(parent, new Rect(r.x + 4, r.y + 4, r.width - 8, r.height - 8), new Color(Paper.r, Paper.g, Paper.b, 0.85f), Mathf.Min(80, r.height * 0.22f));
+        }
+
+        static Font _display, _mincho;
+        /// <summary>大きな斜体の文字（英字はゲームらしい Bahnschrift、なければ游ゴシック）。</summary>
+        public static Font DisplayFont => _display != null ? _display : (_display = Font.CreateDynamicFontFromOSFont(new[] { "Bahnschrift", "Yu Gothic UI", "Meiryo" }, 64));
+        /// <summary>名札の明朝。</summary>
+        public static Font Mincho => _mincho != null ? _mincho : (_mincho = Font.CreateDynamicFontFromOSFont(new[] { "Yu Mincho", "游明朝", "MS Mincho" }, 48));
+
+        static Sprite _ring, _disc;
+        public static Sprite RingSprite => _ring != null ? _ring : (_ring = MakeCircle(256, 0.985f, 0.955f));
+        public static Sprite DiscSprite => _disc != null ? _disc : (_disc = MakeCircle(128, 1f, 0f));
+
+        static Sprite MakeCircle(int n, float outer, float inner)
+        {
+            var tex = new Texture2D(n, n, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp, filterMode = FilterMode.Bilinear };
+            var px = new Color32[n * n];
+            float h = n / 2f, aa = 1.5f / h;
+            for (int y = 0; y < n; y++)
+                for (int x = 0; x < n; x++)
+                {
+                    float d = new Vector2(x + 0.5f - h, y + 0.5f - h).magnitude / h;
+                    float a = Mathf.Clamp01((outer - d) / aa) * (inner <= 0 ? 1 : Mathf.Clamp01((d - inner) / aa));
+                    px[y * n + x] = new Color32(255, 255, 255, (byte)(a * 255));
+                }
+            tex.SetPixels32(px); tex.Apply();
+            return Sprite.Create(tex, new Rect(0, 0, n, n), new Vector2(0.5f, 0.5f), 100);
         }
 
         /// <summary>文字。r は親の左上からの位置（ピクセル）。</summary>

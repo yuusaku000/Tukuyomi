@@ -261,5 +261,38 @@ namespace Tsukuyomi
                 return (thump * 0.8f + lp * 2.5f * Mathf.Exp(-t * 1.5f) + crackle) * 0.7f;
             });
         }
+    
+        // ───────── KASSEN（格闘）の音 ─────────
+
+        /// <summary>打撃が当たった音。heavy で低く重く。</summary>
+        public static AudioClip Hit(bool heavy)
+        {
+            var r = new Rng(heavy ? 777u : 555u);
+            float lp = 0;
+            return Make(heavy ? "hit_heavy" : "hit_light", heavy ? 0.35f : 0.18f, t =>
+            {
+                lp += (r.Next() - lp) * (heavy ? 0.25f : 0.5f);
+                float body = Mathf.Sin(2 * Mathf.PI * (heavy ? 70f : 140f) * t * (1 + Mathf.Exp(-t * 30f))) * Mathf.Exp(-t * (heavy ? 14f : 28f));
+                return (lp * Mathf.Exp(-t * (heavy ? 22f : 40f)) * 1.4f + body * 0.9f) * 0.75f;
+            });
+        }
+
+        /// <summary>ガードした音（かたい金属っぽい音）。just で高く澄んだ音（刹那ガード）。</summary>
+        public static AudioClip Guard(bool just) => Make(just ? "guard_just" : "guard", just ? 0.9f : 0.2f, t =>
+            just ? (Mathf.Sin(2 * Mathf.PI * 1760f * t) * 0.5f + Mathf.Sin(2 * Mathf.PI * 2637f * t) * 0.3f) * Mathf.Exp(-t * 4f) * 0.6f
+                 : (Mathf.Sin(2 * Mathf.PI * 620f * t) + Mathf.Sin(2 * Mathf.PI * 931f * t) * 0.6f) * Mathf.Exp(-t * 30f) * 0.45f);
+
+        /// <summary>空を切る音。</summary>
+        public static AudioClip Whoosh()
+        {
+            var r = new Rng(31337u);
+            float lp = 0, k = 0;
+            return Make("whoosh", 0.22f, t =>
+            {
+                k = Mathf.Lerp(0.05f, 0.4f, t / 0.22f);
+                lp += (r.Next() - lp) * k;
+                return lp * Mathf.Sin(Mathf.PI * Mathf.Clamp01(t / 0.22f)) * 0.5f;
+            });
+        }
     }
 }

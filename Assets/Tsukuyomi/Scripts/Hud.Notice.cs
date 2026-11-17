@@ -23,10 +23,13 @@ namespace Tsukuyomi
                 _notice.worldOffset = new Vector3(0, -0.38f, 1.3f);
                 _notice.Apply();
                 var r = _notice.root;
-                Board.Panel(r, new Rect(0, 0, 860, 64));
-                Board.Corners(r, new Rect(0, 0, 860, 64), new Color(Board.Cyan.r, Board.Cyan.g, Board.Cyan.b, 0.9f));
-                _noticeBar = Board.Panel(r, new Rect(0, 0, 5, 64), Board.Pink);
-                _noticeTag = Board.Label(r, new Rect(20, 6, 200, 20), "▸ NOTICE", 14, Board.Cyan, TextAnchor.UpperLeft, true);
+                Board.Panel(r, new Rect(0, 0, 860, 64), Board.Night);
+                Board.Panel(r, new Rect(6, 5, 848, 1), new Color(1, 1, 1, 0.5f));
+                Board.Panel(r, new Rect(6, 58, 848, 1), new Color(1, 1, 1, 0.5f));
+                Board.Fan(r, new Rect(2, 2, 856, 60), 0, new Color(1, 1, 1, 0.8f), 30, 5);
+                Board.Fan(r, new Rect(2, 2, 856, 60), 3, new Color(1, 1, 1, 0.8f), 30, 5);
+                _noticeBar = Board.Panel(r, new Rect(0, 0, 5, 64), Board.Teal);
+                _noticeTag = Board.Label(r, new Rect(40, 6, 200, 20), "NOTICE", 14, Board.Teal, TextAnchor.UpperLeft, true);
                 _noticeText = Board.Label(r, new Rect(0, 8, 860, 64), "", 26, Color.white, TextAnchor.MiddleCenter);
             }
             _notice.Alpha = a;

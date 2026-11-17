@@ -27,6 +27,9 @@ namespace Tsukuyomi
         int _hairStyle = 1;
         bool _odango;
         GameObject _hairObj;
+        /// <summary>きぐるみのフードをかぶっている（髪の一部を隠す）。</summary>
+        bool _hood;
+        Material _handMat;
 
         /// <summary>理髪店の髪型：0 ショート・1 ロング・2 ポニーテール・3 おだんご・4 ツインテール。</summary>
         public static readonly string[] HairStyles = { "ショート", "ロング", "ポニーテール", "おだんご", "ツインテール" };
@@ -44,7 +47,7 @@ namespace Tsukuyomi
                 if (t != null) t.GetComponent<Renderer>().sharedMaterial = m;
             }
             var longHair = Find(doll.head, "Long");
-            if (longHair) longHair.gameObject.SetActive(!_odango && _hairStyle == 1);
+            if (longHair) longHair.gameObject.SetActive(!_odango && !_hood && _hairStyle == 1);
             if (_hairObj != null) Destroy(_hairObj);
             _hairObj = null;
             if (_hairStyle >= 2)
@@ -53,7 +56,7 @@ namespace Tsukuyomi
                 if (_hairStyle == 2) Part(h, PrimitiveType.Capsule, new Vector3(0, -0.12f, -0.24f), new Vector3(0.13f, 0.28f, 0.13f), c, false, new Vector3(-20, 0, 0));
                 else if (_hairStyle == 3) foreach (float s in new[] { -1f, 1f }) Part(h, PrimitiveType.Sphere, new Vector3(0.15f * s, 0.24f, -0.03f), Vector3.one * 0.17f, c);
                 else foreach (float s in new[] { -1f, 1f }) Part(h, PrimitiveType.Capsule, new Vector3(0.27f * s, -0.12f, -0.08f), new Vector3(0.12f, 0.26f, 0.12f), c, false, new Vector3(0, 0, -18 * s));
-                _hairObj.SetActive(!_odango);
+                _hairObj.SetActive(!_odango && !_hood);
             }
             if (cam != null) cam.RefreshBody();
         }
@@ -65,6 +68,8 @@ namespace Tsukuyomi
             if (doll == null) doll = GetComponentInChildren<DollAnimator>();
             var h = Find(doll.head, "HairBack");
             if (h != null) _hair = h.GetComponent<Renderer>().sharedMaterial.GetColor("_BaseColor");
+            var hand = Find(doll.body, "Hand");
+            if (hand != null) _handMat = hand.GetComponent<Renderer>().sharedMaterial;
         }
 
         static Transform Find(Transform root, string name)
@@ -112,6 +117,7 @@ namespace Tsukuyomi
                     case "Cuff": r.sharedMaterial = Mat(it.cuff, it.glowCuff); break;
                     case "Sash": r.sharedMaterial = Mat(it.sash); break;
                     case "Accent": r.sharedMaterial = Mat(it.accent); break;
+                    case "Hand": if (it.style == 4) r.sharedMaterial = Mat(it.cuff); else if (_handMat != null) r.sharedMaterial = _handMat; break;
                 }
             }
 
@@ -129,9 +135,9 @@ namespace Tsukuyomi
                 if (id == "odango") odango = true;
             }
             var longHair = Find(doll.head, "Long");
-            if (longHair) longHair.gameObject.SetActive(!odango && _hairStyle == 1);
+            if (longHair) longHair.gameObject.SetActive(!odango && !_hood && _hairStyle == 1);
             _odango = odango;
-            if (_hairObj != null) _hairObj.SetActive(!odango);
+            if (_hairObj != null) _hairObj.SetActive(!odango && !_hood);
             if (!Eating) doll.holdR = _umbrella ? 1 : 0;
             doll.holdREuler = _umbrella ? new Vector3(-62, 0, -28) : new Vector3(-120, 0, -25);
             if (cam != null) cam.RefreshBody();
@@ -159,6 +165,7 @@ namespace Tsukuyomi
             // いったん元の大きさにもどす
             Scale(robe, Vector3.one);
             foreach (var sl in sleeves) Scale(sl, Vector3.one);
+            _hood = it.style == 4;
             if (it.style == 0) return;
 
             var body = Holder(doll.body, "服の形"); _styleObjs.Add(body.gameObject);
@@ -166,6 +173,26 @@ namespace Tsukuyomi
 
             switch (it.style)
             {
+                case 4: // 狐のきぐるみ：細めの胴（つなぎ）・クリーム色のお腹・こげ茶のブーツ・耳つきフード・ふさふさのしっぽ
+                    Scale(robe, new Vector3(0.66f, 1f, 0.66f));
+                    foreach (var sl in sleeves) Scale(sl, new Vector3(0.85f, 1f, 0.8f));
+                    Part(body, PrimitiveType.Sphere, new Vector3(0, 0.95f, 0.1f), new Vector3(0.3f, 0.44f, 0.18f), it.robe2);
+                    Part(body, PrimitiveType.Sphere, new Vector3(0, 0.5f, 0.12f), new Vector3(0.26f, 0.42f, 0.14f), it.robe2);
+                    foreach (float sx in new[] { -1f, 1f })
+                        Part(body, PrimitiveType.Capsule, new Vector3(sx * 0.11f, 0.07f, 0.04f), new Vector3(0.17f, 0.09f, 0.24f), it.cuff, false, new Vector3(90, 0, 0));
+                    var tail = Holder(body, "しっぽ"); _styleObjs.Add(tail.gameObject);
+                    tail.localPosition = new Vector3(0, 0.62f, -0.26f); tail.localEulerAngles = new Vector3(-50, 0, 0);
+                    Part(tail, PrimitiveType.Capsule, new Vector3(0, 0.22f, 0), new Vector3(0.2f, 0.3f, 0.2f), it.robe);
+                    Part(tail, PrimitiveType.Sphere, new Vector3(0, 0.5f, 0), new Vector3(0.17f, 0.17f, 0.17f), it.robe2);
+                    var hood = Holder(doll.head, "フード"); _styleObjs.Add(hood.gameObject);
+                    Part(hood, PrimitiveType.Sphere, new Vector3(0, 0.05f, -0.075f), Vector3.one * 0.47f, it.robe);
+                    foreach (float sx in new[] { -1f, 1f })
+                    {
+                        Part(hood, PrimitiveType.Cube, new Vector3(sx * 0.13f, 0.25f, -0.07f), new Vector3(0.15f, 0.15f, 0.06f), it.robe, false, new Vector3(0, 0, 45 + sx * 10));
+                        Part(hood, PrimitiveType.Cube, new Vector3(sx * 0.13f, 0.245f, -0.04f), new Vector3(0.08f, 0.08f, 0.03f), it.robe2, false, new Vector3(0, 0, 45 + sx * 10));
+                        Part(hood, PrimitiveType.Sphere, new Vector3(sx * 0.16f, -0.12f, 0.08f), new Vector3(0.12f, 0.11f, 0.1f), it.robe2);
+                    }
+                    break;
                 case 1: // 巫女装束：袴のひだ・胸の紐・大きな白い袖・髪の水引
                     for (int i = -2; i <= 2; i++)
                     {

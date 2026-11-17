@@ -230,6 +230,14 @@ namespace Tsukuyomi
 
         void Update()
         {
+            if (Kassen.Busy)
+            {
+                // KASSEN の入口の板・試合のあいだは、島の表示と操作を止める（Esc なども KASSEN が使う）
+                Blocked = true; _menu = _map = false;
+                _toastT -= Time.unscaledDeltaTime;
+                NoticeTick(); ExchangeTick();
+                return;
+            }
             if (Ts.ShotMode)
             {
                 Blocked = ShopOpen || _book || _tipOpen || _exchange;
@@ -373,6 +381,7 @@ namespace Tsukuyomi
 
         void OnGUI()
         {
+            if (Kassen.Busy) return;
             if (_px == null) { _px = new Texture2D(1, 1); _px.SetPixel(0, 0, Color.white); _px.Apply(); }
             if (_mono == null) _mono = Font.CreateDynamicFontFromOSFont(new[] { "Consolas", "Cascadia Mono", "Courier New" }, 24);
             if (_label == null) _label = new GUIStyle(GUI.skin.label) { font = Ts.Font, wordWrap = false, richText = false };

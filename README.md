@@ -116,6 +116,8 @@
 - 動きは `Assets/Tsukuyomi/Scripts`：自分（`PlayerController`・`OrbitCamera`）、空（`RealTimeSky`）、画面の表示（`Hud`）、保存（`GameSession`・`SaveStore`）、配信（`StreamStudio`）、人形（`Doll`・`DollAnimator`）
 - 見た目のシェーダーは `Assets/Tsukuyomi/Shaders`（水・光る面・星・月・花びら・大画面）
 - 保存先：`%APPDATA%\Tsukuyomi\save.json`（環境変数 `TSUKUYOMI_DATA` で変えられる）
+- KASSEN（合戦）：入口は大画面広場のそばの「KASSEN の門」（`Kassen`。地図にも出る）。試合は実行中に作る別のシーンで遊び、島は止めて隠す（空・太陽と月・ポストプロセスだけ残す）。SETSUNA（1対1 の一人称の格闘）は `Setsuna`（進行）・`Setsuna.Combat`（当たり・刹那ガード・コンボ・狐火・コンピューター）・`Setsuna.View`（闘技場・相手の人形・自分の手・カメラ）・`Setsuna.Hud`（表示）・`SetsunaFighter`（技と相手3人）。勝つとふじゅ〜（やさしい 100・ふつう 300・つよい 800）、「つよい」に初めて勝つと狐のきぐるみ（`Catalog.KitsuneKigurumi`、着がえの形 style 4）。記録は save.json の setsunaWins・setsunaLosses
+- 表示の見た目（ツクヨミ風）：`Board` の Fan・Fans（四隅の扇）、NameTag（縦書きの白い名札）、Display（光る斜体の大きな文字）、Ring・RoundButton（細い輪）、Frame（夜の地と白い縁と扇）
 - ふじゅ〜の独立：残高はツクヨミの `save.json` の fuju（`Fuju`）。初ログインボーナス 5000（fujuBonus）。ミニヤチヨからは片道だけ両替できる（Esc のメニュー →「ふじゅ〜（両替）」、板 `Hud.Exchange`。ミニヤチヨの `POST /api/tsukuyomi/buy` を id=tsukuyomi_exchange で使う。1回 1〜10000）。稼ぐときは `Fuju.Earn`
 - 土台（VR 向け）：操作は動作の層 `Act`（Input System。キーを直接読まず `Act.Interact.Down` のように読む。割り当ては Act.cs の1か所。ゲームパッドも使える）、表示の板 `Board`（uGUI。画面モードは画面に重ね、VR では空間に浮かぶ。新しい表示はこれで作る。いまはお知らせ `Hud.Notice` だけ）。これからの予定は `ROADMAP.md`
 - 段階4：曲と歌詞と音の合成 `LiveMusic`（別のスレッドで作る）、ライブの進行・曲順・ヤチヨのふるまい・投げ銭とコメント・22時の定期公演 `LiveShow`、光・レーザー・客席・おまかせカメラ `LiveShow.Fx`、ありえない演出・空の歌詞とコメント `LiveShow.Wow`、画面 `Hud.Live`、舞台装置の組み立て `Editor/LiveStage.cs`、光の筋のシェーダー `Shaders/Beam.shader`。客席の人は町の人（`Crowd.MakeFan`）と同じ作り方
@@ -143,6 +145,7 @@ sh build.sh   （Git Bash で。世界の組み立て → exe の書き出し �
 | `--fresh` | 保存した場所を使わない（持ち物は残す） |
 | `--fresh-all` | 持ち物もふくめて初めから |
 | `--no-crowd` | 町を歩く人を出さない（重さをくらべる確認用） |
+| tour の `kassen` / `setsuna:相手:強さ[:fight・combo・just・ko・result]` | KASSEN の入口の板／SETSUNA のその場面（相手 0 疾風・1 岩鉄・2 朧、強さ 0〜2） |
 | tour の `exchange` `exchange:100` | 両替の板を開く（金額があれば本当に両替） |
 | `--board-world` | 板（お知らせなど）を空間に浮かべて表示する（VR での見え方の確認用） |
 | `--live 60` | 起動してすぐライブを始め、ライブ全体の60秒目へ飛ぶ（確認用。音は出さない） |

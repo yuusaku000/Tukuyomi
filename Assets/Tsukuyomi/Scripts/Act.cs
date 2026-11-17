@@ -48,6 +48,20 @@ namespace Tsukuyomi
         /// <summary>着がえ（C）。ライブ会場ではおまかせカメラ。</summary>
         public static readonly Button Wardrobe = new("Wardrobe", "<Keyboard>/c", "<Gamepad>/buttonNorth");
 
+        // ── KASSEN（格闘） ──
+        /// <summary>弱攻撃（左クリック）。</summary>
+        public static readonly Button Light = new("Light", "<Mouse>/leftButton", "<Keyboard>/j", "<Gamepad>/buttonWest");
+        /// <summary>強攻撃（右クリック）。</summary>
+        public static readonly Button Heavy = new("Heavy", "<Mouse>/rightButton", "<Keyboard>/k", "<Gamepad>/buttonNorth");
+        /// <summary>必殺技（E）。前後のキーと組み合わせて出す。</summary>
+        public static readonly Button Special = new("Special", "<Keyboard>/e", "<Gamepad>/rightShoulder");
+        /// <summary>投げ（F）。</summary>
+        public static readonly Button Throw = new("Throw", "<Keyboard>/f", "<Gamepad>/leftShoulder");
+        /// <summary>超必殺（R）。</summary>
+        public static readonly Button Super = new("Super", "<Keyboard>/r", "<Gamepad>/rightTrigger");
+        /// <summary>しゃがむ（Ctrl）。</summary>
+        public static readonly Button Crouch = new("Crouch", "<Keyboard>/leftCtrl", "<Keyboard>/c", "<Gamepad>/leftTrigger");
+
         // ── 画面 ──
         /// <summary>決定（Enter・ゲームパッドの A）。板のボタン用。</summary>
         public static readonly Button Confirm = new("Confirm", "<Keyboard>/enter", "<Keyboard>/numpadEnter", "<Gamepad>/buttonSouth");
@@ -115,7 +129,7 @@ namespace Tsukuyomi
             return a;
         }
 
-        static Button[] All => new[] { Jump, Run, Descend, View, Interact, Cast, Wardrobe, Confirm, Back, Map, Book, HideHud };
+        static Button[] All => new[] { Jump, Run, Descend, View, Interact, Cast, Wardrobe, Confirm, Back, Map, Book, HideHud, Light, Heavy, Special, Throw, Super, Crouch };
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
         static void Init()
