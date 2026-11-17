@@ -296,7 +296,7 @@ namespace Tsukuyomi
 
         void PoseCamera(float dt)
         {
-            if (_cam == null) return;
+            if (_cam == null || VrOn) return; // VR：カメラは Vr が頭に合わせて置く（向きと高さと揺れは Setsuna.Vr の Feet・Yaw）
             var f = P; var o = C;
             float eye = f.crouch && f.st == F.St.Idle || (f.move != null && f.move.h == Height.Low) ? 0.95f : 1.52f;
             if (f.st == F.St.Down || f.st == F.St.KO) eye = 0.45f;
@@ -320,6 +320,7 @@ namespace Tsukuyomi
             PoseCpu(dt);
             PoseArms(dt);
             PoseCamera(dt);
+            VrTick();
             Fx(Time.unscaledDeltaTime);
         }
 

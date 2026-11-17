@@ -228,7 +228,13 @@ namespace Tsukuyomi
         {
             float dt = Mathf.Max(1e-4f, Time.deltaTime);
             var r = _rPos.ReadValue<Vector3>(); var l = _lPos.ReadValue<Vector3>();
-            if (_velInit) { RightVel = Vector3.Lerp(RightVel, (r - _rPrev) / dt, 0.6f); LeftVel = Vector3.Lerp(LeftVel, (l - _lPrev) / dt, 0.6f); }
+            // 毎秒 9m より速いのは、手の速さではなく読み取りの飛び（見失った・起動の直後など）とみなして使わない
+            if (_velInit)
+            {
+                var rv = (r - _rPrev) / dt; var lv = (l - _lPrev) / dt;
+                RightVel = rv.magnitude > 9f ? Vector3.zero : Vector3.Lerp(RightVel, rv, 0.6f);
+                LeftVel = lv.magnitude > 9f ? Vector3.zero : Vector3.Lerp(LeftVel, lv, 0.6f);
+            }
             _rPrev = r; _lPrev = l; _velInit = true;
         }
 

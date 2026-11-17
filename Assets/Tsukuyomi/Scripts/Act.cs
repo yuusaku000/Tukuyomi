@@ -170,6 +170,7 @@ namespace Tsukuyomi
             Throw.Bind("<XRController>{LeftHand}/{TriggerButton}");
             Info.Bind("<XRController>{LeftHand}/{PrimaryButton}");
             Super.Bind("<XRController>{LeftHand}/{Primary2DAxisClick}");
+            Crouch.Bind("<XRController>{LeftHand}/{GripButton}");
         }
 
         static Button[] All => new[] { Jump, Run, Descend, View, Interact, Cast, Wardrobe, Confirm, Back, Map, Book, HideHud, Info, Light, Heavy, Special, Throw, Super, Crouch };

@@ -105,6 +105,8 @@ namespace Tsukuyomi
             bool big = m.heavy || m.hits > 1 || m.h == Height.Throw;
             _hitstop = m.hits > 1 && !lastHit ? 0.04f : big ? 0.11f : 0.06f;
             _shake = Mathf.Max(_shake, big ? 0.09f : 0.04f);
+            if (a.isPlayer) Vr.Buzz(true, big ? 0.9f : 0.5f, big ? 0.15f : 0.07f); // VR：当てたら右手、受けたら両手がふるえる
+            else { Vr.Buzz(true, 0.35f, 0.12f); Vr.Buzz(false, 0.35f, 0.12f); }
             Play(big ? _sHitHeavy : _sHit, big ? 0.95f : 0.75f);
             Sparks(contact, a.isPlayer ? new Color(0.4f, 1f, 1f) : new Color(1f, 0.45f, 0.3f), big ? 16 : 9, big ? 1.2f : 0.8f);
 

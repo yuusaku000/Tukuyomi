@@ -73,10 +73,10 @@ namespace Tsukuyomi
             Board.Panel(r, new Rect(660, 996, 600, 1), new Color(1, 1, 1, 0.8f));
             _gaugeLabel = Board.Label(r, new Rect(660, 1018, 600, 30), "超必殺", 20, Color.white, TextAnchor.MiddleCenter);
             // 操作の説明
-            Board.Label(r, new Rect(60, 980, 560, 70),
+            Board.Label(r, new Rect(60, 980, 560, 70), Vr.On ? VrKeys :
                 "W/S 前後（S 押したまま＝ガード）　A/D 回りこむ　Space ジャンプ　Ctrl しゃがみ\n左クリック 弱　右クリック 強　E 必殺（S→W＋E 突進・W→S＋E 狐火）　F 投げ　R 超必殺",
                 15, new Color(1, 1, 1, 0.75f), TextAnchor.LowerLeft);
-            Board.Label(r, new Rect(1400, 1010, 460, 30), "Esc 一時停止", 16, new Color(1, 1, 1, 0.7f), TextAnchor.MiddleRight);
+            Board.Label(r, new Rect(1400, 1010, 460, 30), Vr.On ? "Y 一時停止" : "Esc 一時停止", 16, new Color(1, 1, 1, 0.7f), TextAnchor.MiddleRight);
         }
 
         RectTransform Bar(RectTransform r, Rect rc, Color c, bool rightSide, out RectTransform white)
@@ -232,6 +232,9 @@ namespace Tsukuyomi
             {
                 case "fight":
                     s.SetPhase(Phase.Fight); s._clock = 87; s._centerT = 0;
+                    break;
+                case "vrswing": // 確認用（--vr-sim）：右手を振りつづけて、振る攻撃が出るか見る
+                    s.SetPhase(Phase.Fight); s._clock = 87; s._centerT = 0; s._testPlay = true; Vr.SimSwing = true;
                     break;
                 case "combo":
                     s.SetPhase(Phase.Fight); s._clock = 74; s._centerT = 0;

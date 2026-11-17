@@ -245,7 +245,6 @@ namespace Tsukuyomi
 
         void StartSetsuna()
         {
-            if (_mode == 0 && Vr.On) { Hud.Toast("SETSUNA の VR はまだ準備中です（SENGOKU は VR で遊べます）"); return; }
             CloseMenu();
             if (_mode == 1) BeginSengoku(_sgSel == 0, _level);
             else BeginMatch(_opp, _level, _stageSel - 1);

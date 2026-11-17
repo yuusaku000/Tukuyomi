@@ -68,13 +68,15 @@ namespace Tsukuyomi
             BuildArms();
             BuildHud();
             if (_cam != null) _cam.fieldOfView = 72f;
+            VrInit();
             _round = 0;
             NextRound();
         }
 
         void OnDestroy()
         {
-            if (I == this) I = null;
+            if (I == this) { I = null; Vr.SimSwing = false; }
+            VrEnd();
             foreach (var b in new[] { _hud, _pauseB, _resultB }) if (b != null) Destroy(b.gameObject);
             if (_armsRoot != null) Destroy(_armsRoot.gameObject);
             if (_clearSet && _cam != null) { _cam.clearFlags = _clearKeep.Item1; _cam.backgroundColor = _clearKeep.Item2; RenderSettings.fog = _clearKeep.Item3; }
@@ -137,7 +139,7 @@ namespace Tsukuyomi
             P.ClearInput(); C.ClearInput();
             if (_phase == Phase.Fight)
             {
-                if (!Ts.ShotMode) ReadPlayer();
+                if (!Ts.ShotMode || _testPlay) ReadPlayer();
                 Brain();
             }
 
@@ -176,7 +178,7 @@ namespace Tsukuyomi
             if (Act.Crouch.Down) P.lastGuardPress = now;
 
             string press = Act.Super.Down ? "super" : Act.Throw.Down ? "throw" : Act.Special.Down ? SpecialFromCommand(now) :
-                           Act.Heavy.Down ? "heavy" : Act.Light.Down ? "light" : Act.Jump.Down ? "jump" : null;
+                           Act.Heavy.Down ? "heavy" : Act.Light.Down ? "light" : Act.Jump.Down ? "jump" : VrSwing(); // VR：手を振っても攻撃
             if (press != null) { _buf = press; _bufT = now; }
             if (_buf != null && now - _bufT > 0.16f) _buf = null;
             if (_buf != null) Press(P, _buf);
