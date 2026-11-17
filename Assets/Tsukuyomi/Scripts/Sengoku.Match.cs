@@ -18,16 +18,19 @@ namespace Tsukuyomi
         int _level = 1, _round, _winsW, _winsE, _myLives = 2;
         MPhase _phase = MPhase.Fight;
         float _phaseT, _clock = 300f, _coldT, _deadT, _hurt;
-        bool _dead;
+        bool _dead, _healing;
         SengokuTarget _me;
 
         class TowerState { public string name; public Vector3 c; public int owner; public float prog; public readonly List<Renderer> ring = new List<Renderer>(); }
         readonly TowerState[] _towers = { new TowerState { name = "北の櫓", c = NorthCapture }, new TowerState { name = "南の櫓", c = SouthCapture } };
 
-        class DarumaState { public bool active; public SengokuTarget target; public Transform root; public readonly List<Transform> layers = new List<Transform>(); public int left = 5; }
+        class DarumaState { public bool active; public SengokuTarget target; public Transform root; public readonly List<Transform> layers = new List<Transform>(); public int left = Layers; }
+        const int Layers = 8;
         readonly DarumaState[] _daruma = { null, new DarumaState(), new DarumaState() };
 
         readonly List<string> _feed = new List<string>();
+
+        const float HeadY = 0.45f + Layers * 0.9f + 0.65f;
 
         int Owned(int team) { int n = 0; foreach (var t in _towers) if (t.owner == team) n++; return n; }
 
@@ -54,7 +57,7 @@ namespace Tsukuyomi
             foreach (var r in _map.GetComponentsInChildren<Renderer>())
             {
                 var p = r.transform.position;
-                if (Mathf.Abs(p.y - (t.c.y + 0.06f)) < 0.05f && Mathf.Abs(new Vector2(p.x - t.c.x, p.z - t.c.z).magnitude - CaptureR) < 0.2f) t.ring.Add(r);
+                if (Mathf.Abs(p.y - (t.c.y + 0.06f * K)) < 0.15f && Mathf.Abs(new Vector2(p.x - t.c.x, p.z - t.c.z).magnitude - CaptureR) < 0.4f) t.ring.Add(r);
             }
         }
 
@@ -63,21 +66,21 @@ namespace Tsukuyomi
             var d = _daruma[team];
             d.root = new GameObject("大将落とし").transform; d.root.SetParent(transform, false);
             d.root.position = DarumaSpot(team);
-            var cols = new[] { new Color(0.85f, 0.2f, 0.2f), new Color(0.2f, 0.5f, 0.85f), new Color(0.95f, 0.8f, 0.3f), new Color(0.3f, 0.7f, 0.4f), new Color(0.6f, 0.35f, 0.75f) };
-            for (int i = 0; i < 5; i++)
+            var cols = new[] { new Color(0.85f, 0.2f, 0.2f), new Color(0.2f, 0.5f, 0.85f), new Color(0.95f, 0.8f, 0.3f), new Color(0.3f, 0.7f, 0.4f), new Color(0.6f, 0.35f, 0.75f), new Color(0.95f, 0.55f, 0.2f), new Color(0.3f, 0.75f, 0.85f), new Color(0.9f, 0.45f, 0.65f) };
+            for (int i = 0; i < Layers; i++)
             {
                 var g = Block(PrimitiveType.Cylinder, d.root, new Vector3(0, 0.45f + i * 0.9f, 0), new Vector3(2.6f, 0.45f, 2.6f), cols[i], false);
                 d.layers.Add(g.transform);
             }
-            var head = new GameObject("だるま").transform; head.SetParent(d.root, false); head.localPosition = new Vector3(0, 5.6f, 0);
+            var head = new GameObject("だるま").transform; head.SetParent(d.root, false); head.localPosition = new Vector3(0, HeadY, 0);
             Block(PrimitiveType.Sphere, head, Vector3.zero, new Vector3(2.2f, 2.4f, 2.2f), new Color(0.85f, 0.12f, 0.1f), false);
             Block(PrimitiveType.Sphere, head, new Vector3(0, 0.2f, 0.75f * (team == 1 ? 1 : 1)), new Vector3(1.2f, 1f, 0.8f), new Color(1f, 0.92f, 0.85f), false);
             foreach (float sx in new[] { -0.25f, 0.25f }) Block(PrimitiveType.Sphere, head, new Vector3(sx, 0.35f, 1.1f), Vector3.one * 0.18f, Color.black, false);
             Block(PrimitiveType.Sphere, head, new Vector3(0, 0, 0), new Vector3(2.4f, 0.2f, 2.4f), new Color(1f, 0.8f, 0.3f), false, null, true);
             head.rotation = Quaternion.LookRotation(team == 1 ? Vector3.right : Vector3.left);
-            var col = d.root.gameObject.AddComponent<CapsuleCollider>(); col.center = new Vector3(0, 3.2f, 0); col.height = 6.6f; col.radius = 1.4f;
+            var col = d.root.gameObject.AddComponent<CapsuleCollider>(); col.center = new Vector3(0, 4.6f, 0); col.height = 9.4f; col.radius = 1.4f;
             d.target = d.root.gameObject.AddComponent<SengokuTarget>();
-            d.target.team = team; d.target.structure = true; d.target.maxHp = d.target.hp = 500; d.target.respawn = 0; d.target.visual = false; d.target.label = "大将落とし";
+            d.target.team = team; d.target.structure = true; d.target.maxHp = d.target.hp = Layers * 100; d.target.respawn = 0; d.target.visual = false; d.target.label = "大将落とし";
             d.target.onHit = (t, dmg, p) => DarumaHit(team);
             d.root.gameObject.SetActive(false);
         }
@@ -89,7 +92,7 @@ namespace Tsukuyomi
             while (d.left > left && d.left > 0)
             {
                 // いちばん下の段が飛んでいき、上が1段落ちる
-                var layer = d.layers[5 - d.left];
+                var layer = d.layers[Layers - d.left];
                 Sparks(layer.position, Color.white, 16);
                 _flyers.Add((layer, (team == 1 ? Vector3.left : Vector3.right) * -14f + Vector3.up * 6f, 2f));
                 layer.SetParent(transform, true);
@@ -112,20 +115,20 @@ namespace Tsukuyomi
             for (int team = 1; team <= 2; team++)
             {
                 var d = _daruma[team];
-                d.target.Revive(); d.left = 5;
-                for (int i = 0; i < 5; i++)
+                d.target.Revive(); d.left = Layers;
+                for (int i = 0; i < Layers; i++)
                 {
                     var l = d.layers[i];
                     l.SetParent(d.root, false); l.localPosition = new Vector3(0, 0.45f + i * 0.9f, 0); l.localRotation = Quaternion.identity; l.gameObject.SetActive(true);
                 }
-                d.root.Find("だるま").localPosition = new Vector3(0, 5.6f, 0);
+                d.root.Find("だるま").localPosition = new Vector3(0, HeadY, 0);
                 d.active = false; d.root.gameObject.SetActive(false);
             }
             foreach (var u in _units) { u.lives = 2; u.respawnT = 0; Respawn(u); }
             _myLives = 2; _dead = false; _me.Revive(); _hp = 100;
             Teleport(SpawnOf(1, 0)); _yaw = 90; _pitch = 2;
             _phase = MPhase.Intro; _phaseT = 0;
-            Center(_round == 3 ? "FINAL ROUND" : $"ROUND {_round}", Board.Teal, 2.2f, "櫓を取って、東の大将落としを叩き落とせ！");
+            Center(_round == 3 ? "FINAL ROUND" : $"ROUND {_round}", Board.Teal, 2.2f, "櫓を取って、東の大将落としを叩き落とせ！（自分の城の中で回復）");
             _feed.Clear();
         }
 
@@ -136,6 +139,8 @@ namespace Tsukuyomi
             _phaseT += dt;
             _hurt = Mathf.MoveTowards(_hurt, 0, dt * 1.5f);
             _hp = _me.hp;
+            _healing = !_dead && InBase(1, _rig.transform.position) && _me.hp < _me.maxHp;
+            if (_healing) _me.hp = Mathf.Min(_me.maxHp, _me.hp + 25f * dt);
             switch (_phase)
             {
                 case MPhase.Intro:
@@ -189,8 +194,8 @@ namespace Tsukuyomi
                     if (new Vector2(d.x, d.z).magnitude < CaptureR && d.y > -2f && d.y < 7f) { if (team == 1) w++; else e++; }
                 }
                 int before = t.owner;
-                if (w > 0 && e == 0) t.prog = Mathf.Min(1, t.prog + dt / 6f * Mathf.Min(2, w));
-                else if (e > 0 && w == 0) t.prog = Mathf.Max(-1, t.prog - dt / 6f * Mathf.Min(2, e));
+                if (w > 0 && e == 0) t.prog = Mathf.Min(1, t.prog + dt / 12f * Mathf.Min(2, w));
+                else if (e > 0 && w == 0) t.prog = Mathf.Max(-1, t.prog - dt / 12f * Mathf.Min(2, e));
                 if (t.prog >= 1) t.owner = 1; else if (t.prog <= -1) t.owner = 2;
                 else if (t.owner == 1 && t.prog < 0) t.owner = 0; else if (t.owner == 2 && t.prog > 0) t.owner = 0;
                 if (t.owner != before)
@@ -373,7 +378,7 @@ namespace Tsukuyomi
             foreach (var u in _units) if (u.team == 1) Row($"{u.name}　{Weapons[u.weapon].name}", u.Dead ? 0 : u.target.hp / 100f, u.lives, u.Dead);
             foreach (var u in _units) if (u.team == 2) Row($"{Weapons[u.weapon].name}　{u.name}", u.Dead ? 0 : u.target.hp / 100f, u.lives, u.Dead);
             _mFeed.text = _feedT > 0 ? string.Join("\n", _feed) : "";
-            _mLives.text = _dead ? (_myLives > 0 ? $"復活まで {Mathf.Max(0, _deadT):0.0} 秒" : "観戦中") : $"残機 {new string('●', _myLives)}";
+            _mLives.text = _dead ? (_myLives > 0 ? $"復活まで {Mathf.Max(0, _deadT):0.0} 秒" : "観戦中") : $"残機 {new string('●', _myLives)}" + (_healing ? "　本陣で回復中 ＋" : "");
             _centerT -= udt;
             float a = Mathf.Clamp01(_centerT / 0.4f);
             _mCenter.canvasRenderer.SetAlpha(a); _mSub.canvasRenderer.SetAlpha(a);
@@ -441,12 +446,12 @@ namespace Tsukuyomi
                     break;
                 case "overview":
                     s._phase = MPhase.Fight; s._centerT = 0;
-                    s._camOverride = true; s._camPos = new Vector3(-6, 78, -82); s._camLook = new Vector3(0, -6, 10);
+                    s._camOverride = true; s._camPos = new Vector3(-6, 78, -82) * K; s._camLook = new Vector3(0, -6, 10) * K;
                     break;
-                case "town": s._phase = MPhase.Fight; s._centerT = 0; s.Teleport(new Vector3(-44, 0.3f, 0)); s._yaw = 90; s._pitch = 2; break;
-                case "valley": s._phase = MPhase.Fight; s._centerT = 0; s.Teleport(new Vector3(-14, 0.3f, 18)); s._yaw = 90; s._pitch = 8; break;
-                case "lake": s._phase = MPhase.Fight; s._centerT = 0; s.Teleport(new Vector3(-30, 0.3f, -42)); s._yaw = 95; s._pitch = 3; break;
-                case "mountain": s._phase = MPhase.Fight; s._centerT = 0; s.Teleport(new Vector3(-36, 0.3f, 36)); s._yaw = 70; s._pitch = 12; break;
+                case "town": s._phase = MPhase.Fight; s._centerT = 0; s.Teleport(K * new Vector3(-44, 0.3f, 0)); s._yaw = 90; s._pitch = 2; break;
+                case "valley": s._phase = MPhase.Fight; s._centerT = 0; s.Teleport(K * new Vector3(-14, 0.3f, 18)); s._yaw = 90; s._pitch = 8; break;
+                case "lake": s._phase = MPhase.Fight; s._centerT = 0; s.Teleport(K * new Vector3(-30, 0.3f, -42)); s._yaw = 95; s._pitch = 3; break;
+                case "mountain": s._phase = MPhase.Fight; s._centerT = 0; s.Teleport(K * new Vector3(-36, 0.3f, 36)); s._yaw = 70; s._pitch = 12; break;
                 case "capture":
                     s._phase = MPhase.Fight; s._centerT = 0;
                     s.Teleport(NorthCapture + new Vector3(-3, 0.3f, -4)); s._yaw = 30; s._pitch = 5;

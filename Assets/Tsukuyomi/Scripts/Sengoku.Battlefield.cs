@@ -12,10 +12,16 @@ namespace Tsukuyomi
     /// </summary>
     public partial class Sengoku
     {
-        public static readonly Vector3 NorthCapture = new(0, 12, 47), SouthCapture = new(0, 1, -46);
-        public static Vector3 CastleOf(int team) => new(team == 1 ? -66 : 66, 0, 0);
-        public static Vector3 DarumaSpot(int team) => new(team == 1 ? -55 : 55, 0, 0);
-        public static Vector3 SpawnOf(int team, int i) => new(team == 1 ? -60 : 60, 0.2f, (i - 1) * 4.5f + 8f);
+        /// <summary>マップの広さの倍率（組み立ては元の数で行い、最後に全体を K 倍する）。</summary>
+        public const float K = 1.35f;
+        static readonly Vector3 N0 = new(0, 12, 47), S0 = new(0, 1, -46);
+        public static readonly Vector3 NorthCapture = N0 * K, SouthCapture = S0 * K;
+        static Vector3 Castle0(int team) => new(team == 1 ? -66 : 66, 0, 0);
+        public static Vector3 CastleOf(int team) => Castle0(team) * K;
+        public static Vector3 DarumaSpot(int team) => new Vector3(team == 1 ? -55 : 55, 0, 0) * K;
+        public static Vector3 SpawnOf(int team, int i) => new Vector3(team == 1 ? -60 : 60, 0.2f, (i - 1) * 4.5f + 8f) * K;
+        /// <summary>自分の城（本陣）の城壁の内側か。ここにいると回復する。</summary>
+        public static bool InBase(int team, Vector3 p) => (team == 1 ? p.x < -48f * K : p.x > 48f * K) && Mathf.Abs(p.z) < 22f * K && p.y > -1f;
 
         static readonly Color Tile = new(0.2f, 0.22f, 0.27f), Plaster = new(0.9f, 0.88f, 0.82f), Timber = new(0.32f, 0.2f, 0.13f),
             Road = new(0.52f, 0.46f, 0.38f), Cliff = new(0.42f, 0.37f, 0.32f), Pink = new(1f, 0.75f, 0.84f), Bamboo = new(0.38f, 0.6f, 0.34f);
@@ -69,6 +75,7 @@ namespace Tsukuyomi
             Town(-1); Town(1);
             Mountain();
             Lake();
+            BaseMarks(1); BaseMarks(2);
 
             // まわりの山（見た目）・見えない壁・ずっと下の地面
             for (int i = 0; i < 28; i++)
@@ -90,13 +97,14 @@ namespace Tsukuyomi
                 l.transform.SetParent(_map, false); l.transform.localPosition = new Vector3(s * 35, 18, 0);
                 l.type = LightType.Point; l.range = 70; l.intensity = 1.1f; l.color = new Color(1f, 0.85f, 0.65f);
             }
+            _map.localScale = Vector3.one * K;
         }
 
         /// <summary>城（team 1 西・2 東）。城壁と城門、二の丸の広場、石垣と天守閣。</summary>
         void Castle2(int team)
         {
             float s = team == 1 ? -1 : 1;
-            var c = CastleOf(team);
+            var c = Castle0(team);
             var col = team == 1 ? new Color(0.1f, 0.6f, 0.62f) : Red;
             // 城壁（高さ5・上を歩ける）。町側（内側）の真ん中に城門
             float inner = c.x - s * 18f; // 町側の壁の x
@@ -246,7 +254,7 @@ namespace Tsukuyomi
                 }
                 Block(PrimitiveType.Sphere, _map, new Vector3(s * 16, 6.6f, 38), new Vector3(3, 2, 2.6f), Stone);
             }
-            Tower2(NorthCapture, new Color(0.9f, 0.9f, 0.9f));
+            Tower2(N0, new Color(0.9f, 0.9f, 0.9f));
         }
 
         /// <summary>南の湖：浅い水（y -0.6）、浮き島（y 1）に南の櫓、西と東から桟橋。</summary>
@@ -267,7 +275,7 @@ namespace Tsukuyomi
                 // 岸から上がる坂
                 Ramp(new Vector3(s * 23.5f, -1.6f, -54), new Vector3(s * 28.5f, 0.05f, -54), 4f, Road);
             }
-            Tower2(SouthCapture, new Color(0.9f, 0.9f, 0.9f));
+            Tower2(S0, new Color(0.9f, 0.9f, 0.9f));
         }
 
         /// <summary>試合の櫓（低めの物見台。坂で上がれる）。まわりの円が占拠の場所。</summary>
@@ -283,10 +291,25 @@ namespace Tsukuyomi
             for (int i = 0; i < 40; i++)
             {
                 float a = i / 40f * Mathf.PI * 2;
-                Block(PrimitiveType.Cube, _map, at + new Vector3(Mathf.Cos(a) * CaptureR, 0.06f, Mathf.Sin(a) * CaptureR), new Vector3(0.9f, 0.04f, 0.12f), Color.white, false, new Vector3(0, -a * Mathf.Rad2Deg + 90, 0), true);
+                Block(PrimitiveType.Cube, _map, at + new Vector3(Mathf.Cos(a) * CaptureR0, 0.06f, Mathf.Sin(a) * CaptureR0), new Vector3(0.9f, 0.04f, 0.12f), Color.white, false, new Vector3(0, -a * Mathf.Rad2Deg + 90, 0), true);
             }
         }
 
-        public const float CaptureR = 6.5f;
+        const float CaptureR0 = 6.5f;
+        public const float CaptureR = CaptureR0 * K;
+
+        /// <summary>本陣のしるし：城門の内側の地面に光る帯と、回復の灯り。</summary>
+        void BaseMarks(int team)
+        {
+            float s = team == 1 ? -1 : 1;
+            var col = team == 1 ? new Color(0.3f, 1f, 1f) : new Color(1f, 0.45f, 0.35f);
+            for (int i = 0; i < 18; i++)
+                Block(PrimitiveType.Cube, _map, new Vector3(s * 50.5f, 0.05f, -8.5f + i), new Vector3(0.25f, 0.04f, 0.6f), col, false, null, true);
+            foreach (float z in new[] { -11f, 11f })
+            {
+                Block(PrimitiveType.Cylinder, _map, new Vector3(s * 52, 0.8f, z), new Vector3(0.25f, 0.8f, 0.25f), Timber);
+                Block(PrimitiveType.Sphere, _map, new Vector3(s * 52, 1.9f, z), Vector3.one * 0.6f, col, false, null, true);
+            }
+        }
     }
 }

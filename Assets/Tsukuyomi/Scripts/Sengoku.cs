@@ -168,7 +168,7 @@ namespace Tsukuyomi
             if (_grounded && _vel.y < 0) _vel.y = -2f;
             if ((flags & CollisionFlags.Above) != 0 && _vel.y > 0) _vel.y = 0;
             // 落ちたら天守閣の前へもどす
-            if (_rig.transform.position.y < -14f) Teleport(_match ? SpawnOf(1, 0) : WestCastle + new Vector3(14f, 0.5f, 0));
+            if (_rig.transform.position.y < -19f) Teleport(_match ? SpawnOf(1, 0) : WestCastle + new Vector3(14f, 0.5f, 0));
         }
 
         public void Teleport(Vector3 p)

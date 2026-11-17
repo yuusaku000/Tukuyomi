@@ -18,7 +18,7 @@ namespace Tsukuyomi
             public Vector3 vel; public float cd, cd2, respawnT, stuckT, repathT, attackPose;
             public Vector3 lastPos, goal = new(999, 0, 0);
             public List<Vector3> path = new List<Vector3>(); public int pathI;
-            public SengokuTarget enemy; public float thinkT;
+            public SengokuTarget enemy; public float thinkT; public bool healing;
             public Board tag; public RectTransform hpFill;
             public bool Dead => target.Down;
             public Vector3 Pos => go.transform.position;
@@ -34,7 +34,7 @@ namespace Tsukuyomi
         readonly List<Vector3> _nodes = new List<Vector3>();
         readonly List<List<int>> _edges = new List<List<int>>();
 
-        int Node(Vector3 p) { _nodes.Add(p); _edges.Add(new List<int>()); return _nodes.Count - 1; }
+        int Node(Vector3 p) { _nodes.Add(p * K); _edges.Add(new List<int>()); return _nodes.Count - 1; }
         void Link(int a, int b) { _edges[a].Add(b); _edges[b].Add(a); }
 
         void BuildGraph()
@@ -59,8 +59,8 @@ namespace Tsukuyomi
             Side(1, out _, out _, out _, out _, out _, out _, out _, out var ebrn, out _, out _, out var ebrs, out _, out _, out _, out var emt2, out var emt3, out _, out _, out var elk2, out var evw1);
             int bcn = Node(new Vector3(0, -0.8f, 18)), bcs = Node(new Vector3(0, -0.8f, -18));
             Link(wbrn, bcn); Link(bcn, ebrn); Link(wbrs, bcs); Link(bcs, ebrs);
-            int mtop = Node(NorthCapture + new Vector3(0, 0, -2)); Link(wmt3, mtop); Link(emt3, mtop); Link(wmt2, emt2);
-            int ltop = Node(SouthCapture); Link(wlk2, ltop); Link(elk2, ltop);
+            int mtop = Node(N0 + new Vector3(0, 0, -2)); Link(wmt3, mtop); Link(emt3, mtop); Link(wmt2, emt2);
+            int ltop = Node(S0); Link(wlk2, ltop); Link(elk2, ltop);
             // 谷の底（落ちたときに登る坂）
             int vc = Node(new Vector3(0, -10, 0)), vw0 = Node(new Vector3(-7.4f, -10, -24)), ve0 = Node(new Vector3(7.4f, -10, 24));
             int vwTop = Node(new Vector3(-7.4f, 0, 10)), veTop = Node(new Vector3(7.4f, 0, -10));
@@ -109,8 +109,8 @@ namespace Tsukuyomi
         static bool DirectOk(Vector3 a, Vector3 b)
         {
             if (Mathf.Abs(a.y - b.y) > 2.5f) return false;
-            if (Mathf.Sign(a.x) != Mathf.Sign(b.x) && Mathf.Abs(a.x) > 8 && Mathf.Abs(b.x) > 8 && a.y > -3 && b.y > -3) return false;
-            return Vector3.Distance(a, b) < 14f;
+            if (Mathf.Sign(a.x) != Mathf.Sign(b.x) && Mathf.Abs(a.x) > 8 * K && Mathf.Abs(b.x) > 8 * K && a.y > -3 * K && b.y > -3 * K) return false;
+            return Vector3.Distance(a, b) < 18f;
         }
 
         // ───────── 武者をつくる ─────────
@@ -246,7 +246,11 @@ namespace Tsukuyomi
             var enemyDar = _daruma[u.team == 1 ? 2 : 1];
             Vector3 goal;
             bool attackDar = enemyDar.active && (u.role != 1 || Owned(u.team) == 2);
-            if (attackDar) goal = DarumaSpot(u.team == 1 ? 2 : 1) + new Vector3(u.team == 1 ? -3.5f : 3.5f, 0, (u.role - 1) * 1.5f);
+            // 体力が減ったら本陣へもどって回復する（満タン近くまで）
+            if (u.target.hp < 35f) u.healing = true;
+            if (u.healing && u.target.hp > 90f) u.healing = false;
+            if (u.healing) { u.enemy = u.target.hp < 20f ? null : u.enemy; goal = SpawnOf(u.team, u.role + 1) + new Vector3(u.team == 1 ? 3f : -3f, 0, 0); }
+            else if (attackDar) goal = DarumaSpot(u.team == 1 ? 2 : 1) + new Vector3(u.team == 1 ? -3.5f : 3.5f, 0, (u.role - 1) * 1.5f);
             else
             {
                 int ti = u.role == 0 ? 0 : u.role == 1 ? 1 : (_towers[0].owner == u.team ? 1 : 0);
@@ -312,10 +316,11 @@ namespace Tsukuyomi
                 if (want.sqrMagnitude > 0.2f && Vector3.Distance(u.lastPos, p) < 0.5f && u.cc.isGrounded) { u.vel.y = 7.5f; u.vel += Random.insideUnitSphere * 3f; u.repathT = 0; u.thinkT = 0; }
                 u.lastPos = p; u.stuckT = 0;
             }
-            if (p.y < -14f) Respawn(u);
+            if (p.y < -19f) Respawn(u);
+            if (InBase(u.team, p)) u.target.hp = Mathf.Min(u.target.maxHp, u.target.hp + 25f * dt);
         }
 
-        static bool InLake(Vector3 p) => p.z < -34 && Mathf.Abs(p.x) < 26 && p.y < -0.4f && !(Mathf.Abs(p.x) < 6 && p.z > -52 && p.z < -40);
+        static bool InLake(Vector3 p) => p.z < -34 * K && Mathf.Abs(p.x) < 26 * K && p.y < -0.4f * K && !(Mathf.Abs(p.x) < 6 * K && p.z > -52 * K && p.z < -40 * K);
 
         Vector3 Follow(Unit u, Vector3 p, Vector3 goal)
         {
