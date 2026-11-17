@@ -198,8 +198,8 @@ namespace Tsukuyomi
             if (!Ts.ShotMode && (_pc.Position - _spot).sqrMagnitude > 2.5f) { Stop(); return; }   // ワープしたら片づける
             if (Hud.Blocked || Ts.ShotMode) return;
 
-            bool down = (Input.GetMouseButtonDown(0) && GUIUtility.hotControl == 0) || Input.GetKeyDown(KeyCode.Space);
-            bool held = Input.GetMouseButton(0) || Input.GetKey(KeyCode.Space);
+            bool down = Act.Cast.Down && GUIUtility.hotControl == 0;
+            bool held = Act.Cast.Held;
             _stateT += dt;
 
             switch (state)

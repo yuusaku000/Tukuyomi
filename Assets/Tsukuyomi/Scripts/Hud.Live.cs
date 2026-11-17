@@ -22,15 +22,15 @@ namespace Tsukuyomi
             if (!LiveShow.Running || _menu || _map || ShopOpen || _book || _talk || _shipAsk != null) return false;
             bool here = LiveShow.PlayerInVenue || LiveShow.AutoCam;
             if (!here) return false;
-            if (_tipOpen) return Input.GetKeyDown(KeyCode.C);
+            if (_tipOpen) return Act.Wardrobe.Down;
             for (int i = 0; i < LiveShow.PenColors.Length; i++)
-                if (Input.GetKeyDown(KeyCode.Alpha1 + i) || Input.GetKeyDown(KeyCode.Keypad1 + i))
+                if (Act.Number(i))
                 {
                     LiveShow.SetPen(i);
                     Toast($"ペンライトを「{LiveShow.PenNames[i]}」にしました");
                 }
             if (Input.GetKeyDown(KeyCode.T)) { TestTipAsk(); return false; }
-            if (Input.GetKeyDown(KeyCode.C)) { LiveShow.SetAutoCam(!LiveShow.AutoCam); return true; }
+            if (Act.Wardrobe.Down) { LiveShow.SetAutoCam(!LiveShow.AutoCam); return true; }
             return false;
         }
 

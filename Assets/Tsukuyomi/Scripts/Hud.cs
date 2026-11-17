@@ -239,7 +239,7 @@ namespace Tsukuyomi
                 UpdateZone();
                 return;
             }
-            if (Input.GetKeyDown(KeyCode.Escape))
+            if (Act.Back.Down)
             {
                 if (_tipOpen) { if (!_tipBusy) _tipOpen = false; }
                 else if (LiveShow.AutoCam) LiveShow.SetAutoCam(false);
@@ -253,10 +253,10 @@ namespace Tsukuyomi
                 else if (!_menu && Rest.Sitting) Rest.I.Stand();
                 else _menu = !_menu;
             }
-            if (Input.GetKeyDown(KeyCode.M) && !_menu) { _map = !_map; _book = false; }
+            if (Act.Map.Down && !_menu) { _map = !_map; _book = false; }
             if (Input.GetKeyDown(KeyCode.F3)) { _debug = !_debug; Toast(_debug ? "デバッグ表示オン（F3 で消す・F12 で写真）" : "デバッグ表示オフ"); }
             if (Input.GetKeyDown(KeyCode.F12)) TakePhoto();
-            if (Input.GetKeyDown(KeyCode.H) && !_menu && !_map && !ShopOpen && !_book && !_talk && !_tipOpen && _shipAsk == null) { HideAll = !HideAll; _hideHintT = HideAll ? 2.5f : 0; }
+            if (Act.HideHud.Down && !_menu && !_map && !ShopOpen && !_book && !_talk && !_tipOpen && _shipAsk == null) { HideAll = !HideAll; _hideHintT = HideAll ? 2.5f : 0; }
             _hideHintT -= Time.unscaledDeltaTime;
             bool usedC = LiveKeys();
             bool usedE = ActivityKeys();
@@ -270,7 +270,7 @@ namespace Tsukuyomi
             }
             else
             {
-                if (Input.GetMouseButtonDown(0) && GUIUtility.hotControl == 0) _clicked = true;
+                if (Act.ClickDown && GUIUtility.hotControl == 0) _clicked = true;
                 bool lockIt = _clicked && Application.isFocused;
                 Cursor.lockState = lockIt ? CursorLockMode.Locked : CursorLockMode.None;
                 Cursor.visible = !lockIt;
@@ -293,6 +293,7 @@ namespace Tsukuyomi
                 }
             }
             _toastT -= Time.unscaledDeltaTime;
+            NoticeTick();
             _bannerT -= Time.unscaledDeltaTime;
             _fpsFrames++; _fpsT += Time.unscaledDeltaTime;
             if (_fpsT > 0.5f) { _fps = _fpsFrames / _fpsT; _fpsFrames = 0; _fpsT = 0; }
@@ -443,16 +444,7 @@ namespace Tsukuyomi
                 Fill(new Rect(xr - 220 * open, y + 62, 220 * open, 1.5f), new Color(Pink.r, Pink.g, Pink.b, a * 0.8f));
             }
 
-            // お知らせ
-            if (_toastT > 0 && !string.IsNullOrEmpty(_toast))
-            {
-                float a = Mathf.Clamp01(_toastT / 0.5f);
-                var r = new Rect(W / 2 - 430, H - 230, 860, 64);
-                Panel(r, a);
-                Fill(new Rect(r.x, r.y, 5, r.height), new Color(Pink.r, Pink.g, Pink.b, a));
-                Text(new Rect(r.x + 20, r.y + 6, 200, 20), "▸ NOTICE", 14, new Color(Cyan.r, Cyan.g, Cyan.b, a), TextAnchor.UpperLeft, true);
-                Text(new Rect(r.x, r.y + 8, r.width, r.height), _toast, 26, new Color(1, 1, 1, a), TextAnchor.MiddleCenter);
-            }
+            // お知らせは板（Hud.Notice）で出す
 
             if (_debug) DrawDebug();
             if (_map) DrawMap();

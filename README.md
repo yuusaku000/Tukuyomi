@@ -116,6 +116,7 @@
 - 動きは `Assets/Tsukuyomi/Scripts`：自分（`PlayerController`・`OrbitCamera`）、空（`RealTimeSky`）、画面の表示（`Hud`）、保存（`GameSession`・`SaveStore`）、配信（`StreamStudio`）、人形（`Doll`・`DollAnimator`）
 - 見た目のシェーダーは `Assets/Tsukuyomi/Shaders`（水・光る面・星・月・花びら・大画面）
 - 保存先：`%APPDATA%\Tsukuyomi\save.json`（環境変数 `TSUKUYOMI_DATA` で変えられる）
+- 土台（VR 向け）：操作は動作の層 `Act`（Input System。キーを直接読まず `Act.Interact.Down` のように読む。割り当ては Act.cs の1か所。ゲームパッドも使える）、表示の板 `Board`（uGUI。画面モードは画面に重ね、VR では空間に浮かぶ。新しい表示はこれで作る。いまはお知らせ `Hud.Notice` だけ）。これからの予定は `ROADMAP.md`
 - 段階4：曲と歌詞と音の合成 `LiveMusic`（別のスレッドで作る）、ライブの進行・曲順・ヤチヨのふるまい・投げ銭とコメント・22時の定期公演 `LiveShow`、光・レーザー・客席・おまかせカメラ `LiveShow.Fx`、ありえない演出・空の歌詞とコメント `LiveShow.Wow`、画面 `Hud.Live`、舞台装置の組み立て `Editor/LiveStage.cs`、光の筋のシェーダー `Shaders/Beam.shader`。客席の人は町の人（`Crowd.MakeFan`）と同じ作り方
 - 段階3：魚と図鑑と番付 `FishBook`、釣り `Fishing`（画面は `Hud.Fish`）、座る `Rest`・`Seat`、番付の立て札 `RankBoard`、泳ぐ鯉 `PondFish`、鹿威し `ShishiOdoshi`。釣り堀の庭は `Editor/PondGarden.cs`、通りの飾りと町なかの木は `Editor/Glitter.cs`。記録は `save.json` の fish・week…
 - 段階2：品物の一覧 `Catalog`、ミニヤチヨとのやりとり `Fuju`（`GET /api/tsukuyomi/wallet`・`POST /api/tsukuyomi/buy`。合言葉は `%APPDATA%\MiniYachiyo\api_token.txt`、窓口は `--yachiyo-port` → `MINIYACHIYO_PORT` → 8770）、着せ替え `Wardrobe`、お店の画面 `Hud.Shop`、店先 `ShopStand`（置くのは `Editor/Shops.cs`）、歩く人 `Crowd`（1人を3つの形にまとめ、全員で1つのマテリアル）
@@ -141,6 +142,7 @@ sh build.sh   （Git Bash で。世界の組み立て → exe の書き出し �
 | `--fresh` | 保存した場所を使わない（持ち物は残す） |
 | `--fresh-all` | 持ち物もふくめて初めから |
 | `--no-crowd` | 町を歩く人を出さない（重さをくらべる確認用） |
+| `--board-world` | 板（お知らせなど）を空間に浮かべて表示する（VR での見え方の確認用） |
 | `--live 60` | 起動してすぐライブを始め、ライブ全体の60秒目へ飛ぶ（確認用。音は出さない） |
 | `--live-set 2,1,4` | ライブの曲順を決める（0 パレード・1 てがみ・2 ハイパージャンプ・3 金魚・4 ハイウェイ） |
 

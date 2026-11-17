@@ -38,10 +38,7 @@ namespace Tsukuyomi
             Vector2 input = Vector2.zero;
             if (!Hud.Blocked && !Ts.ShotMode && !LiveShow.AutoCam)
             {
-                if (Input.GetKey(KeyCode.W) || Input.GetKey(KeyCode.UpArrow)) input.y += 1;
-                if (Input.GetKey(KeyCode.S) || Input.GetKey(KeyCode.DownArrow)) input.y -= 1;
-                if (Input.GetKey(KeyCode.D) || Input.GetKey(KeyCode.RightArrow)) input.x += 1;
-                if (Input.GetKey(KeyCode.A) || Input.GetKey(KeyCode.LeftArrow)) input.x -= 1;
+                input = Act.Move.ReadValue<Vector2>();
             }
             input = Vector2.ClampMagnitude(input, 1);
             if (!Hud.Blocked && !Ts.ShotMode && Input.GetKeyDown(KeyCode.F4))
@@ -59,10 +56,10 @@ namespace Tsukuyomi
                 float up = 0;
                 if (!Hud.Blocked && !Ts.ShotMode)
                 {
-                    if (Input.GetKey(KeyCode.Space) || Input.GetKey(KeyCode.E)) up += 1;
-                    if (Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.Q)) up -= 1;
+                    if (Act.Jump.Held || Act.Interact.Held) up += 1;
+                    if (Act.Descend.Held) up -= 1;
                 }
-                float sp = Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift) ? 40f : 12f;
+                float sp = Act.Run.Held ? 40f : 12f;
                 transform.position += (f * input.y + rgt * input.x + Vector3.up * up) * sp * Time.deltaTime;
                 transform.rotation = Quaternion.Euler(0, yawF, 0);
                 if (doll != null) doll.speed = 0;
@@ -71,7 +68,7 @@ namespace Tsukuyomi
             float camYaw = cam != null ? cam.yaw : 0;
             var fwd = Quaternion.Euler(0, camYaw, 0) * Vector3.forward;
             var right = Quaternion.Euler(0, camYaw, 0) * Vector3.right;
-            bool run = Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift);
+            bool run = Act.Run.Held;
             float speed = (run ? runSpeed : walkSpeed) * (InWater ? 0.45f : 1f);
             var want = (fwd * input.y + right * input.x) * speed;
             _move = Vector3.Lerp(_move, want, 1 - Mathf.Exp(-12f * Time.deltaTime));
@@ -90,7 +87,7 @@ namespace Tsukuyomi
             {
                 // 走って段の角を越えたときに少し浮いても、地面に吸いつける（浮くと段を登れなくなっていた）
                 if (_vy < 0) _vy = -7f;
-                if (!Hud.Blocked && Input.GetKeyDown(KeyCode.Space) && !InWater) { _vy = jumpSpeed; jumped = true; _airT = 1f; }
+                if (!Hud.Blocked && Act.Jump.Down && !InWater) { _vy = jumpSpeed; jumped = true; _airT = 1f; }
                 if (transform.position.y > 0.6f && !InWater && (SkyShip.I == null || !SkyShip.I.OnDeck(transform.position))) { _safePos = transform.position; _safeYaw = transform.eulerAngles.y; }
             }
             // ライブの「無重力」：会場では、決まった高さまでふわっと浮く

@@ -28,8 +28,8 @@ namespace Tsukuyomi
         bool ActivityKeys()
         {
             if (_menu || _map || ShopOpen || _shipAsk != null || _talk || player == null) return false;
-            if (Input.GetKeyDown(KeyCode.B)) { if (_book) _book = false; else OpenBook(0); return false; }
-            if (_book || !Input.GetKeyDown(KeyCode.E) || PlayerController.Fly) return false;
+            if (Act.Book.Down) { if (_book) _book = false; else OpenBook(0); return false; }
+            if (_book || !Act.Interact.Down || PlayerController.Fly) return false;
             if (Fishing.Busy) { Fishing.I.Stop(); Toast("竿をしまいました"); return true; }
             if (Rest.Sitting) { Rest.I.Stand(); return true; }
             if (YachiyoNpc.Near(player.Position, 2.8f) != null) { OpenTalk(); return true; }

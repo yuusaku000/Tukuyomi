@@ -216,10 +216,10 @@ namespace Tsukuyomi
             if (!ShopOpen && player != null && !PlayerController.Busy)
             {
                 var near = ShopStand.Near(player.Position, 3.2f);
-                if (near != null && Input.GetKeyDown(KeyCode.E) && !usedE && !PlayerController.Fly) OpenShop(near, false);
-                else if (Input.GetKeyDown(KeyCode.C) && !usedC) OpenWardrobe();
+                if (near != null && Act.Interact.Down && !usedE && !PlayerController.Fly) OpenShop(near, false);
+                else if (Act.Wardrobe.Down && !usedC) OpenWardrobe();
             }
-            else if (_wardrobe && Input.GetKeyDown(KeyCode.C)) CloseShop();
+            else if (_wardrobe && Act.Wardrobe.Down) CloseShop();
             _shopMsgT -= Time.unscaledDeltaTime;
         }
 
@@ -337,7 +337,7 @@ namespace Tsukuyomi
             Button(l, "◀ 回す", 22); Button(rr, "回す ▶", 22);
             if (Event.current.type == EventType.Repaint)
             {
-                bool down = Input.GetMouseButton(0);
+                bool down = Act.ClickHeld;
                 var mp = Event.current.mousePosition;
                 _turnBtn = down && l.Contains(mp) ? -1 : down && rr.Contains(mp) ? 1 : 0;
             }
@@ -351,8 +351,8 @@ namespace Tsukuyomi
             if (!ShopOpen || player == null) { _turnBtn = 0; return; }
             if (_shop != null && _shop.kind == ItemKind.Food) return;
             float dir = _turnBtn;
-            if (Input.GetKey(KeyCode.A) || Input.GetKey(KeyCode.LeftArrow)) dir -= 1;
-            if (Input.GetKey(KeyCode.D) || Input.GetKey(KeyCode.RightArrow)) dir += 1;
+            float tx = Act.TurnX;
+            if (Mathf.Abs(tx) > 0.3f) dir += Mathf.Sign(tx);
             if (Mathf.Abs(dir) > 0.01f) player.transform.Rotate(0, Mathf.Sign(dir) * 120f * Time.unscaledDeltaTime, 0);
         }
 

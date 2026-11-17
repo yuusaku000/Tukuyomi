@@ -39,13 +39,20 @@ namespace Tsukuyomi
             if (target == null) return;
             if (!Hud.Blocked && !Ts.ShotMode && !LiveShow.AutoCam && Cursor.lockState == CursorLockMode.Locked)
             {
-                yaw += Input.GetAxis("Mouse X") * sensitivity;
-                pitch -= Input.GetAxis("Mouse Y") * sensitivity;
+                var m = Act.LookMouse;
+                yaw += m.x * sensitivity;
+                pitch -= m.y * sensitivity;
             }
             if (!Hud.Blocked && !Ts.ShotMode && !LiveShow.AutoCam)
             {
-                if (Input.GetKeyDown(KeyCode.V)) Toggle();
-                float wheel = Input.mouseScrollDelta.y;
+                var s = Act.LookStick;
+                yaw += s.x * sensitivity;
+                pitch -= s.y * sensitivity;
+            }
+            if (!Hud.Blocked && !Ts.ShotMode && !LiveShow.AutoCam)
+            {
+                if (Act.View.Down) Toggle();
+                float wheel = Act.Scroll;
                 if (firstPerson)
                 {
                     if (wheel < -0.1f) { firstPerson = false; distance = 3f; }

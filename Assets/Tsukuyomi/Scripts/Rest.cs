@@ -99,10 +99,9 @@ namespace Tsukuyomi
             _sitT += dt;
             _idle += dt;
             if (Ts.ShotMode) return;
-            if (Input.anyKey || Mathf.Abs(Input.GetAxis("Mouse X")) + Mathf.Abs(Input.GetAxis("Mouse Y")) > 0.05f || Input.mouseScrollDelta.y != 0) _idle = 0;
+            if (Act.AnyActivity) _idle = 0;
             if (Hud.Blocked) return;
-            if (Input.GetKeyDown(KeyCode.W) || Input.GetKeyDown(KeyCode.A) || Input.GetKeyDown(KeyCode.S) || Input.GetKeyDown(KeyCode.D) ||
-                Input.GetKeyDown(KeyCode.UpArrow) || Input.GetKeyDown(KeyCode.DownArrow) || Input.GetKeyDown(KeyCode.Space))
+            if (Act.Move.WasPressedThisFrame() || Act.Jump.Down)
                 Stand();
         }
 
