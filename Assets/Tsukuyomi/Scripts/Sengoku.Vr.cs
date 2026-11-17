@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace Tsukuyomi
@@ -32,6 +33,28 @@ namespace Tsukuyomi
             // 表示の板：目の前 1m に（1920 ピクセルで 1.34m。体力などは視界のはしの近くに来る）
             if (_hud != null) { _hud.worldScale = 0.0007f; _hud.worldOffset = new Vector3(0, -0.03f, 1.0f); _hud.follow = 12f; _hud.Apply(); }
             VrFitWeapons();
+            VrHudLean(false);
+        }
+
+        bool _vrInfo;
+
+        /// <summary>
+        /// VR では、ずっと出ている表示（武器の名前・説明・体力・操作・目印など）は出さない（2026-11-18 ユーザーの指示）。
+        /// 残すのは、まん中のお知らせ・ダメージの数字・当たった印・赤いふち・倒れたときの「復活まで」だけ。
+        /// ほかの情報は X で開く戦況の板にある（練習場は X で表示を出し入れ）。showAll で全部出す。
+        /// </summary>
+        void VrHudLean(bool showAll)
+        {
+            if (!VrOn || _hud == null) return;
+            var keep = new HashSet<Transform>();
+            foreach (var c in new Component[] { _mCenter, _mSub, _hitX, _hurtImg, _mLives }) if (c != null) keep.Add(c.transform);
+            var dmg = new HashSet<Transform>();
+            foreach (var d in _dmg) if (d.t != null) dmg.Add(d.t.transform);
+            foreach (Transform c in _hud.root)
+            {
+                if (c.name == "まん中") { c.gameObject.SetActive(true); foreach (Transform cc in c) cc.gameObject.SetActive(showAll || dmg.Contains(cc)); continue; }
+                c.gameObject.SetActive(showAll || keep.Contains(c));
+            }
         }
 
         void VrEnd()
@@ -58,7 +81,7 @@ namespace Tsukuyomi
         Transform _leftHold;
 
         /// <summary>VR で手に持つ向き（武器ごと。x を倒すと、上を向いていた柄や刃が前を向く）。</summary>
-        static readonly Vector3[] VrGrip = { new(70, 0, 0), new(60, 0, 0), new(90, 0, 0), new(0, 0, 0), new(90, 0, 0), new(70, 0, 0) };
+        static readonly Vector3[] VrGrip = { new(70, 0, 0), new(60, 0, 0), new(90, 0, 0), new(0, 0, 0), new(65, 0, 0), new(60, 0, 0) };
 
         void VrFitWeapons()
         {
@@ -106,7 +129,7 @@ namespace Tsukuyomi
             if (!VrOn || _swingCdR > 0 || Vr.RightVel.magnitude < SwingSpeed) return false;
             _swingCdR = 0.32f;
             if (Ts.ShotMode) Debug.Log($"[SENGOKU] 右手を振った {Vr.RightVel.magnitude:0.0}m/秒 武器={Weapons[_w].name}");
-            return _w == 0 || _w == 1 || _w == 2 || _w == 5;
+            return _w == 0 || _w == 1 || _w == 2 || _w == 4 || _w == 5; // 近接の武器（弓だけは振っても出ない）
         }
 
         /// <summary>左手を振った（殴る）。</summary>

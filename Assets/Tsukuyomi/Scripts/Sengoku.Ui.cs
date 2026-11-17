@@ -11,18 +11,18 @@ namespace Tsukuyomi
     /// </summary>
     public partial class Sengoku
     {
-        static readonly string[] Owners = { "イロハ", "かぐや", "ヤチヨ", "のい", "砲術", "忍び" };
+        static readonly string[] Owners = { "彩葉", "かぐや", "ヤチヨ", "乃衣", "帝", "雷" };
         static readonly string[] Lines =
         {
             "速い連撃と光弾。ワイヤーで建物から建物へ飛び回る。",
             "一撃が重い。ミサイルで吹き飛ばし、ジェットで空を飛ぶ。",
             "守りが固い。投げればもどる。乗物に乗れば浮いて水の上も渡れる。",
             "遠くから射ぬく。自分が矢になって一気に飛びこむ。",
-            "大砲で建物（櫓・大将落とし）に強い。反動で跳ぶ。",
-            "鎌と鎖。相手を引き寄せ、鎖で高いところへ登る。",
+            "金色の金棒。一撃が重く、金の弾も撃てる。大きく振って一気に跳ぶ。",
+            "大きな団扇。少し遠くまで届く。地雷をしかけ、あおいで飛ぶ。",
         };
         // 攻撃・射程・機動・守り（1〜5）
-        static readonly int[,] Stats = { { 3, 3, 5, 2 }, { 5, 2, 4, 2 }, { 2, 3, 3, 5 }, { 3, 5, 3, 1 }, { 5, 5, 2, 1 }, { 3, 3, 4, 3 } };
+        static readonly int[,] Stats = { { 3, 3, 5, 2 }, { 5, 2, 4, 2 }, { 2, 3, 3, 5 }, { 3, 5, 3, 1 }, { 5, 3, 4, 2 }, { 3, 3, 4, 3 } };
         static readonly string[] StatNames = { "攻撃", "射程", "機動", "守り" };
 
         Board _selB;
@@ -65,7 +65,7 @@ namespace Tsukuyomi
             Board.Ring(r, new Vector2(frame.center.x, frame.y + frame.height * 0.52f), 250, new Color(1, 1, 1, 0.22f), false);
             Board.Ring(r, new Vector2(frame.center.x, frame.y + frame.height * 0.52f), 210, new Color(Board.Teal.r, Board.Teal.g, Board.Teal.b, 0.25f));
             Board.Fans(r, frame, new Color(1, 1, 1, 0.8f), 54);
-            _sOwnerTag = Board.NameTag(r, new Rect(frame.x + 22, frame.y + 26, 58, 300), "イロハの二刀流", Board.Vermilion, false, 30);
+            _sOwnerTag = Board.NameTag(r, new Rect(frame.x + 22, frame.y + 26, 58, 300), "彩葉の二刀流", Board.Vermilion, false, 30);
             _sEn = Board.Display(r, new Rect(frame.x, frame.yMax - 120, frame.width - 30, 80), "", 64, Color.white, TextAnchor.MiddleRight);
             _sName = Board.Label(r, new Rect(frame.x, frame.yMax - 50, frame.width - 34, 40), "", 26, Board.Gold, TextAnchor.MiddleRight);
             // 強さの目盛りと説明
@@ -172,7 +172,7 @@ namespace Tsukuyomi
             if (_hud) _hud.Alpha = 1;
             if (_viewRoot) _viewRoot.gameObject.SetActive(true);
             _phase = MPhase.Intro; _phaseT = 0;
-            Center(_round == 3 ? "FINAL ROUND" : $"ROUND {_round}", Board.Teal, 2.2f, "櫓を取って、東の大将落としを叩き落とせ！（自分の城の中で回復）");
+            Center(_round == 3 ? "FINAL ROUND" : $"ROUND {_round}", Board.Teal, 2.2f, "櫓を取って、東の大将落としを叩き落とせ！（しばらく攻撃を受けなければ回復）");
             Play(_sBoom, 0.4f);
         }
 
@@ -233,7 +233,6 @@ namespace Tsukuyomi
             items.Add((_towers[1].c + Vector3.up * 3f, "南の櫓", OwnerCol(_towers[1].owner)));
             if (_daruma[2].active) items.Add((DarumaSpot(2) + Vector3.up * 6f, "叩け：東の大将落とし", Board.Teal));
             else if (_daruma[1].active) items.Add((DarumaSpot(1) + Vector3.up * 6f, "守れ：西の大将落とし", Board.Vermilion));
-            if (!_dead && _me.hp < 40 && !InBase(1, _rig.transform.position)) items.Add((SpawnOf(1, 1) + Vector3.up * 2f, "本陣で回復", Board.Gold));
             float halfW = HudHalfW;
             bool show = (_phase == MPhase.Fight || _phase == MPhase.Intro) && _intelT <= 0.01f; // 戦況の板を開いているあいだは隠す
             for (int i = 0; i < _marks.Count; i++)

@@ -4,13 +4,15 @@ using UnityEngine;
 namespace Tsukuyomi
 {
     /// <summary>
-    /// SENGOKU の6つの武器。左クリック＝攻撃、右クリック＝飛び道具／投げる、E＝移動わざ。
-    ///  1 二刀流（イロハ）：連撃・先端から光弾・E でワイヤー（引っかけて振り子で飛ぶ）
-    ///  2 ハンマー（かぐや）：ためて叩きつけ・ミサイル・E 長押しでジェット（燃料あり）
-    ///  3 傘（ヤチヨ）：突き・ブーメランのように投げる・E で傘を開いて浮かんですべる（前を守る）
-    ///  4 弓（のい）：長押しでためて射る・右で狙う（ズーム）・E で自分が矢になって飛ぶ
-    ///  5 大筒：重い大砲（建物に2倍）・右で狙う・E で撃った反動で跳ぶ
-    ///  6 鎖鎌：鎌で斬る・右で鎖を投げて引き寄せる・E で鎖を引っかけて登る
+    /// SENGOKU の6つの武器。左クリック＝攻撃、右クリック＝飛び道具／投げる・置く、E＝移動わざ。
+    ///  1 二刀流（彩葉）：連撃・先端から光弾・E でワイヤー（引っかけて振り子で飛ぶ）
+    ///  2 ハンマー（かぐや）：ためて叩きつけ・ミサイル・E 長押しでジェット（燃料あり。回復は約4秒）
+    ///  3 傘（ヤチヨ）：突き・ブーメランのように投げる・E で乗物に乗って浮かんですべる（前を守る）
+    ///  4 弓（乃衣）：長押しでためて射る・右で狙う（ズーム）・E で自分が矢になって飛ぶ
+    ///  5 金棒（帝）：金色の金棒。重い一撃・右で金の弾を撃つ・E で大きく振って、その方向へ大きく跳ぶ（弓の移動の強い版）
+    ///  6 団扇（雷）：大きな団扇。少し遠くまで届く・右で地雷を置く・E であおいで反対方向へ飛ぶ（前の相手は風で押す）
+    ///    地雷：100 ダメージで壊れる・2m まで近づかないと見えない・踏むと 50 ダメージ＋15m 打ち上げ＋3秒動けない（Sengoku.Mines）
+    /// （2026-11-18 ユーザーの指示で、大筒と鎖鎌を金棒と団扇に置きかえた）
     /// </summary>
     public partial class Sengoku
     {
@@ -22,8 +24,8 @@ namespace Tsukuyomi
             new() { name = "ハンマー", en = "HAMMER", hint = "左クリック 叩きつけ（重い一撃・吹き飛ばす）\n右クリック ミサイル（爆発）\nE 長押し ジェットで飛ぶ（燃料は地面で回復）" },
             new() { name = "傘", en = "UMBRELLA", hint = "左クリック 突き\n右クリック ブーメランのように投げる（もどってくる）\nE 乗物（吹き抜けの駕籠）に乗って浮かぶ（すべって速い・水の上も渡れる・前の攻撃を防ぐ・Space でおりる）" },
             new() { name = "弓", en = "BOW", hint = "左クリック 長押しでためて、離して射る\n右クリック 長押しで狙う（ズーム）\nE 自分が矢になって飛ぶ（当たると痛い）" },
-            new() { name = "大筒", en = "CANNON", hint = "左クリック 大砲（爆発・建物に2倍）\n右クリック 長押しで狙う\nE 撃った反動で後ろへ大きく跳ぶ" },
-            new() { name = "鎖鎌", en = "KUSARIGAMA", hint = "左クリック 鎌で斬る\n右クリック 鎖を投げて相手を引き寄せる\nE 鎖を引っかけて、そこまで登る" },
+            new() { name = "金棒", en = "KANABO", hint = "左クリック 振りおろす（重い一撃・吹き飛ばす）\n右クリック 金の弾を撃つ\nE 大きく振って、ねらった方へ大きく跳ぶ（当たると痛い）" },
+            new() { name = "団扇", en = "THUNDER FAN", hint = "左クリック あおぎ打ち（少し遠くまで届く・押し返す）\n右クリック 地雷を置く（3つまで。2m まで近づかないと見えない）\nE あおいで、反対方向へ飛ぶ" },
         };
 
         int _w;
@@ -35,7 +37,8 @@ namespace Tsukuyomi
         readonly HashSet<SengokuTarget> _dashHit = new HashSet<SengokuTarget>();
         Shot _boomer;
 
-        float SpeedMul => _w == 4 ? 0.85f : 1f;
+        float SpeedMul => _w == 4 ? 0.92f : 1f;
+        float _dashSpeed = 34f, _dashDmg = 70f, _dashKeep = 0.3f;
         float FovAdd => _zoom ? (_w == 3 ? -40f : -30f) : (_dashT > 0 ? 12f : 0f) + (_w == 1 && Act.Special.Held && _fuel > 0 ? 6f : 0f);
 
         float Gauge01 => _w switch
@@ -44,8 +47,8 @@ namespace Tsukuyomi
             1 => _fuel,
             2 => _ride ? 1 : 1,
             3 => _charge > 0 ? _charge : 1 - Mathf.Clamp01(_abilityCd / 3f),
-            4 => 1 - Mathf.Clamp01(_cd / 1.6f),
-            _ => 1 - Mathf.Clamp01(_abilityCd / 1.5f),
+            4 => 1 - Mathf.Clamp01(_abilityCd / 3.5f),
+            _ => 1 - Mathf.Clamp01(_abilityCd / 2.2f),
         };
 
         string GaugeText => _w switch
@@ -54,8 +57,8 @@ namespace Tsukuyomi
             1 => $"燃料 {_fuel * 100:0}%",
             2 => _ride ? "傘で浮かんでいる（Space でおりる）" : "E で傘を開く",
             3 => _charge > 0 ? $"ため {_charge * 100:0}%" : _abilityCd > 0 ? "矢になる：準備中" : "E 矢になって飛ぶ",
-            4 => _cd > 0 ? "装填中…" : "発射できる",
-            _ => _abilityCd > 0 ? "鎖：準備中" : "E 鎖で登る",
+            4 => _abilityCd > 0 ? "大振り：準備中" : "E 大きく振って跳ぶ",
+            _ => (_abilityCd > 0 ? "あおぐ：準備中" : "E あおいで飛ぶ") + $"　地雷 {MinesOf(1)}/{MaxMines}",
         };
 
         void Select(int i)
@@ -82,7 +85,7 @@ namespace Tsukuyomi
             // F：どの武器でも殴れる（大将落としは近接攻撃でしか落とせない）
             bool swingR = SwingRight(dt), swingL = SwingLeft(dt); // VR：手を振った
             if ((Act.Throw.Down || swingL) && _cd <= 0 && !_hammerWind) { Melee(25, 2.4f, false); Swing(0.25f); _cd = 0.45f; }
-            bool L = Act.Light.Down || swingR, LH = Act.Light.Held, LU = Act.Light.Up, R = Act.Heavy.Down, RH = Act.Heavy.Held, E = Act.Special.Down;
+            bool L = Act.Light.Down || swingR, LH = Act.Light.Held, LU = Act.Light.Up, R = Act.Heavy.Down, RH = Act.Heavy.Held, E = Act.Special.Down && _stunT <= 0;
             switch (_w)
             {
                 case 0: // 二刀流
@@ -107,21 +110,27 @@ namespace Tsukuyomi
                     if (LH && _cd <= 0) _charge = Mathf.Min(1f, _charge + dt);
                     if (LU && _charge > 0) { Fire(From + Aim * 0.7f, Aim * (40f + 55f * _charge), 9f, 25 + 75 * _charge, 0, _charge > 0.9f, ShotKind.Arrow); _charge = 0; _cd = 0.3f; Kick(1.2f); }
                     _zoom = RH;
-                    if (E && _abilityCd <= 0) { _dashT = 0.55f; _dashDir = Aim; _dashHit.Clear(); _abilityCd = 3f; Play(_sWhoosh, 0.8f); }
+                    if (E && _abilityCd <= 0) { _dashT = 0.55f; _dashDir = Aim; _dashSpeed = 34f; _dashDmg = 70f; _dashKeep = 0.3f; _dashHit.Clear(); _abilityCd = 3f; Play(_sWhoosh, 0.8f); }
                     break;
-                case 4: // 大筒
-                    _zoom = RH;
-                    if (L && _cd <= 0) { Fire(From + Aim * 1.2f + Side(0.25f), Aim * 38f, 12f, 0, 110, true, ShotKind.Ball); _cd = 1.6f; Kick(7f); _vel -= Aim * 2.5f; Play(_sBoom, 0.5f); }
-                    if (E && _abilityCd <= 0) { Fire(From + Aim * 1.2f, Aim * 38f, 12f, 0, 80, true, ShotKind.Ball); _vel = -Aim * 17f + Vector3.up * 9f; _grounded = false; _abilityCd = 4f; Kick(10f); Play(_sBoom, 0.6f); }
-                    break;
-                case 5: // 鎖鎌
-                    if (L && _cd <= 0) { Melee(32, 2.6f, false); Swing(0.3f); _cd = 0.34f; }
-                    if (R && _cd2 <= 0) { ChainThrow(); _cd2 = 0.9f; }
-                    if (E && _abilityCd <= 0 && Physics.Raycast(From, Aim, out var h2, 32f, ~0, QueryTriggerInteraction.Ignore) && h2.collider != _cc)
+                case 4: // 金棒（帝）
+                    if (L && _cd <= 0) { Melee(70, 3f, true, 6f); Swing(0.45f); Kick(-3f); _cd = 0.8f; }
+                    if (R && _cd2 <= 0) { Fire(From + Aim * 0.9f + Side(0.25f), Aim * 70f, 0, 16, 0, false, ShotKind.Bullet); _cd2 = 0.32f; Kick(0.8f); }
+                    if (E && _abilityCd <= 0)
                     {
-                        _pull = true; _pullT = 1.6f; _pullTo = h2.point + h2.normal * 0.6f + Vector3.up * 0.4f; _abilityCd = 1.5f;
-                        ShowLine(h2.point, new Color(0.7f, 0.7f, 0.75f), 0.25f);
-                        Play(_sWhoosh, 0.6f);
+                        // 大きく振って、ねらった方へ跳ぶ（弓の「矢になる」より速く・長く・痛い。少し上向きに）
+                        _dashT = 0.7f; _dashDir = (Aim + Vector3.up * 0.22f).normalized; _dashSpeed = 40f; _dashDmg = 85f; _dashKeep = 0.5f;
+                        _dashHit.Clear(); _abilityCd = 3.5f; Swing(0.6f); Play(_sWhoosh, 0.9f);
+                    }
+                    break;
+                case 5: // 団扇（雷）
+                    if (L && _cd <= 0) { Melee(30, 4.2f, false, 6f); Swing(0.32f); _cd = 0.45f; Sparks(EyePos + MeleeAim * 2.5f, new Color(1f, 0.95f, 0.4f), 6); }
+                    if (R && _cd2 <= 0) { if (PlaceMine(FeetAhead(1.2f), 1)) Swing(0.25f); _cd2 = 0.8f; }
+                    if (E && _abilityCd <= 0)
+                    {
+                        // あおいで、反対方向へ飛ぶ（前の相手は風で押す）
+                        Melee(8, 4.5f, false, 9f); Swing(0.4f);
+                        _vel = -Aim * 18f + Vector3.up * 8f; _grounded = false; _abilityCd = 2.2f; Kick(-6f); Play(_sWhoosh, 0.9f);
+                        Sparks(EyePos + Aim * 2f, new Color(1f, 0.95f, 0.5f), 10);
                     }
                     break;
             }
@@ -168,7 +177,7 @@ namespace Tsukuyomi
                 _flameT = 0.1f;
                 return true;
             }
-            if (_grounded && _fuel < 1) _fuel = Mathf.Min(1, _fuel + dt * 0.45f);
+            if (_grounded && _fuel < 1) _fuel = Mathf.Min(1, _fuel + dt * 0.25f); // 燃料の回復：約4秒（前は約2.2秒。ユーザーの指示で遅く）
 
             if (_w == 2 && _ride)
             {
@@ -184,13 +193,13 @@ namespace Tsukuyomi
             if (_dashT > 0)
             {
                 _dashT -= dt;
-                _vel = _dashDir * 34f;
+                _vel = _dashDir * _dashSpeed;
                 foreach (var col in Physics.OverlapSphere(p + Vector3.up + _dashDir * 0.8f, 1.3f, ~0, QueryTriggerInteraction.Ignore))
                 {
                     var t = col.GetComponentInParent<SengokuTarget>();
-                    if (t != null && !t.Down && t.team != 1 && _dashHit.Add(t)) { t.Hit(70, col.ClosestPoint(p + Vector3.up), _dashDir, true, true); Play(_sHeavy, 0.8f); Sparks(col.ClosestPoint(p + Vector3.up), new Color(1f, 0.9f, 0.5f), 12); }
+                    if (t != null && !t.Down && t.team != 1 && _dashHit.Add(t)) { t.Hit(_dashDmg, col.ClosestPoint(p + Vector3.up), _dashDir, true, true); Play(_sHeavy, 0.8f); Sparks(col.ClosestPoint(p + Vector3.up), new Color(1f, 0.9f, 0.5f), 12); }
                 }
-                if (_dashT <= 0) _vel *= 0.3f;
+                if (_dashT <= 0) _vel *= _dashKeep;
                 return true;
             }
             if (_pull)
@@ -245,7 +254,7 @@ namespace Tsukuyomi
 
         // ───────── 飛び道具 ─────────
 
-        enum ShotKind { Spark, Missile, Boomerang, Arrow, Ball }
+        enum ShotKind { Spark, Missile, Boomerang, Arrow, Ball, Bullet }
 
         class Shot
         {
@@ -266,11 +275,12 @@ namespace Tsukuyomi
                 case ShotKind.Missile:
                     Block(PrimitiveType.Capsule, root, Vector3.zero, new Vector3(0.22f, 0.4f, 0.22f), new Color(0.85f, 0.2f, 0.15f), false, new Vector3(90, 0, 0));
                     Block(PrimitiveType.Sphere, root, new Vector3(0, 0, -0.45f), Vector3.one * 0.25f, new Color(1f, 0.7f, 0.3f), false, null, true); break;
-                case ShotKind.Boomerang: BuildUmbrella(root, true, 0.9f); break;
+                case ShotKind.Boomerang: BuildUmbrella(root, true, 1.2f); break; // 傘を大きく（ユーザーの指示）
                 case ShotKind.Arrow:
                     Block(PrimitiveType.Cube, root, Vector3.zero, new Vector3(0.03f, 0.03f, 0.9f), new Color(0.6f, 0.45f, 0.3f), false);
                     Block(PrimitiveType.Cube, root, new Vector3(0, 0, 0.47f), new Vector3(0.06f, 0.06f, 0.1f), new Color(0.75f, 0.9f, 1f), false, null, true); break;
                 case ShotKind.Ball: Block(PrimitiveType.Sphere, root, Vector3.zero, Vector3.one * 0.45f, new Color(0.15f, 0.14f, 0.14f), false); break;
+                case ShotKind.Bullet: Block(PrimitiveType.Sphere, root, Vector3.zero, new Vector3(0.12f, 0.12f, 0.3f), new Color(1f, 0.82f, 0.3f), false, null, true); break;
             }
             s.tr = root; root.position = from; root.rotation = Quaternion.LookRotation(vel);
             _shots.Add(s);
@@ -440,7 +450,7 @@ namespace Tsukuyomi
             {
                 var u = new GameObject("傘").transform; u.SetParent(_viewModels[2].transform, false);
                 u.localPosition = new Vector3(0.32f, -0.35f, 0.6f); u.localEulerAngles = new Vector3(-70, 0, 0);
-                BuildUmbrella(u, false, 1f);
+                BuildUmbrella(u, false, 1.35f); // 傘を大きく（ユーザーの指示）
                 _openUmbrella = new GameObject("乗物").transform; _openUmbrella.SetParent(_rig.transform, false);
                 _openUmbrella.localPosition = new Vector3(0, 0.05f, 0.15f);
                 BuildNorimono(_openUmbrella);
@@ -449,7 +459,7 @@ namespace Tsukuyomi
             // 弓
             {
                 var b = new GameObject("弓").transform; b.SetParent(_viewModels[3].transform, false);
-                b.localPosition = new Vector3(-0.3f, -0.2f, 0.8f); b.localEulerAngles = new Vector3(0, 0, 12); b.localScale = Vector3.one * 0.75f;
+                b.localPosition = new Vector3(-0.32f, -0.2f, 0.85f); b.localEulerAngles = new Vector3(0, 0, 12); b.localScale = Vector3.one * 1.05f; // 弓を大きく（ユーザーの指示）
                 for (int i = -4; i <= 4; i++)
                 {
                     float a = i / 4f * 0.9f;
@@ -458,22 +468,35 @@ namespace Tsukuyomi
                 Block(PrimitiveType.Cube, b, new Vector3(0, 0, -0.03f), new Vector3(0.005f, 0.82f, 0.005f), teal, false, null, true).name = "弦";
                 Block(PrimitiveType.Cube, b, new Vector3(0.02f, 0, 0.25f), new Vector3(0.02f, 0.02f, 0.65f), new Color(0.6f, 0.45f, 0.3f), false).name = "矢";
             }
-            // 大筒
+            // 金棒（帝）：金色の太い棒にとげ
             {
-                var c = new GameObject("大筒").transform; c.SetParent(_viewModels[4].transform, false);
-                c.localPosition = new Vector3(0.32f, -0.3f, 0.45f); c.localEulerAngles = new Vector3(90, 0, 0);
-                Block(PrimitiveType.Cylinder, c, Vector3.zero, new Vector3(0.24f, 0.6f, 0.24f), new Color(0.2f, 0.18f, 0.17f), false);
-                foreach (float y in new[] { -0.4f, 0.1f, 0.58f }) Block(PrimitiveType.Cylinder, c, new Vector3(0, y, 0), new Vector3(0.28f, 0.04f, 0.28f), gold, false);
+                var k = new GameObject("金棒").transform; k.SetParent(_viewModels[4].transform, false);
+                k.localPosition = new Vector3(0.4f, -0.38f, 0.8f); k.localEulerAngles = new Vector3(-35, -8, 0); k.localScale = Vector3.one * 0.45f;
+                var goldD = new Color(1f, 0.78f, 0.25f); var goldL = new Color(1f, 0.92f, 0.55f);
+                Block(PrimitiveType.Cylinder, k, new Vector3(0, 0f, 0), new Vector3(0.07f, 0.2f, 0.07f), new Color(0.35f, 0.15f, 0.12f), false);
+                Block(PrimitiveType.Cylinder, k, new Vector3(0, 0.62f, 0), new Vector3(0.16f, 0.45f, 0.16f), goldD, false);
+                Block(PrimitiveType.Sphere, k, new Vector3(0, 1.06f, 0), new Vector3(0.17f, 0.1f, 0.17f), goldD, false);
+                for (int i = 0; i < 4; i++)
+                    for (int j = 0; j < 6; j++)
+                    {
+                        float a = j / 6f * Mathf.PI * 2 + i * 0.5f;
+                        Block(PrimitiveType.Cube, k, new Vector3(Mathf.Cos(a) * 0.085f, 0.36f + i * 0.17f, Mathf.Sin(a) * 0.085f), Vector3.one * 0.045f, goldL, false, new Vector3(45, -a * Mathf.Rad2Deg, 45), true);
+                    }
             }
-            // 鎖鎌
+            // 団扇（雷）：大きな団扇に、雷のいなずま
             {
-                var k = new GameObject("鎖鎌").transform; k.SetParent(_viewModels[5].transform, false);
-                k.localPosition = new Vector3(0.3f, -0.32f, 0.55f); k.localEulerAngles = new Vector3(-50, 0, 0);
-                Block(PrimitiveType.Cylinder, k, Vector3.zero, new Vector3(0.05f, 0.18f, 0.05f), new Color(0.4f, 0.28f, 0.18f), false);
-                for (int i = 0; i < 4; i++) Block(PrimitiveType.Cube, k, new Vector3(0.05f + i * 0.05f, 0.2f + Mathf.Sin(i * 0.5f) * 0.04f, 0), new Vector3(0.07f, 0.03f, 0.01f), white, false, new Vector3(0, 0, -i * 18));
-                var w = new GameObject("分銅").transform; w.SetParent(_viewModels[5].transform, false); w.localPosition = new Vector3(-0.3f, -0.42f, 0.5f);
-                for (int i = 0; i < 6; i++) Block(PrimitiveType.Sphere, w, new Vector3(0.04f * i, 0.03f * i, 0.02f * i), Vector3.one * 0.035f, new Color(0.6f, 0.6f, 0.62f), false);
-                Block(PrimitiveType.Sphere, w, Vector3.zero, Vector3.one * 0.09f, new Color(0.35f, 0.35f, 0.37f), false);
+                var f = new GameObject("団扇").transform; f.SetParent(_viewModels[5].transform, false);
+                f.localPosition = new Vector3(0.42f, -0.36f, 0.8f); f.localEulerAngles = new Vector3(-40, -15, 0); f.localScale = Vector3.one * 0.55f;
+                Block(PrimitiveType.Cylinder, f, new Vector3(0, 0.05f, 0), new Vector3(0.045f, 0.22f, 0.045f), new Color(0.3f, 0.2f, 0.15f), false);
+                Block(PrimitiveType.Cylinder, f, new Vector3(0, 0.62f, 0), new Vector3(0.8f, 0.012f, 0.62f), new Color(0.32f, 0.22f, 0.55f), false, new Vector3(90, 0, 0));
+                Block(PrimitiveType.Cylinder, f, new Vector3(0, 0.62f, 0.008f), new Vector3(0.84f, 0.006f, 0.66f), new Color(1f, 0.88f, 0.35f), false, new Vector3(90, 0, 0));
+                // いなずま（じぐざぐ）
+                Vector2[] zig = { new(-0.05f, 0.95f), new(0.06f, 0.75f), new(-0.04f, 0.6f), new(0.07f, 0.4f) };
+                for (int i = 0; i < zig.Length - 1; i++)
+                {
+                    var za = zig[i]; var zb = zig[i + 1]; var mid = (za + zb) * 0.5f; var d = zb - za;
+                    Block(PrimitiveType.Cube, f, new Vector3(mid.x, mid.y, -0.02f), new Vector3(0.035f, d.magnitude, 0.01f), new Color(1f, 0.95f, 0.4f), false, new Vector3(0, 0, Mathf.Atan2(d.x, d.y) * -Mathf.Rad2Deg), true);
+                }
             }
             foreach (var r in _viewRoot.GetComponentsInChildren<Renderer>(true)) r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
         }

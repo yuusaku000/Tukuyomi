@@ -15,6 +15,8 @@ namespace Tsukuyomi
             public int team; public bool archer; public Vector3 post, faceOut;
             public GameObject go; public CharacterController cc; public SengokuTarget target; public Transform arm;
             public Vector3 vel; public float cd, thinkT, attackPose; public SengokuTarget enemy;
+            // かまえ：攻撃できる距離に入ってから、1秒かまえてから攻撃する（2026-11-18 ユーザーの指示）
+            public bool winding; public float windT;
             public bool Gone => target.Down;
             public Vector3 Pos => go.transform.position;
         }
@@ -82,7 +84,7 @@ namespace Tsukuyomi
         {
             g.cc.enabled = false; g.go.transform.position = g.post + Vector3.up * 0.2f; g.cc.enabled = true;
             g.go.transform.rotation = Quaternion.LookRotation(g.faceOut);
-            g.vel = Vector3.zero; g.enemy = null; g.cd = 0;
+            g.vel = Vector3.zero; g.enemy = null; g.cd = 0; g.winding = false;
         }
 
         /// <summary>ラウンドの始め：見張りを全員、持ち場にもどす（倒されていた見張りも、新しいラウンドではもどる）。</summary>
@@ -113,6 +115,7 @@ namespace Tsukuyomi
                         float d = Vector3.Distance(g.post, e.transform.position);
                         if (d < bd && Visible(p + Vector3.up * 1.3f, e)) { bd = d; best = e; }
                     }
+                    if (best != g.enemy) g.winding = false; // 相手が変わった・いなくなったら、かまえなおし
                     g.enemy = best;
                 }
                 Vector3 want = Vector3.zero, face = g.faceOut;
@@ -125,7 +128,7 @@ namespace Tsukuyomi
                     {
                         // 弓：持ち場から離れずに射る
                         if (Vector3.Distance(p, g.post) > 1.5f) want = (g.post - p).normalized;
-                        if (g.cd <= 0 && d < GuardSight + 4f)
+                        if (Windup(g, g.cd <= 0 && d < GuardSight + 4f, dt))
                         {
                             var eye = p + Vector3.up * 1.3f; var aim = ep + Vector3.up * 1.1f;
                             float tt = Vector3.Distance(aim, eye) / 40f;
@@ -144,7 +147,7 @@ namespace Tsukuyomi
                         if (off.magnitude > GuardLeash) chaseTo = g.post + off.normalized * GuardLeash;
                         var mv = chaseTo - p; mv.y = 0;
                         if (d > 2.0f && mv.magnitude > 0.5f) want = mv.normalized;
-                        if (d < 2.4f && g.cd <= 0)
+                        if (Windup(g, d < 2.4f && g.cd <= 0, dt) && d < 2.8f)
                         {
                             Melee(10f * AiDmg[_level], 2.5f, false, 0, p + Vector3.up * 1.2f, (ep + Vector3.up - (p + Vector3.up * 1.2f)).normalized, g.team);
                             g.cd = 1.3f; g.attackPose = 0.3f;
@@ -171,6 +174,23 @@ namespace Tsukuyomi
                 g.target.facing = g.go.transform.forward;
                 if (p.y < -19f) PlaceGuard(g);
             }
+        }
+
+        /// <summary>見張りのかまえ：攻撃できるようになったら1秒かまえ（腕を上げる）、そのあと攻撃してよいときに true。</summary>
+        const float GuardWindup = 1f;
+        bool Windup(Guard g, bool canStart, float dt)
+        {
+            if (!g.winding)
+            {
+                if (!canStart) return false;
+                g.winding = true; g.windT = GuardWindup;
+            }
+            g.windT -= dt;
+            g.attackPose = 0.3f; // かまえている間は腕を上げたまま（見て分かるように）
+            if (g.windT > 0) return false;
+            g.winding = false;
+            g.cd = Mathf.Max(g.cd, 0.4f); // 攻撃しなかったとき（相手が離れた）も、すぐにはかまえなおさない
+            return true;
         }
     }
 }

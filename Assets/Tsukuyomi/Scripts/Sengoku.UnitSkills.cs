@@ -5,11 +5,12 @@ namespace Tsukuyomi
 {
     /// <summary>
     /// 武者（CPU）の移動わざ。武器ごとに、決めた場面で使う（強いほどよく使い、待ち時間も短い）。
-    ///  二刀流・鎖鎌：引っかけて一気に引き寄せられる（高いところへ・谷を渡る・逃げる）
+    ///  二刀流：引っかけて一気に引き寄せられる（高いところへ・谷を渡る・逃げる）
     ///  ハンマー：ジェットで斜め上へ（谷を飛びこえる・山の上へ・高いところの敵へ飛びこむ）
     ///  傘：吹き抜けの乗物（駕籠）に乗って浮いてすべる（湖を渡って浮き島へ）
     ///  弓：自分が矢になって一直線に飛ぶ（敵へ突っこむ・囲まれて逃げる）
-    ///  大筒：撃った反動で後ろへ大きく跳ぶ（近づかれたら）
+    ///  金棒：大きく振って、敵へ一気に跳びこむ（弓の強い版）・遠回りの近道
+    ///  団扇：あおいで反対方向へ飛ぶ（近づかれたら逃げる・遠回りの近道）
     /// 使ったあとは、近くの道すじから進みなおす。
     /// </summary>
     public partial class Sengoku
@@ -30,7 +31,7 @@ namespace Tsukuyomi
                     {
                         var to = u.skillTarget - (p + Vector3.up);
                         u.vel = to.normalized * 24f;
-                        SkillRope(u, true, u.skillTarget, u.weapon == 5 ? new Color(0.7f, 0.7f, 0.75f) : new Color(0.4f, 1f, 1f));
+                        SkillRope(u, true, u.skillTarget, new Color(0.4f, 1f, 1f));
                         if (to.magnitude < 1.6f || u.skillT > 2.6f) { done = true; u.vel = Vector3.up * 5f + new Vector3(to.x, 0, to.z).normalized * 2f; }
                     }
                     break;
@@ -61,17 +62,18 @@ namespace Tsukuyomi
                     break;
                 case SkDash:
                     {
-                        u.vel = u.skillDir * 30f;
+                        bool kanabo = u.weapon == 4; // 金棒は弓より速く・長く・痛い
+                        u.vel = u.skillDir * (kanabo ? 36f : 30f);
                         foreach (var col in Physics.OverlapSphere(p + Vector3.up + u.skillDir * 0.8f, 1.3f, ~0, QueryTriggerInteraction.Ignore))
                         {
                             var t = col.GetComponentInParent<SengokuTarget>();
                             if (t == null || t.Down || t.team == u.team || !u.skillHits.Add(t)) continue;
                             var pt = col.ClosestPoint(p + Vector3.up);
-                            t.Hit(45f * AiDmg[_level], pt, u.skillDir, true, true);
+                            t.Hit((kanabo ? 55f : 45f) * AiDmg[_level], pt, u.skillDir, true, true);
                             if (t == _me) _vel += u.skillDir * 8f;
                             Sparks(pt, new Color(1f, 0.9f, 0.5f), 10);
                         }
-                        if (u.skillT > 0.5f) { done = true; u.vel *= 0.3f; }
+                        if (u.skillT > (kanabo ? 0.65f : 0.5f)) { done = true; u.vel *= kanabo ? 0.5f : 0.3f; }
                     }
                     break;
                 case SkRecoil:
@@ -122,18 +124,24 @@ namespace Tsukuyomi
             if (enemy != null)
             {
                 var to = enemy.transform.position - p; var flat = new Vector3(to.x, 0, to.z);
+                if (u.weapon == 4 && u.stance == 0 && ed > 7f && ed < 22f && u.target.hp > 40f && Visible(eye, enemy))
+                {
+                    // 金棒：大きく振って、敵へ跳びこむ
+                    StartSkill(u, SkDash, Vector3.zero, (enemy.transform.position + Vector3.up * 1.6f - eye).normalized);
+                    return;
+                }
                 if (u.weapon == 3)
                 {
                     // 弓：8〜18m の敵へ矢になって突っこむ（体力があって攻めるとき）。囲まれて下がるときは逆向きに
                     if (u.stance == 0 && ed > 8f && ed < 18f && u.target.hp > 50f && Visible(eye, enemy)) { StartSkill(u, SkDash, Vector3.zero, (enemy.transform.position + Vector3.up - eye).normalized); return; }
                     if (u.stance == 3 && ed < 10f) { var away = (-flat.normalized + Vector3.up * 0.15f).normalized; if (!Physics.Raycast(eye, away, 10f, ~0, QueryTriggerInteraction.Ignore)) { StartSkill(u, SkDash, Vector3.zero, away); return; } }
                 }
-                if (u.weapon == 4 && ed < 5f)
+                if (u.weapon == 5 && (ed < 4.5f && u.stance == 3 || ed < 3f && u.target.hp < 50f))
                 {
-                    // 大筒：近づかれたら、撃ちながら後ろへ跳ぶ
+                    // 団扇：近づかれたら、あおいで後ろへ飛ぶ（前の相手は風で押す）
                     var aim = (enemy.transform.position + Vector3.up - eye).normalized;
-                    Fire(eye + aim * 1f, aim * 38f, 12f, 0, 70 * AiDmg[_level], true, ShotKind.Ball, u.team, u.cc);
-                    u.vel = -flat.normalized * 16f + Vector3.up * 9f;
+                    Melee(6 * AiDmg[_level], 4.5f, false, 8f, eye, aim, u.team);
+                    u.vel = -flat.normalized * 16f + Vector3.up * 8f;
                     StartSkill(u, SkRecoil, Vector3.zero, -flat.normalized);
                     return;
                 }
@@ -143,9 +151,9 @@ namespace Tsukuyomi
                     StartSkill(u, SkJet, enemy.transform.position, flat.normalized);
                     return;
                 }
-                if ((u.weapon == 0 || u.weapon == 5) && u.stance == 3)
+                if (u.weapon == 0 && u.stance == 3)
                 {
-                    // 二刀流・鎖鎌：逃げるとき、敵と反対の高いところへ引っかける
+                    // 二刀流：逃げるとき、敵と反対の高いところへ引っかける
                     for (int k = 0; k < 6; k++)
                     {
                         var dir = Quaternion.Euler(-35f - Random.value * 15f, Random.Range(-60f, 60f), 0) * Quaternion.LookRotation(-flat.normalized) * Vector3.forward;
@@ -163,7 +171,7 @@ namespace Tsukuyomi
             // 高いところへ（山の段・櫓の台）
             if (next.y > p.y + 3f && Vector3.Distance(p, next) < 34f)
             {
-                if (u.weapon == 0 || u.weapon == 5)
+                if (u.weapon == 0)
                 {
                     var tgt = next + Vector3.up * 0.8f;
                     if (!Physics.Linecast(eye, tgt, out var h, ~0, QueryTriggerInteraction.Ignore) || Vector3.Distance(h.point, tgt) < 2.5f)
@@ -195,7 +203,9 @@ namespace Tsukuyomi
                 var tgt = n + Vector3.up * 0.8f;
                 if (Physics.Linecast(eye, tgt, out var h2, ~0, QueryTriggerInteraction.Ignore) && Vector3.Distance(h2.point, tgt) > 2.5f && u.weapon != 1) continue;
                 if (u.weapon == 1) StartSkill(u, SkJet, n, gdir);
-                else if (u.weapon == 0 || u.weapon == 5) StartSkill(u, SkHook, tgt, (tgt - eye).normalized);
+                else if (u.weapon == 0) StartSkill(u, SkHook, tgt, (tgt - eye).normalized);
+                else if (u.weapon == 4) StartSkill(u, SkDash, Vector3.zero, (tgt + Vector3.up * 2f - eye).normalized); // 金棒：大きく跳んで近道
+                else if (u.weapon == 5) { u.vel = gdir * 15f + Vector3.up * 8f; StartSkill(u, SkRecoil, Vector3.zero, gdir); } // 団扇：うしろをあおいで前へ飛ぶ
                 else return;
                 u.pathI = i;
                 return;

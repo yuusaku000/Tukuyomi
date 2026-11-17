@@ -19,6 +19,7 @@ namespace Tsukuyomi
         MPhase _phase = MPhase.Fight;
         float _phaseT, _clock = 300f, _coldT, _deadT, _hurt;
         bool _dead, _healing;
+        const float RegenDelay = 5f, RegenRate = 12f; // 5秒ダメージを受けなければ、毎秒12ずつ回復（約8秒で満タン）
         SengokuTarget _me;
 
         class TowerState { public string name; public Vector3 c; public int owner; public float prog; public readonly List<Renderer> ring = new List<Renderer>(); }
@@ -44,6 +45,7 @@ namespace Tsukuyomi
             BuildBattlefield();
             _towers[0].c = NorthCapture; _towers[1].c = SouthCapture; // 舞台ごとの櫓の場所
             foreach (var t in _towers) CollectRing(t);
+            BuildGroundGauges();
             BuildGraph();
             BuildDaruma(1); BuildDaruma(2);
             _me = _rig.AddComponent<SengokuTarget>();
@@ -62,6 +64,52 @@ namespace Tsukuyomi
             BuildMarkers();
             _round = 0;
             NextRound();
+        }
+
+        // ───────── 地面の占拠の輪（画面の上の「北・南」と同じ形で、地面の輪にも進み具合を出す。2026-11-18 ユーザーの指示）─────────
+
+        readonly UnityEngine.UI.Image[] _gFill = new UnityEngine.UI.Image[2], _gBg = new UnityEngine.UI.Image[2];
+
+        void BuildGroundGauges()
+        {
+            for (int i = 0; i < 2; i++)
+            {
+                if (_gFill[i] != null) continue;
+                var t = _towers[i];
+                var go = new GameObject("占拠の輪：" + t.name);
+                go.transform.SetParent(transform, false);
+                var cv = go.AddComponent<Canvas>(); cv.renderMode = RenderMode.WorldSpace;
+                var rt = (RectTransform)go.transform; rt.sizeDelta = new Vector2(200, 200);
+                go.transform.position = t.c + Vector3.up * (0.12f * KY);
+                go.transform.rotation = Quaternion.Euler(90, 0, 0); // 地面に平らに。輪の上（満ちはじめ）が北
+                go.transform.localScale = Vector3.one * (CaptureR * 2f / 200f);
+                UnityEngine.UI.Image Ring(string name, Color c)
+                {
+                    var g = new GameObject(name, typeof(RectTransform));
+                    var r = (RectTransform)g.transform; r.SetParent(rt, false);
+                    r.anchorMin = Vector2.zero; r.anchorMax = Vector2.one; r.offsetMin = r.offsetMax = Vector2.zero;
+                    var img = g.AddComponent<UnityEngine.UI.Image>(); img.sprite = Board.ThickRingSprite; img.color = c; img.raycastTarget = false;
+                    return img;
+                }
+                _gBg[i] = Ring("地", new Color(1, 1, 1, 0.18f));
+                _gFill[i] = Ring("進み具合", Board.Teal);
+                _gFill[i].type = UnityEngine.UI.Image.Type.Filled; _gFill[i].fillMethod = UnityEngine.UI.Image.FillMethod.Radial360; _gFill[i].fillOrigin = 2;
+            }
+        }
+
+        void GroundGaugesTick()
+        {
+            for (int i = 0; i < 2; i++)
+            {
+                if (_gFill[i] == null) continue;
+                var t = _towers[i];
+                _gFill[i].fillAmount = Mathf.Abs(t.prog);
+                _gFill[i].fillClockwise = t.prog >= 0;
+                var c = t.prog >= 0 ? Board.Teal : Board.Vermilion;
+                _gFill[i].color = new Color(c.r, c.g, c.b, 0.85f);
+                // 占拠ずみは、地の輪もその組の色でうっすら光る
+                _gBg[i].color = t.owner == 1 ? new Color(Board.Teal.r, Board.Teal.g, Board.Teal.b, 0.3f) : t.owner == 2 ? new Color(Board.Vermilion.r, Board.Vermilion.g, Board.Vermilion.b, 0.3f) : new Color(1, 1, 1, 0.18f);
+            }
         }
 
         void CollectRing(TowerState t)
@@ -128,11 +176,12 @@ namespace Tsukuyomi
             _fx.Clear();
             _flyers.Clear();
             EndAbilities();
-            _vel = Vector3.zero; _fuel = 1; _cd = _cd2 = _abilityCd = 0; _charge = 0; _zoom = false; _dashT = 0; _swing = 0;
+            _vel = Vector3.zero; _fuel = 1; _cd = _cd2 = _abilityCd = 0; _charge = 0; _zoom = false; _dashT = 0; _swing = 0; _stunT = 0;
+            ClearMines();
             _hurt = 0; _healing = false; _deadT = 0; _coldT = 0; _planT = 0; _ropeShow = 0; _flameT = 0;
             Time.timeScale = 1f;
             foreach (var t in _towers) { t.owner = 0; t.prog = 0; foreach (var r in t.ring) r.sharedMaterial = Mat(Color.white, true); }
-            foreach (var u in _units) { u.cd = u.cd2 = 0; u.healing = false; u.enemy = null; u.task = 0; u.stuck = 0; u.attackPose = 0; u.vel = Vector3.zero; }
+            foreach (var u in _units) { u.cd = u.cd2 = 0; u.healing = false; u.regen = false; u.stunT = 0; u.enemy = null; u.task = 0; u.stuck = 0; u.attackPose = 0; u.vel = Vector3.zero; }
         }
 
         void NextRound()
@@ -168,8 +217,9 @@ namespace Tsukuyomi
             _phaseT += dt;
             _hurt = Mathf.MoveTowards(_hurt, 0, dt * 1.5f);
             _hp = _me.hp;
-            _healing = !_dead && InBase(1, _rig.transform.position) && _me.hp < _me.maxHp;
-            if (_healing) _me.hp = Mathf.Min(_me.maxHp, _me.hp + 25f * dt);
+            // 回復：最後にダメージを受けてから RegenDelay 秒たつと、毎秒 RegenRate ずつ（自陣での回復はなくした。2026-11-18 ユーザーの指示）
+            _healing = !_dead && Time.time - _me.lastHit > RegenDelay && _me.hp < _me.maxHp;
+            if (_healing) _me.hp = Mathf.Min(_me.maxHp, _me.hp + RegenRate * dt);
             switch (_phase)
             {
                 case MPhase.Select:
@@ -388,7 +438,8 @@ namespace Tsukuyomi
         {
             if (_mClock == null) return;
             float udt = Time.unscaledDeltaTime;
-            if (_mTowerG != null) _mTowerG.gameObject.SetActive(_intelT <= 0.01f);
+            if (_mTowerG != null && !VrOn) _mTowerG.gameObject.SetActive(_intelT <= 0.01f);
+            GroundGaugesTick();
             int sec = Mathf.CeilToInt(_clock);
             _mClock.text = $"{sec / 60}:{sec % 60:00}";
             _mRound.text = _round == 3 ? "FINAL ROUND" : $"ROUND {_round}";
@@ -423,7 +474,7 @@ namespace Tsukuyomi
             foreach (var u in _units) if (u.team == 1) Row($"{u.name}　{Weapons[u.weapon].name}", u.Dead ? 0 : u.target.hp / 100f, u.lives, u.Dead);
             foreach (var u in _units) if (u.team == 2) Row($"{Weapons[u.weapon].name}　{u.name}", u.Dead ? 0 : u.target.hp / 100f, u.lives, u.Dead);
             _mFeed.text = _feedT > 0 ? string.Join("\n", _feed) : "";
-            _mLives.text = _dead ? (_myLives > 0 ? $"復活まで {Mathf.Max(0, _deadT):0.0} 秒" : "観戦中") : $"残機 {new string('●', _myLives)}" + (_healing ? "　本陣で回復中 ＋" : "");
+            _mLives.text = _dead ? (_myLives > 0 ? $"復活まで {Mathf.Max(0, _deadT):0.0} 秒" : "観戦中") + (VrOn ? "" : "　マウスで見回す・左クリックで見る味方を切りかえ") : $"残機 {new string('●', _myLives)}" + (_healing ? "　回復中 ＋" : "");
             _centerT -= udt;
             float a = Mathf.Clamp01(_centerT / 0.4f);
             _mCenter.canvasRenderer.SetAlpha(a); _mSub.canvasRenderer.SetAlpha(a);
@@ -432,16 +483,36 @@ namespace Tsukuyomi
         }
 
         /// <summary>自分がやられていて残機もないとき：生きている味方のうしろから見る。</summary>
+        int _specIndex; float _specYaw, _specPitch = 22f; bool _specAim;
+
         bool SpectateCam()
         {
             if (!_match || !_dead || VrOn) return false; // VR は観戦しない（Sengoku.Vr の CameraFree）
-            Unit ally = null;
-            foreach (var u in _units) if (u.team == 1 && !u.Dead && u.go.activeSelf) { ally = u; break; }
+            // 見る味方：左クリック（ゲームパッドの攻撃ボタン）で切りかえる
+            var allies = new List<Unit>();
+            foreach (var u in _units) if (u.team == 1 && !u.Dead && u.go.activeSelf) allies.Add(u);
+            if (allies.Count > 0 && !Ts.ShotMode && Act.Light.Down) { _specIndex = (_specIndex + 1) % allies.Count; _specAim = false; }
+            Unit ally = allies.Count > 0 ? allies[Mathf.Clamp(_specIndex, 0, allies.Count - 1)] : null;
+            // 見回す：マウス・右スティックで、味方のまわりを回る（2026-11-18 ユーザーの指示）
+            if (ally != null && !_specAim) { _specYaw = ally.go.transform.eulerAngles.y; _specPitch = 22f; _specAim = true; }
+            if (!Ts.ShotMode && !_paused)
+            {
+                var m = Act.LookMouse + Act.LookStick;
+                _specYaw += m.x * 2.2f; _specPitch = Mathf.Clamp(_specPitch - m.y * 2.2f, -10f, 75f);
+            }
             Vector3 pos, look;
-            if (ally != null) { pos = ally.Pos - ally.go.transform.forward * 5f + Vector3.up * 3.2f; look = ally.Pos + Vector3.up * 1.4f; }
+            if (ally != null)
+            {
+                look = ally.Pos + Vector3.up * 1.4f;
+                var back = Quaternion.Euler(_specPitch, _specYaw, 0) * Vector3.back;
+                float dist = 5.5f;
+                // 壁にめりこまないように寄る
+                if (Physics.SphereCast(look, 0.25f, back, out var hh, dist, ~0, QueryTriggerInteraction.Ignore) && hh.collider.GetComponentInParent<SengokuTarget>() == null) dist = Mathf.Max(1.2f, hh.distance - 0.2f);
+                pos = look + back * dist;
+            }
             else { pos = new Vector3(-30, 40, -60); look = Vector3.zero; }
-            _cam.transform.position = Vector3.Lerp(_cam.transform.position, pos, 1 - Mathf.Exp(-5f * Time.deltaTime));
-            _cam.transform.rotation = Quaternion.Slerp(_cam.transform.rotation, Quaternion.LookRotation(look - _cam.transform.position), 1 - Mathf.Exp(-5f * Time.deltaTime));
+            _cam.transform.position = Vector3.Lerp(_cam.transform.position, pos, 1 - Mathf.Exp(-12f * Time.deltaTime));
+            _cam.transform.rotation = Quaternion.Slerp(_cam.transform.rotation, Quaternion.LookRotation(look - _cam.transform.position), 1 - Mathf.Exp(-14f * Time.deltaTime));
             if (_viewRoot) _viewRoot.gameObject.SetActive(false);
             return true;
         }

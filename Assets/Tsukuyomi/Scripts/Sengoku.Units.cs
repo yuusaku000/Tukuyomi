@@ -18,7 +18,8 @@ namespace Tsukuyomi
             public Vector3 vel; public float cd, cd2, respawnT, stuckT, repathT, attackPose;
             public Vector3 lastPos, goal = new(999, 0, 0);
             public List<Vector3> path = new List<Vector3>(); public int pathI;
-            public SengokuTarget enemy; public float thinkT, strafeT, strafeDir = 1; public bool healing;
+            public SengokuTarget enemy; public float thinkT, strafeT, strafeDir = 1; public bool healing, regen;
+            public float stunT; // 地雷を踏んで動けない残り時間
             public int task, stuck, avoidSide = 1; public Vector3 taskGoal; public bool onSlope;
             // 構え・隠れ場所・狙い
             // 移動わざ
@@ -139,7 +140,7 @@ namespace Tsukuyomi
 
         void SpawnUnits()
         {
-            var weaponsW = new[] { 0, 3 }; var weaponsE = new[] { 1, 2, 5 };
+            var weaponsW = new[] { 0, 3 }; var weaponsE = new[] { 1, 4, 5 }; // 東軍：ハンマー・金棒・団扇（新しい武器と地雷を相手が使ってくる）
             for (int i = 0; i < 2; i++) _units.Add(MakeUnit(WestNames[i], 1, weaponsW[i], i));
             for (int i = 0; i < 3; i++) _units.Add(MakeUnit(EastNames[i], 2, weaponsE[i], i));
         }
@@ -190,10 +191,17 @@ namespace Tsukuyomi
                 case 0: Block(PrimitiveType.Cube, h, new Vector3(0, 0, 0.4f), new Vector3(0.04f, 0.02f, 0.8f), white, false); break;
                 case 1: Block(PrimitiveType.Cylinder, h, new Vector3(0, 0, 0.3f), new Vector3(0.05f, 0.35f, 0.05f), new Color(0.45f, 0.3f, 0.2f), false, new Vector3(90, 0, 0));
                         Block(PrimitiveType.Cylinder, h, new Vector3(0, 0, 0.7f), new Vector3(0.3f, 0.22f, 0.3f), new Color(0.85f, 0.2f, 0.25f), false); break;
-                case 2: BuildUmbrella(h, false, 0.8f); h.localEulerAngles = new Vector3(90, 0, 0); break;
-                case 3: for (int i = -3; i <= 3; i++) Block(PrimitiveType.Cube, h, new Vector3(0, i * 0.12f, 0.15f - Mathf.Abs(i) * 0.03f), new Vector3(0.03f, 0.13f, 0.03f), white, false); break;
-                case 4: Block(PrimitiveType.Cylinder, h, new Vector3(0, 0, 0.3f), new Vector3(0.2f, 0.5f, 0.2f), new Color(0.2f, 0.18f, 0.17f), false, new Vector3(90, 0, 0)); break;
-                case 5: Block(PrimitiveType.Cube, h, new Vector3(0.08f, 0, 0.2f), new Vector3(0.18f, 0.03f, 0.03f), white, false, new Vector3(0, 30, 0)); break;
+                case 2: BuildUmbrella(h, false, 1.1f); h.localEulerAngles = new Vector3(90, 0, 0); break; // 傘を大きく
+                case 3: for (int i = -3; i <= 3; i++) Block(PrimitiveType.Cube, h, new Vector3(0, i * 0.17f, 0.2f - Mathf.Abs(i) * 0.042f), new Vector3(0.04f, 0.18f, 0.04f), white, false); break; // 弓を大きく
+                case 4: // 金棒
+                    Block(PrimitiveType.Cylinder, h, new Vector3(0, 0, 0.45f), new Vector3(0.12f, 0.45f, 0.12f), new Color(1f, 0.78f, 0.25f), false, new Vector3(90, 0, 0));
+                    for (int i = 0; i < 3; i++) Block(PrimitiveType.Cube, h, new Vector3(0, 0.07f, 0.35f + i * 0.17f), Vector3.one * 0.05f, new Color(1f, 0.92f, 0.55f), false, new Vector3(45, 0, 45), true);
+                    break;
+                case 5: // 団扇
+                    Block(PrimitiveType.Cylinder, h, new Vector3(0, 0, 0.15f), new Vector3(0.04f, 0.15f, 0.04f), new Color(0.3f, 0.2f, 0.15f), false, new Vector3(90, 0, 0));
+                    Block(PrimitiveType.Cylinder, h, new Vector3(0, 0, 0.6f), new Vector3(0.7f, 0.01f, 0.55f), new Color(0.32f, 0.22f, 0.55f), false, new Vector3(0, 0, 90));
+                    Block(PrimitiveType.Cube, h, new Vector3(0.012f, 0, 0.6f), new Vector3(0.01f, 0.05f, 0.4f), new Color(1f, 0.95f, 0.4f), false, null, true);
+                    break;
             }
         }
 
@@ -336,9 +344,9 @@ namespace Tsukuyomi
             u.thinkT -= dt;
             if (u.thinkT > 0) return;
             u.thinkT = AiThink[_level] * Random.Range(0.8f, 1.2f);
-            // 体力が減ったら本陣へもどって回復する（満タン近くまで）
+            // 体力が減ったら下がって身を隠し、回復（しばらく攻撃を受けなければ回復する）を待つ。80 までもどったら、また前へ
             if (u.target.hp < 35f) u.healing = true;
-            if (u.healing && u.target.hp > 90f) u.healing = false;
+            if (u.healing && u.target.hp > 80f) u.healing = false;
             // 狙う相手：見えている敵のうち、近い・弱っている・味方も狙っている・目的地の近くにいる相手
             SengokuTarget best = null; float bs = float.MaxValue;
             foreach (var e in Enemies(u.team))
@@ -361,7 +369,7 @@ namespace Tsukuyomi
                 foreach (var o in _units) if (o != u && o.team == u.team && !o.Dead && o.go.activeSelf && Vector3.Distance(o.Pos, u.Pos) < 16f) mine += o.target.hp / 100f * 0.8f;
                 if (u.team == 1 && !_dead && Vector3.Distance(_rig.transform.position, u.Pos) < 16f) mine += _me.hp / 100f * 0.8f;
                 foreach (var e in Enemies(u.team)) { float d = Vector3.Distance(e.transform.position, u.Pos); if (d < 20f) foe += e.hp / 100f * (d < 10f ? 1.2f : 1f); }
-                bool ranged = u.weapon == 3 || u.weapon == 4;
+                bool ranged = u.weapon == 3;
                 float ed = Vector3.Distance(best.transform.position, u.Pos);
                 if (u.target.hp < 45f && foe > 0.6f) u.stance = 3;
                 else if (foe > mine + 0.25f - _level * 0.1f) u.stance = 1;
@@ -432,6 +440,18 @@ namespace Tsukuyomi
 
         void Drive(Unit u, float dt)
         {
+            if (u.stunT > 0)
+            {
+                // 地雷を踏んで打ち上げられ、動けない（落ちてくるだけ）
+                u.stunT -= dt;
+                u.vel.x = Mathf.MoveTowards(u.vel.x, 0, 4f * dt); u.vel.z = Mathf.MoveTowards(u.vel.z, 0, 4f * dt);
+                u.vel.y -= Gravity * dt;
+                u.cc.Move(u.vel * dt);
+                if (u.cc.isGrounded && u.vel.y < 0) u.vel.y = -2f;
+                u.doll.speed = 0; u.doll.holdR = 0;
+                if (u.Pos.y < -19f) Respawn(u);
+                return;
+            }
             u.cd -= dt; u.cd2 -= dt; u.repathT -= dt; u.attackPose -= dt; u.strafeT -= dt; u.reactT -= dt; u.coverT -= dt; u.peekT -= dt;
             if (u.strafeT <= 0) { u.strafeDir = Random.value < 0.5f ? -1 : 1; u.strafeT = Random.Range(0.8f, 2f); }
             u.aimErr = Mathf.MoveTowards(u.aimErr, AimMin[_level], AimSettle[_level] * dt);
@@ -444,7 +464,7 @@ namespace Tsukuyomi
             }
             var p = u.Pos;
             Vector3 want = Vector3.zero; Vector3 face = u.go.transform.forward;
-            bool ranged = u.weapon == 3 || u.weapon == 4, hybrid = u.weapon == 0 || u.weapon == 2;
+            bool ranged = u.weapon == 3, hybrid = u.weapon == 0 || u.weapon == 2 || u.weapon == 4 || u.weapon == 5;
             float run = 1f;
             bool fighting = _phase == MPhase.Fight;
             var dar = _daruma[u.team == 1 ? 2 : 1];
@@ -541,11 +561,23 @@ namespace Tsukuyomi
                 }
                 if (enemy != null && (ranged || hybrid)) { face = (enemy.transform.position - p).normalized; Attack(u, enemy, ed); }
             }
+            // 団扇：敵がいないあいだ、守っている櫓（持っている櫓）のまわりに地雷をしかける
+            if (fighting && !engage && u.weapon == 5 && u.cd2 <= 0 && (u.task == 1 || u.task == 2))
+            {
+                var tw = _towers[u.task - 1];
+                if (tw.owner == u.team && Vector3.Distance(p, tw.c) < 7f && MinesOf(u.team, u) < MaxMines)
+                {
+                    var ring = Quaternion.Euler(0, Random.Range(0f, 360f), 0) * Vector3.forward * Random.Range(3f, 6f);
+                    var at = tw.c + ring + Vector3.up * 2f;
+                    if (Physics.Raycast(at, Vector3.down, out var gh, 6f, ~0, QueryTriggerInteraction.Ignore)) { PlaceMine(gh.point, u.team, u); u.attackPose = 0.2f; }
+                    u.cd2 = Random.Range(4f, 7f);
+                }
+            }
             if (fighting && !(u.onSlope && !engage)) want = Avoid(u, p, want);
             if (want.sqrMagnitude > 0.01f && !engage && !atDar && enemy == null) face = new Vector3(want.x, 0, want.z).normalized;
             face.y = 0;
 
-            float speed = (u.weapon == 4 ? 5.2f : 6.2f) * run * (InLake(p) ? 0.55f : 1f);
+            float speed = (u.weapon == 4 ? 5.8f : 6.2f) * run * (InLake(p) ? 0.55f : 1f);
             var flat = new Vector3(u.vel.x, 0, u.vel.z);
             flat = Vector3.Lerp(flat, want * speed, 1 - Mathf.Exp(-10f * dt));
             u.vel.x = flat.x; u.vel.z = flat.z;
@@ -579,7 +611,9 @@ namespace Tsukuyomi
                 u.lastPos = p; u.stuckT = 0;
             }
             if (p.y < -19f) Respawn(u);
-            if (InBase(u.team, p)) u.target.hp = Mathf.Min(u.target.maxHp, u.target.hp + 25f * dt);
+            // 回復：しばらくダメージを受けなければ（自分と同じ）
+            u.regen = Time.time - u.target.lastHit > RegenDelay && u.target.hp < u.target.maxHp;
+            if (u.regen) u.target.hp = Mathf.Min(u.target.maxHp, u.target.hp + RegenRate * dt);
         }
 
         /// <summary>前に壁や建物があれば横へよける。味方とは間をあける。</summary>
@@ -599,6 +633,14 @@ namespace Tsukuyomi
                 if (o == u || o.team != u.team || o.Dead) continue;
                 var off = p - o.Pos; off.y = 0;
                 if (off.sqrMagnitude < 2f && off.sqrMagnitude > 0.001f) dir += off.normalized * 0.5f;
+            }
+            // 見えている（2m 以内の）相手の地雷は、よけて歩く
+            foreach (var m in _mines)
+            {
+                if (m.team == u.team || m.tr == null) continue;
+                var off = p - m.tr.position; off.y = 0;
+                float d = off.magnitude;
+                if (d < MineSee && d > 0.01f) dir += off.normalized * (MineSee - d) * 1.6f;
             }
             return dir.normalized * Mathf.Min(1f, want.magnitude);
         }
@@ -675,7 +717,7 @@ namespace Tsukuyomi
             var eye = u.Eye;
             Vector3 AimDir(float speed, float grav)
             {
-                // 相手の動きを読み（強いほど正確）、弓・大筒は落ちる分だけ上を狙う。狙いのぶれは、同じ相手を狙い続けるほど小さくなる
+                // 相手の動きを読み（強いほど正確）、弓は落ちる分だけ上を狙う。狙いのぶれは、同じ相手を狙い続けるほど小さくなる
                 float tt = Vector3.Distance(aimAt, eye) / Mathf.Max(1, speed);
                 var lead = aimAt + VelOf(t) * tt * Lead[_level];
                 tt = Vector3.Distance(lead, eye) / Mathf.Max(1, speed);
@@ -701,17 +743,13 @@ namespace Tsukuyomi
                 case 3:
                     if (dist < 42 && u.cd <= 0) { Fire(eye + u.go.transform.forward * 0.6f, AimDir(70, 9) * 70f, 9, 28 * k, 0, false, ShotKind.Arrow, u.team, u.cc); u.cd = 1.5f; u.attackPose = 0.4f; }
                     break;
-                case 4:
-                    if (dist < 42 && u.cd <= 0) { Fire(eye + u.go.transform.forward * 1f, AimDir(38, 12) * 38f, 12, 0, 70 * k, true, ShotKind.Ball, u.team, u.cc); u.cd = 2.8f; u.attackPose = 0.4f; }
+                case 4: // 金棒：近くは重い一撃、離れていれば金の弾
+                    if (dist < 3f && u.cd <= 0) { Melee(50 * k, 3f, true, 6f, eye, (aimAt - eye).normalized, u.team); u.cd = 1.3f; u.attackPose = 0.4f; }
+                    else if (dist > 4 && dist < 26 && u.cd2 <= 0) { Fire(eye + u.go.transform.forward * 0.8f, AimDir(70, 0) * 70f, 0, 8 * k, 0, false, ShotKind.Bullet, u.team, u.cc); u.cd2 = 0.75f; u.attackPose = 0.2f; }
                     break;
-                case 5:
-                    if (dist < 2.7f && u.cd <= 0) { Melee(26 * k, 2.7f, false, 0, eye, (aimAt - eye).normalized, u.team); u.cd = 0.6f; u.attackPose = 0.25f; }
-                    else if (dist > 4 && dist < 13 && u.cd2 <= 0 && t == _me)
-                    {
-                        // 鎖で自分を引き寄せる
-                        _vel += (u.Pos - EyePos).normalized * 12f + Vector3.up * 3f; _me.Hit(10 * k, EyePos, EyePos - u.Pos);
-                        u.cd2 = 3f; u.attackPose = 0.3f; Play(_sHit, 0.6f);
-                    }
+                case 5: // 団扇：少し遠くまで届くあおぎ打ち。近くに敵がいれば、ときどき足もとに地雷をしかける
+                    if (dist < 4f && u.cd <= 0) { Melee(24 * k, 4.2f, false, 5f, eye, (aimAt - eye).normalized, u.team); u.cd = 0.65f; u.attackPose = 0.25f; }
+                    else if (dist < 14f && u.cd2 <= 0) { PlaceMine(u.Pos + u.go.transform.forward * 1.2f, u.team, u); u.cd2 = Random.Range(5f, 8f); u.attackPose = 0.2f; }
                     break;
             }
         }

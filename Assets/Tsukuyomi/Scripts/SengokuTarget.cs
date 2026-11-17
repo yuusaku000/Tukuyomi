@@ -50,6 +50,9 @@ namespace Tsukuyomi
         /// <summary>近接攻撃でしかダメージを受けない（大将落とし）。</summary>
         public bool meleeOnly;
 
+        /// <summary>最後にダメージを受けた時刻（しばらく受けなければ回復する：Sengoku.Match）。</summary>
+        public float lastHit = -99f;
+
         public float Hit(float dmg, Vector3 point, Vector3 dir, bool heavy = false, bool melee = false)
         {
             if (Down) return 0;
@@ -57,6 +60,7 @@ namespace Tsukuyomi
             if (structure && heavy) dmg *= 2f;
             if (frontGuard > 0 && Vector3.Dot(dir.normalized, facing) < -0.3f) dmg *= 1f - frontGuard;
             hp = Mathf.Max(0, hp - dmg);
+            if (dmg > 0) lastHit = Time.time;
             _flash = 0.12f;
             _kick += dir.normalized * (heavy ? 18f : 8f);
             onHit?.Invoke(this, dmg, point);

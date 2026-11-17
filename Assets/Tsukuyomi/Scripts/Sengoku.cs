@@ -33,7 +33,7 @@ namespace Tsukuyomi
             if (scene.IsValid()) SceneManager.MoveGameObjectToScene(go, scene);
             var s = go.AddComponent<Sengoku>();
             s._match = match; s._level = Mathf.Clamp(level, 0, 2);
-            s._theme = theme < 0 ? Random.Range(0, StageNamesSg.Length) : Mathf.Clamp(theme, 0, StageNamesSg.Length - 1); // 舞台は試合ごとにランダム
+            s._theme = !match ? 0 : theme < 0 ? Random.Range(0, StageNamesSg.Length) : Mathf.Clamp(theme, 0, StageNamesSg.Length - 1); // 舞台は試合ごとにランダム。練習場はいつも城下町（的と立ち位置が城下町に合わせてある）
             ThemeNow = s._theme;
             s.Init();
         }
@@ -48,7 +48,7 @@ namespace Tsukuyomi
             if (!_match) { BuildMap(); PlaceDummies(); }
             _rig = new GameObject("自分（SENGOKU）");
             _rig.transform.SetParent(transform, false);
-            _rig.transform.position = WestCastle + new Vector3(14f, 0.2f, 0);
+            _rig.transform.position = PracticeSpawn; // 練習場の立ち位置（前は城の前の大きな箱の中に立っていた）
             _cc = _rig.AddComponent<CharacterController>();
             _cc.height = 1.75f; _cc.radius = 0.35f; _cc.center = new Vector3(0, 0.9f, 0); _cc.stepOffset = 0.45f; _cc.slopeLimit = 50f;
             BuildWeapons();
@@ -145,6 +145,7 @@ namespace Tsukuyomi
             }
             if (play)
             {
+                if (!_match && VrOn && Act.Info.Down) { _vrInfo = !_vrInfo; VrHudLean(_vrInfo); } // VR の練習場：X で表示を出し入れ
                 if (!_match && VrOn)
                 {
                     // VR の練習場：右スティックを上下に倒して武器を持ちかえる
@@ -162,8 +163,9 @@ namespace Tsukuyomi
                 }
                 WeaponInput(dt);
             }
-            if (!_frozen) Move(play, dt);
+            if (!_frozen) Move(play && _stunT <= 0, dt); // 地雷を踏んだ3秒は動けない
             Shots(dt);
+            MinesTick(dt);
             WeaponTick(dt);
             CameraTick(dt);
             AimLineTick(play);
@@ -171,6 +173,8 @@ namespace Tsukuyomi
         }
 
         bool _frozen;
+        /// <summary>練習場の立ち位置：城の前の段と大きな箱（x -57〜-47）より東。わら人形の手前。</summary>
+        static Vector3 PracticeSpawn => WestCastle + new Vector3(21.5f, 0.3f, 0);
 
         // VR では歩く向きは頭の向き、目は頭の位置、ねらいは右手の向き
         float MoveYaw => VrOn ? _yaw + Vr.HeadYaw : _yaw;
@@ -202,7 +206,7 @@ namespace Tsukuyomi
             if (_grounded && _vel.y < 0) _vel.y = -2f;
             if ((flags & CollisionFlags.Above) != 0 && _vel.y > 0) _vel.y = 0;
             // 落ちたら天守閣の前へもどす
-            if (_rig.transform.position.y < -19f) Teleport(_match ? SpawnOf(1, 0) : WestCastle + new Vector3(14f, 0.5f, 0));
+            if (_rig.transform.position.y < -19f) Teleport(_match ? SpawnOf(1, 0) : PracticeSpawn);
         }
 
         public void Teleport(Vector3 p)
@@ -283,7 +287,7 @@ namespace Tsukuyomi
                 _wList[i] = Board.Label(r, new Rect(1440, 640 + i * 30, 350, 28), "", 18, Color.white, TextAnchor.MiddleRight);
             _hint = Board.Label(r, new Rect(980, 900, 810, 140), "", 18, new Color(1, 1, 1, 0.85f), TextAnchor.UpperRight);
             if (Vr.On) Board.Label(r, new Rect(60, 1010, 1300, 30), _match ? VrKeys : VrKeysPractice, 16, new Color(1, 1, 1, 0.7f), TextAnchor.MiddleLeft);
-            else Board.Label(r, new Rect(60, 1010, 1300, 30), _match ? "WASD 移動　Shift 走る　Space ジャンプ　E（Q・ホイール押しこみでも）移動わざ　F 殴る（大将落としは近接だけ）　Esc 一時停止　自分の城の中で回復" : "WASD 移動　Shift 走る　Space ジャンプ　E（Q・ホイール押しこみでも）移動わざ　1〜6・ホイール 武器　Esc 一時停止", 16, new Color(1, 1, 1, 0.7f), TextAnchor.MiddleLeft);
+            else Board.Label(r, new Rect(60, 1010, 1300, 30), _match ? "WASD 移動　Shift 走る　Space ジャンプ　E（Q・ホイール押しこみでも）移動わざ　F 殴る（大将落としは近接だけ）　Esc 一時停止　しばらく攻撃を受けなければ回復" : "WASD 移動　Shift 走る　Space ジャンプ　E（Q・ホイール押しこみでも）移動わざ　1〜6・ホイール 武器　Esc 一時停止", 16, new Color(1, 1, 1, 0.7f), TextAnchor.MiddleLeft);
             for (int i = 0; i < 14; i++)
             {
                 var t = Board.Display(r, new Rect(0, 0, 200, 50), "", 34, Board.Gold);

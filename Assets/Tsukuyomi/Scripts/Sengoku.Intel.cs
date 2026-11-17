@@ -17,7 +17,7 @@ namespace Tsukuyomi
         bool _intelOpen;
         float _intelT; // 0〜1 の開き具合
         const float IW = 1500, IH = 860, MapX = 470, MapY = 150, MapW = 560, MapH = 400;
-        Text _iTime, _iRound, _iDarW, _iDarE, _iCold, _iLog, _iHint;
+        Text _iTime, _iRound, _iDarW, _iDarE, _iCold, _iLog, _iHint, _iMine, _iKeys;
         readonly List<(Text name, Text info, RectTransform bar, Image barImg)> _iRows = new List<(Text, Text, RectTransform, Image)>();
         readonly List<Image> _iDots = new List<Image>();
         readonly Image[] _iTower = new Image[2], _iTowerFill = new Image[2];
@@ -125,7 +125,15 @@ namespace Tsukuyomi
             _iCold = Board.Display(r, new Rect(MapX, MapY + MapH + 10, MapW, 40), "", 26, Board.Gold);
             Board.Panel(r, new Rect(60, 620, IW - 120, 1.5f), new Color(Holo.r, Holo.g, Holo.b, 0.5f));
             Board.Label(r, new Rect(60, 628, 300, 26), "出来事の記録", 18, new Color(1, 1, 1, 0.7f));
-            _iLog = Board.Label(r, new Rect(60, 656, IW - 120, 190), "", 20, Color.white, TextAnchor.UpperLeft);
+            _iLog = Board.Label(r, new Rect(60, 656, Vr.On ? (IW - 120) / 2f : IW - 120, 190), "", 20, Color.white, TextAnchor.UpperLeft);
+            // 自分の武器・体力・移動わざ（VR では画面に出していないので、ここで見る）
+            _iMine = Board.Label(r, new Rect(360, 98, IW - 960, 34), "", 22, Board.Gold, TextAnchor.MiddleLeft);
+            if (Vr.On)
+            {
+                _iHint.text = "X で閉じる";
+                _iKeys = Board.Label(r, new Rect(IW / 2f + 20, 630, IW / 2f - 80, 220), "", 17, new Color(1, 1, 1, 0.85f), TextAnchor.UpperRight);
+                _iKeys.horizontalOverflow = HorizontalWrapMode.Wrap;
+            }
             _intel.Alpha = 0;
         }
 
@@ -175,8 +183,8 @@ namespace Tsukuyomi
                 bar.sizeDelta = new Vector2(328 * Mathf.Clamp01(hp), 10);
             }
             Row("あなた", Weapons[_w].name, _dead ? 0 : _me.hp / 100f, _myLives, _dead, _healing, _dead && _myLives <= 0);
-            foreach (var u in _units) if (u.team == 1) Row(u.name, Weapons[u.weapon].name, u.Dead ? 0 : u.target.hp / 100f, u.lives, u.Dead, u.healing, u.Dead && u.lives <= 0);
-            foreach (var u in _units) if (u.team == 2) Row(u.name, Weapons[u.weapon].name, u.Dead ? 0 : u.target.hp / 100f, u.lives, u.Dead, u.healing, u.Dead && u.lives <= 0);
+            foreach (var u in _units) if (u.team == 1) Row(u.name, Weapons[u.weapon].name, u.Dead ? 0 : u.target.hp / 100f, u.lives, u.Dead, u.regen, u.Dead && u.lives <= 0);
+            foreach (var u in _units) if (u.team == 2) Row(u.name, Weapons[u.weapon].name, u.Dead ? 0 : u.target.hp / 100f, u.lives, u.Dead, u.regen, u.Dead && u.lives <= 0);
             // 見取り図
             for (int i = 0; i < 2; i++)
             {
@@ -212,6 +220,8 @@ namespace Tsukuyomi
             _iCold.font = Ts.Font;
             _iCold.text = both != 0 ? $"{(both == 1 ? "西軍" : "東軍")}のコールド勝ちまで {Mathf.Max(0, ColdSec - _coldT):0} 秒" : "";
             _iLog.text = _log.Count == 0 ? "まだ何も起きていない" : string.Join("\n", _log);
+            if (_iMine != null) _iMine.text = $"あなた：{Owners[_w]}の{Weapons[_w].name}　体力 {Mathf.Max(0, _me.hp):0}　{GaugeText}";
+            if (_iKeys != null) _iKeys.text = VrText(Weapons[_w].hint) + "\n" + VrKeys;
         }
     }
 }
