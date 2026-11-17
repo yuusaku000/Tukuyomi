@@ -37,6 +37,8 @@ namespace Tsukuyomi
         // ふじゅ〜（ツクヨミのお金）。ミニヤチヨから独立。fujuBonus は初ログインボーナスをもらったか
         public int fuju;
         public bool fujuBonus;
+        // 遊び方の板を一度見たか（初めて島に入ったときに1回だけ自動で開く）
+        public bool guideSeen;
         // KASSEN：SETSUNA の勝ち負け
         public int setsunaWins, setsunaLosses;
         public int sengokuWins, sengokuLosses;

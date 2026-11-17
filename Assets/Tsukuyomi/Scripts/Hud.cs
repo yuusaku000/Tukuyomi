@@ -38,6 +38,7 @@ namespace Tsukuyomi
         static float _toastT, _bannerT, _bannerLen = 3.5f;
 
         bool _menu, _map, _clicked;
+        static bool _guideAuto;
         Zone _zone;
         Texture2D _px, _mapTex;
         GUIStyle _label;
@@ -235,21 +236,29 @@ namespace Tsukuyomi
                 // KASSEN の入口の板・試合のあいだは、島の表示と操作を止める（Esc なども KASSEN が使う）
                 Blocked = true; _menu = _map = false;
                 _toastT -= Time.unscaledDeltaTime;
-                NoticeTick(); ExchangeTick();
+                NoticeTick(); ExchangeTick(); GuideTick();
                 return;
             }
             if (Ts.ShotMode)
             {
-                Blocked = ShopOpen || _book || _tipOpen || _exchange;
+                Blocked = ShopOpen || _book || _tipOpen || _exchange || _guide;
+                GuideTick();
 
                 if (_menu || _map) { }
                 Cursor.lockState = CursorLockMode.None;
                 UpdateZone();
                 return;
             }
+            // 初めて島に入ったとき：遊び方の板を1回だけ開く
+            if (!_guideAuto && GameSession.Instance != null && GameSession.Instance.Data != null)
+            {
+                _guideAuto = true;
+                if (!GameSession.Instance.Data.guideSeen) OpenGuide();
+            }
             if (Act.Back.Down)
             {
-                if (_tipOpen) { if (!_tipBusy) _tipOpen = false; }
+                if (_guide) CloseGuide();
+                else if (_tipOpen) { if (!_tipBusy) _tipOpen = false; }
                 else if (LiveShow.AutoCam) LiveShow.SetAutoCam(false);
                 else if (_exchange) CloseExchange();
                 else if (_talk) CloseTalk();
@@ -262,15 +271,15 @@ namespace Tsukuyomi
                 else if (!_menu && Rest.Sitting) Rest.I.Stand();
                 else _menu = !_menu;
             }
-            if (Act.Map.Down && !_menu && !_exchange) { _map = !_map; _book = false; }
+            if (Act.Map.Down && !_menu && !_exchange && !_guide) { _map = !_map; _book = false; }
             if (Input.GetKeyDown(KeyCode.F3)) { _debug = !_debug; Toast(_debug ? "デバッグ表示オン（F3 で消す・F12 で写真）" : "デバッグ表示オフ"); }
             if (Input.GetKeyDown(KeyCode.F12)) TakePhoto();
-            if (Act.HideHud.Down && !_exchange && !_menu && !_map && !ShopOpen && !_book && !_talk && !_tipOpen && _shipAsk == null) { HideAll = !HideAll; _hideHintT = HideAll ? 2.5f : 0; }
+            if (Act.HideHud.Down && !_exchange && !_guide && !_menu && !_map && !ShopOpen && !_book && !_talk && !_tipOpen && _shipAsk == null) { HideAll = !HideAll; _hideHintT = HideAll ? 2.5f : 0; }
             _hideHintT -= Time.unscaledDeltaTime;
-            bool usedC = !_exchange && LiveKeys();
-            bool usedE = !_exchange && ActivityKeys();
-            if (!_exchange) ShopKeys(usedE, usedC);
-            Blocked = _menu || _map || ShopOpen || _book || _shipAsk != null || _talk || _tipOpen || _exchange;
+            bool usedC = !_exchange && !_guide && LiveKeys();
+            bool usedE = !_exchange && !_guide && ActivityKeys();
+            if (!_exchange && !_guide) ShopKeys(usedE, usedC);
+            Blocked = _menu || _map || ShopOpen || _book || _shipAsk != null || _talk || _tipOpen || _exchange || _guide;
 
             if (Blocked)
             {
@@ -304,6 +313,7 @@ namespace Tsukuyomi
             _toastT -= Time.unscaledDeltaTime;
             NoticeTick();
             ExchangeTick();
+            GuideTick();
             _bannerT -= Time.unscaledDeltaTime;
             _fpsFrames++; _fpsT += Time.unscaledDeltaTime;
             if (_fpsT > 0.5f) { _fps = _fpsFrames / _fpsT; _fpsFrames = 0; _fpsT = 0; }
@@ -553,7 +563,8 @@ namespace Tsukuyomi
             Fill(new Rect(r.x + 200, r.y + 124, 220, 2), Pink);
             float y = r.y + 138;
             const float bh = 54, step = 61;
-            if (Button(new Rect(r.x + 110, y, 440, bh), "つづける")) _menu = false;
+            if (Button(new Rect(r.x + 110, y, 260, bh), "つづける")) _menu = false;
+            if (Button(new Rect(r.x + 380, y, 170, bh), "遊び方", 20)) OpenGuide();
             y += step;
             if (Button(new Rect(r.x + 110, y, 440, bh), "地図とワープ（M）")) { _menu = false; _map = true; }
             y += step;
