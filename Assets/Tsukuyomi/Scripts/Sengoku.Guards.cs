@@ -4,7 +4,7 @@ using UnityEngine;
 namespace Tsukuyomi
 {
     /// <summary>
-    /// SENGOKU の見張り（足軽）。両軍とも、自分の側の要所（町の辻・橋のたもと・山道・湖の岸）に2人ずつ立っている。
+    /// SENGOKU の見張り（足軽）。両軍とも、自分の側の要所15か所（町の辻・橋のたもと・城門の前・山道・湖の岸）に3人ずつ立っている。体力は10（1回で倒れる）。
     /// 近づいた相手の組（武者・自分・相手の見張り）を攻撃する。持ち場から7mより遠くへは追いかけず、すぐもどる。
     /// 倒すと、そのラウンドのあいだは二度と出てこない（次のラウンドは全員そろって始まる）。
     /// </summary>
@@ -13,7 +13,7 @@ namespace Tsukuyomi
         class Guard
         {
             public int team; public bool archer; public Vector3 post, faceOut;
-            public GameObject go; public CharacterController cc; public SengokuTarget target; public DollAnimator doll;
+            public GameObject go; public CharacterController cc; public SengokuTarget target; public Transform arm;
             public Vector3 vel; public float cd, thinkT, attackPose; public SengokuTarget enemy;
             public bool Gone => target.Down;
             public Vector3 Pos => go.transform.position;
@@ -25,16 +25,22 @@ namespace Tsukuyomi
         void BuildGuards()
         {
             // 持ち場（元の数の位置。西は x を負に）。弓の見張りは少しうしろから射る
-            var posts = new[] { (new Vector3(36, 0, 9), false), (new Vector3(20, 0, -9), false), (new Vector3(20, 0, 24), true), (new Vector3(20, 0, -24), true), (new Vector3(31, 0, 39), false), (new Vector3(31, 0, -47), false) };
+            var posts = new[]
+            {
+                (new Vector3(36, 0, 9), false), (new Vector3(20, 0, -9), false), (new Vector3(20, 0, 24), true), (new Vector3(20, 0, -24), true),
+                (new Vector3(31, 0, 39), false), (new Vector3(31, 0, -47), false), (new Vector3(42, 0, 0), true), (new Vector3(36, 0, -9), false),
+                (new Vector3(20, 0, 9), false), (new Vector3(28, 0, 18), false), (new Vector3(28, 0, -18), false), (new Vector3(36, 0, 26), true),
+                (new Vector3(20, 0, -29), false), (new Vector3(16, 6, 40), true), (new Vector3(38, 0, -44), true),
+            };
             for (int team = 1; team <= 2; team++)
             {
                 float s = team == 1 ? -1 : 1;
                 foreach (var (pp, bow) in posts)
                 {
                     var c = Sx(new Vector3(pp.x * s, pp.y, pp.z));
-                    for (int i = 0; i < 2; i++)
+                    for (int i = 0; i < 3; i++)
                     {
-                        var at = c + new Vector3(0, 0, (i - 0.5f) * 2.4f);
+                        var at = c + new Vector3(0, 0, (i - 1) * 2.4f);
                         _guards.Add(MakeGuard(team, at, bow && i == 1, new Vector3(-s, 0, 0)));
                     }
                 }
@@ -49,28 +55,23 @@ namespace Tsukuyomi
             g.cc = g.go.AddComponent<CharacterController>();
             g.cc.height = 1.5f; g.cc.radius = 0.34f; g.cc.center = new Vector3(0, 0.78f, 0); g.cc.stepOffset = 0.45f;
             var main = team == 1 ? new Color(0.1f, 0.38f, 0.42f) : new Color(0.5f, 0.14f, 0.12f);
-            var look = new DollLook
-            {
-                skin = new Color(0.95f, 0.82f, 0.7f), hair = new Color(0.12f, 0.1f, 0.1f), robe = main, robe2 = new Color(0.25f, 0.22f, 0.2f),
-                sleeve = Color.Lerp(main, Color.black, 0.2f), cuff = new Color(0.25f, 0.22f, 0.2f), sash = new Color(0.8f, 0.7f, 0.5f),
-                eye = new Color(0.15f, 0.1f, 0.1f), accent = new Color(0.8f, 0.7f, 0.5f),
-            };
-            var parts = Doll.Build("見張り", look, c => Mat(c), g.go.transform);
-            parts.root.transform.localScale = Vector3.one * 0.8f;
-            g.doll = parts.root.GetComponent<DollAnimator>();
-            // 陣笠と、槍か弓
-            var hat = new GameObject("陣笠"); hat.transform.SetParent(parts.head, false); hat.transform.localPosition = new Vector3(0, 0.12f, 0); hat.transform.localScale = new Vector3(0.75f, 0.18f, 0.75f);
+            // 軽い見た目：体・頭・陣笠・腕（持ち物つき）だけ（たくさん置いても重くならないように）
+            Block(PrimitiveType.Capsule, g.go.transform, new Vector3(0, 0.75f, 0), new Vector3(0.55f, 0.55f, 0.42f), main, false);
+            Block(PrimitiveType.Sphere, g.go.transform, new Vector3(0, 1.42f, 0), Vector3.one * 0.32f, new Color(0.95f, 0.82f, 0.7f), false);
+            var hat = new GameObject("陣笠"); hat.transform.SetParent(g.go.transform, false); hat.transform.localPosition = new Vector3(0, 1.5f, 0); hat.transform.localScale = new Vector3(0.62f, 0.15f, 0.62f);
             hat.AddComponent<MeshFilter>().sharedMesh = Doll.Cone; hat.AddComponent<MeshRenderer>().sharedMaterial = Mat(new Color(0.12f, 0.1f, 0.1f));
-            var h = new GameObject("持ち物").transform; h.SetParent(parts.armR, false); h.localPosition = new Vector3(0, -0.5f, 0.05f);
-            if (archer) for (int i = -3; i <= 3; i++) Block(PrimitiveType.Cube, h, new Vector3(0, i * 0.11f, 0.12f - Mathf.Abs(i) * 0.03f), new Vector3(0.03f, 0.12f, 0.03f), new Color(0.5f, 0.35f, 0.2f), false);
+            g.arm = new GameObject("腕").transform; g.arm.SetParent(g.go.transform, false); g.arm.localPosition = new Vector3(0.28f, 1.1f, 0.05f);
+            var h = g.arm;
+            if (archer) for (int i = -3; i <= 3; i++) Block(PrimitiveType.Cube, h, new Vector3(0, i * 0.11f, 0.3f - Mathf.Abs(i) * 0.03f), new Vector3(0.03f, 0.12f, 0.03f), new Color(0.5f, 0.35f, 0.2f), false);
             else
             {
-                Block(PrimitiveType.Cylinder, h, new Vector3(0, 0, 0.4f), new Vector3(0.04f, 1.1f, 0.04f), new Color(0.4f, 0.28f, 0.18f), false, new Vector3(90, 0, 0));
-                Block(PrimitiveType.Cube, h, new Vector3(0, 0, 1.55f), new Vector3(0.05f, 0.03f, 0.28f), new Color(0.9f, 0.92f, 0.95f), false);
+                Block(PrimitiveType.Cylinder, h, new Vector3(0, 0, 0.3f), new Vector3(0.04f, 1.0f, 0.04f), new Color(0.4f, 0.28f, 0.18f), false, new Vector3(90, 0, 0));
+                Block(PrimitiveType.Cube, h, new Vector3(0, 0, 1.35f), new Vector3(0.05f, 0.03f, 0.26f), new Color(0.9f, 0.92f, 0.95f), false);
             }
+            g.arm.localEulerAngles = new Vector3(archer ? 0 : 50, 0, 0);
             foreach (var r in g.go.GetComponentsInChildren<Renderer>()) r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
             g.target = g.go.AddComponent<SengokuTarget>();
-            g.target.team = team; g.target.maxHp = g.target.hp = 50; g.target.respawn = 0; g.target.visual = false; g.target.label = "見張り";
+            g.target.team = team; g.target.maxHp = g.target.hp = 10; g.target.respawn = 0; g.target.visual = false; g.target.label = "見張り";
             g.target.onDown = t => { Boom(g.Pos + Vector3.up, 0.4f, team == 1 ? new Color(0.3f, 1f, 1f) : new Color(1f, 0.45f, 0.3f)); g.go.SetActive(false); };
             PlaceGuard(g);
             return g;
@@ -155,6 +156,7 @@ namespace Tsukuyomi
                     var back = g.post - p; back.y = 0;
                     if (back.magnitude > 0.6f) { want = back.normalized; face = want; }
                 }
+                if (want == Vector3.zero && g.cc.isGrounded && new Vector2(g.vel.x, g.vel.z).sqrMagnitude < 0.01f && g.enemy == null) continue;
                 var flat = new Vector3(g.vel.x, 0, g.vel.z);
                 flat = Vector3.Lerp(flat, want * 4.8f, 1 - Mathf.Exp(-10f * dt));
                 g.vel.x = flat.x; g.vel.z = flat.z;
@@ -162,8 +164,9 @@ namespace Tsukuyomi
                 g.cc.Move(g.vel * dt);
                 if (g.cc.isGrounded && g.vel.y < 0) g.vel.y = -2f;
                 if (face.sqrMagnitude > 0.01f) g.go.transform.rotation = Quaternion.Slerp(g.go.transform.rotation, Quaternion.LookRotation(face), 1 - Mathf.Exp(-8f * dt));
-                g.doll.speed = flat.magnitude;
-                g.doll.holdR = g.attackPose > 0 ? 1 : 0; g.doll.holdREuler = new Vector3(-95, 0, 0);
+                // 突くとき・射るときは腕を前へ
+                g.arm.localRotation = Quaternion.Slerp(g.arm.localRotation, Quaternion.Euler(g.attackPose > 0 ? 0 : (g.archer ? 0 : 50), 0, 0), 1 - Mathf.Exp(-14f * dt));
+                g.go.transform.GetChild(0).localPosition = new Vector3(0, 0.75f + Mathf.Abs(Mathf.Sin(Time.time * 9f)) * 0.06f * Mathf.Clamp01(flat.magnitude / 3f), 0);
                 g.target.facing = g.go.transform.forward;
                 if (p.y < -19f) PlaceGuard(g);
             }

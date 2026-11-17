@@ -48,6 +48,12 @@ namespace Tsukuyomi
             _me.onDown = t => OnDown("あなた", 1);
             SpawnUnits();
             BuildGuards();
+            // 同じ組どうし（味方の見張り・武者・自分）はぶつからない（道で足止めされないように）
+            foreach (var g in _guards)
+            {
+                foreach (var u in _units) if (u.team == g.team) Physics.IgnoreCollision(g.cc, u.cc);
+                if (g.team == 1) Physics.IgnoreCollision(g.cc, _cc);
+            }
             BuildMatchHud();
             BuildMarkers();
             _round = 0;
