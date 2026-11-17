@@ -21,6 +21,9 @@ namespace Tsukuyomi
             public SengokuTarget enemy; public float thinkT, strafeT, strafeDir = 1; public bool healing;
             public int task, stuck, avoidSide = 1; public Vector3 taskGoal; public bool onSlope;
             // 構え・隠れ場所・狙い
+            // 移動わざ
+            public int skill; public float skillT, skillCd = 2f, skillCheckT; public Vector3 skillTarget, skillDir; public Transform rope, flame, canopy;
+            public readonly HashSet<SengokuTarget> skillHits = new HashSet<SengokuTarget>();
             public int stance, flankSide = 1; public float coverT, peekT, aimErr = 5f, reactT, fear; public bool los, hasCover, peeking; public Vector3 coverPt, peekPt;
             public Board tag; public RectTransform hpFill;
             public bool Dead => target.Down;
@@ -193,6 +196,8 @@ namespace Tsukuyomi
             u.cc.enabled = false; u.go.transform.position = p; u.cc.enabled = true;
             u.go.transform.rotation = Quaternion.LookRotation(u.team == 1 ? Vector3.right : Vector3.left);
             u.vel = Vector3.zero; u.path.Clear(); u.goal = new Vector3(999, 0, 0); u.enemy = null;
+            if (u.skill != SkNone) EndSkill(u);
+            u.skillCd = 2f;
             u.target.Revive();
             u.go.SetActive(true);
             if (u.tag) u.tag.Alpha = 1;
@@ -237,7 +242,7 @@ namespace Tsukuyomi
         {
             var sb = new System.Text.StringBuilder($"[SengokuLog] t={300 - _clock:0} phase={_phase} me={_rig.transform.position:F0} hp={_me.hp:0} N={_towers[0].owner}/{_towers[0].prog:F2} S={_towers[1].owner}/{_towers[1].prog:F2}");
             foreach (var u in _units)
-                sb.Append($"\n  {u.name} t{u.team} act={u.go.activeSelf} dead={u.Dead} lives={u.lives} hp={u.target.hp:0} pos={u.Pos:F1} task={u.task} goal={u.goal:F0} path={u.pathI}/{u.path.Count} next={(u.path.Count > 0 ? u.path[Mathf.Min(u.pathI, u.path.Count - 1)].ToString("F0") : "-")} stuck={u.stuck} heal={u.healing} st={u.stance} cov={u.hasCover} err={u.aimErr:F1} enemy={(u.enemy != null ? u.enemy.label : "-")}");
+                sb.Append($"\n  {u.name} t{u.team} act={u.go.activeSelf} dead={u.Dead} lives={u.lives} hp={u.target.hp:0} pos={u.Pos:F1} task={u.task} goal={u.goal:F0} path={u.pathI}/{u.path.Count} next={(u.path.Count > 0 ? u.path[Mathf.Min(u.pathI, u.path.Count - 1)].ToString("F0") : "-")} stuck={u.stuck} heal={u.healing} st={u.stance} cov={u.hasCover} sk={u.skill} err={u.aimErr:F1} enemy={(u.enemy != null ? u.enemy.label : "-")}");
             Debug.Log(sb.ToString());
         }
 
@@ -422,6 +427,13 @@ namespace Tsukuyomi
             u.cd -= dt; u.cd2 -= dt; u.repathT -= dt; u.attackPose -= dt; u.strafeT -= dt; u.reactT -= dt; u.coverT -= dt; u.peekT -= dt;
             if (u.strafeT <= 0) { u.strafeDir = Random.value < 0.5f ? -1 : 1; u.strafeT = Random.Range(0.8f, 2f); }
             u.aimErr = Mathf.MoveTowards(u.aimErr, AimMin[_level], AimSettle[_level] * dt);
+            if (_phase == MPhase.Fight)
+            {
+                if (UnitSkill(u, dt)) return;
+                var se = u.enemy != null && !u.enemy.Down && u.enemy.gameObject.activeInHierarchy ? u.enemy : null;
+                TrySkill(u, se, se != null ? Vector3.Distance(u.Pos, se.transform.position) : 999f, dt);
+                if (u.skill != SkNone) return;
+            }
             var p = u.Pos;
             Vector3 want = Vector3.zero; Vector3 face = u.go.transform.forward;
             bool ranged = u.weapon == 3 || u.weapon == 4, hybrid = u.weapon == 0 || u.weapon == 2;
