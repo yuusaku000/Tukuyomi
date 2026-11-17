@@ -47,9 +47,13 @@ namespace Tsukuyomi
         }
 
         /// <summary>ダメージを受ける。dir は押される向き。実際に減った量を返す。</summary>
-        public float Hit(float dmg, Vector3 point, Vector3 dir, bool heavy = false)
+        /// <summary>近接攻撃でしかダメージを受けない（大将落とし）。</summary>
+        public bool meleeOnly;
+
+        public float Hit(float dmg, Vector3 point, Vector3 dir, bool heavy = false, bool melee = false)
         {
             if (Down) return 0;
+            if (meleeOnly && !melee) { Sengoku.I?.ShowText(point, "効かない", new Color(0.75f, 0.75f, 0.8f)); return 0; }
             if (structure && heavy) dmg *= 2f;
             if (frontGuard > 0 && Vector3.Dot(dir.normalized, facing) < -0.3f) dmg *= 1f - frontGuard;
             hp = Mathf.Max(0, hp - dmg);

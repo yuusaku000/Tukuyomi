@@ -249,7 +249,7 @@ namespace Tsukuyomi
             for (int i = 0; i < 6; i++)
                 _wList[i] = Board.Label(r, new Rect(1440, 640 + i * 30, 350, 28), "", 18, Color.white, TextAnchor.MiddleRight);
             _hint = Board.Label(r, new Rect(980, 900, 810, 140), "", 18, new Color(1, 1, 1, 0.85f), TextAnchor.UpperRight);
-            Board.Label(r, new Rect(60, 1010, 900, 30), _match ? "WASD 移動　Shift 走る　Space ジャンプ　Esc 一時停止　自分の城の中で回復" : "WASD 移動　Shift 走る　Space ジャンプ　1〜6・ホイール 武器　Esc 一時停止", 16, new Color(1, 1, 1, 0.7f), TextAnchor.MiddleLeft);
+            Board.Label(r, new Rect(60, 1010, 900, 30), _match ? "WASD 移動　Shift 走る　Space ジャンプ　F 殴る（大将落としは近接だけ）　Esc 一時停止　自分の城の中で回復" : "WASD 移動　Shift 走る　Space ジャンプ　1〜6・ホイール 武器　Esc 一時停止", 16, new Color(1, 1, 1, 0.7f), TextAnchor.MiddleLeft);
             for (int i = 0; i < 14; i++)
             {
                 var t = Board.Display(r, new Rect(0, 0, 200, 50), "", 34, Board.Gold);
@@ -258,11 +258,22 @@ namespace Tsukuyomi
             }
         }
 
+        /// <summary>数字の代わりに文字を出す（「効かない」など）。</summary>
+        public void ShowText(Vector3 at, string text, Color c)
+        {
+            int k = 0; float best = 99;
+            for (int i = 0; i < _dmg.Count; i++) if (_dmg[i].life < best) { best = _dmg[i].life; k = i; }
+            var t = _dmg[k].t;
+            t.font = Ts.Font; t.text = text; t.color = c;
+            _dmg[k] = (t, 0.7f, at + Vector3.up * 0.6f);
+        }
+
         public void ShowDamage(Vector3 at, float dmg, bool down)
         {
             int k = 0; float best = 99;
             for (int i = 0; i < _dmg.Count; i++) if (_dmg[i].life < best) { best = _dmg[i].life; k = i; }
             var t = _dmg[k].t;
+            t.font = Board.DisplayFont;
             t.text = down ? $"{dmg:0}!" : $"{dmg:0}";
             t.color = down ? Board.Vermilion : Board.Gold;
             _dmg[k] = (t, 0.9f, at + Vector3.up * 0.4f);

@@ -38,7 +38,7 @@ namespace Tsukuyomi
         readonly int[] _pierNode = new int[2], _waterNode = new int[2];
         readonly List<List<int>> _edges = new List<List<int>>();
 
-        int Node(Vector3 p) { _nodes.Add(p * K); _edges.Add(new List<int>()); return _nodes.Count - 1; }
+        int Node(Vector3 p) { _nodes.Add(Sx(p)); _edges.Add(new List<int>()); return _nodes.Count - 1; }
         void Link(int a, int b) { _edges[a].Add(b); _edges[b].Add(a); }
 
         void BuildGraph()
@@ -120,8 +120,8 @@ namespace Tsukuyomi
         static bool DirectOk(Vector3 a, Vector3 b)
         {
             if (Mathf.Abs(a.y - b.y) > 2.5f) return false;
-            if (Mathf.Sign(a.x) != Mathf.Sign(b.x) && Mathf.Abs(a.x) > 8 * K && Mathf.Abs(b.x) > 8 * K && a.y > -3 * K && b.y > -3 * K) return false;
-            return Vector3.Distance(a, b) < 18f;
+            if (Mathf.Sign(a.x) != Mathf.Sign(b.x) && Mathf.Abs(a.x) > 8 * KX && Mathf.Abs(b.x) > 8 * KX && a.y > -3 * KY && b.y > -3 * KY) return false;
+            return Vector3.Distance(a, b) < 28f;
         }
 
         // ───────── 武者をつくる ─────────
@@ -203,6 +203,7 @@ namespace Tsukuyomi
         void UnitsTick(float dt)
         {
             PlanTeams(dt);
+            GuardsTick(dt);
             if (Ts.Flag("--sengoku-log")) { _logT -= dt; if (_logT <= 0) { _logT = 3f; LogUnits(); } }
             foreach (var u in _units)
             {
@@ -251,6 +252,7 @@ namespace Tsukuyomi
         {
             foreach (var o in _units) if (o.team != team && !o.Dead && o.go.activeSelf) yield return o.target;
             if (team == 2 && _me != null && !_me.Down && !_dead) yield return _me;
+            foreach (var g in GuardTargetsOf(team == 1 ? 2 : 1)) yield return g;
         }
 
         bool Visible(Vector3 from, SengokuTarget t)
@@ -330,7 +332,7 @@ namespace Tsukuyomi
             {
                 float d = Vector3.Distance(u.Pos, e.transform.position);
                 if (d > 32f || !Visible(u.Eye, e)) continue;
-                float score = d - (e.hp < e.maxHp * 0.4f ? 7f : 0f) - (Vector3.Distance(e.transform.position, u.taskGoal) < 10f ? 4f : 0f);
+                float score = d - (e.hp < e.maxHp * 0.4f ? 7f : 0f) - (Vector3.Distance(e.transform.position, u.taskGoal) < 10f ? 4f : 0f) + (e.label == "見張り" ? 6f : 0f);
                 foreach (var o in _units) if (o != u && o.team == u.team && o.enemy == e) score -= 4f; // 味方と同じ相手を狙う
                 if (score < bs) { bs = score; best = e; }
             }
@@ -426,7 +428,7 @@ namespace Tsukuyomi
             float run = 1f;
             bool fighting = _phase == MPhase.Fight;
             var dar = _daruma[u.team == 1 ? 2 : 1];
-            bool atDar = u.task == 4 && dar.active && Vector3.Distance(p, dar.target.transform.position) < 9f * K;
+            bool atDar = u.task == 4 && dar.active && Vector3.Distance(p, dar.target.transform.position) < 14f;
             var enemy = u.enemy != null && !u.enemy.Down && u.enemy.gameObject.activeInHierarchy ? u.enemy : null;
             float ed = enemy != null ? Vector3.Distance(p, enemy.transform.position) : 999f;
             bool engage = enemy != null && (ed < 16f || u.task == 3 || u.stance == 3 || Vector3.Distance(enemy.transform.position, u.taskGoal) < 12f) && !atDar;
@@ -508,7 +510,7 @@ namespace Tsukuyomi
                 if (atDar)
                 {
                     var to = dar.target.transform.position - p; to.y = 0; face = to.normalized;
-                    if (to.magnitude > (ranged ? 8f : 2.6f)) want = face;
+                    if (to.magnitude > 2.4f) want = face;
                     else want = Vector3.Cross(Vector3.up, face) * u.strafeDir * 0.4f;
                     Attack(u, dar.target, to.magnitude, true);
                 }
@@ -585,7 +587,7 @@ namespace Tsukuyomi
             return true;
         }
 
-        static bool InLake(Vector3 p) => p.z < -34 * K && Mathf.Abs(p.x) < 26 * K && p.y < -0.4f * K && !(Mathf.Abs(p.x) < 6 * K && p.z > -52 * K && p.z < -40 * K);
+        static bool InLake(Vector3 p) => p.z < -34 * KX && Mathf.Abs(p.x) < 26 * KX && p.y < -0.4f * KY && !(Mathf.Abs(p.x) < 6 * KX && p.z > -52 * KX && p.z < -40 * KX);
 
         Vector3 Follow(Unit u, Vector3 p, Vector3 goal)
         {
@@ -630,6 +632,17 @@ namespace Tsukuyomi
         {
             if (_phase != MPhase.Fight) return;
             if (!structureTarget && u.reactT > 0) return; // 見つけてすぐは撃たない（反応の時間）
+            if (structureTarget)
+            {
+                // 大将落としは近接攻撃でしか落ちないので、どの武器も近づいて殴る
+                if (dist < 3.2f && u.cd <= 0)
+                {
+                    var c = t.transform.position + Vector3.up * 1.5f;
+                    Melee((u.weapon == 1 ? 50 : 28) * AiDmg[_level], 3.2f, u.weapon == 1, 0, u.Eye, (c - u.Eye).normalized, u.team);
+                    u.cd = u.weapon == 1 ? 1.2f : 0.7f; u.attackPose = 0.3f;
+                }
+                return;
+            }
             var aimAt = t.transform.position + Vector3.up * (t.structure ? 1.2f : 1.1f);
             var eye = u.Eye;
             Vector3 AimDir(float speed, float grav)

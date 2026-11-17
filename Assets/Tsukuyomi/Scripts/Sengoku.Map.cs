@@ -54,11 +54,17 @@ namespace Tsukuyomi
         GameObject Box(Vector3 center, Vector3 size, Color c, bool solid = true, float yaw = 0) => Block(PrimitiveType.Cube, _map, center, size, c, solid, new Vector3(0, yaw, 0));
 
         /// <summary>坂（from の高さ h0 から to の高さ h1 へ、幅 w）。</summary>
+        /// <summary>試合用マップでは、坂を倍率つきの位置に直接作る（横と高さで倍率がちがうと坂がゆがむため）。</summary>
+        Transform _rampRoot;
+        Vector3 _rs = Vector3.one;
+
         void Ramp(Vector3 from, Vector3 to, float w, Color c)
         {
+            var parent = _map;
+            if (_rampRoot != null) { from = Vector3.Scale(from, _rs); to = Vector3.Scale(to, _rs); w *= _rs.x; parent = _rampRoot; }
             var d = to - from;
             float len = d.magnitude;
-            var g = Block(PrimitiveType.Cube, _map, (from + to) * 0.5f - Vector3.up * 0.25f, new Vector3(w, 0.5f, len), c);
+            var g = Block(PrimitiveType.Cube, parent, (from + to) * 0.5f - Vector3.up * 0.25f, new Vector3(w, 0.5f, len), c);
             g.transform.rotation = Quaternion.LookRotation(d.normalized, Vector3.up);
             // 高い坂は、下を段々の箱で埋める（下にもぐりこんで引っかからないように）
             float rise = Mathf.Abs(to.y - from.y);
@@ -73,7 +79,7 @@ namespace Tsukuyomi
                 float top = Mathf.Min(from.y + d.y * t0, from.y + d.y * t1) - 0.4f;
                 if (top - low < 0.3f) continue;
                 var mid = from + d * ((t0 + t1) * 0.5f);
-                Block(PrimitiveType.Cube, _map, new Vector3(mid.x, (low + top) * 0.5f, mid.z), new Vector3(w * 0.96f, top - low, flat.magnitude / n), c * 0.8f, true, new Vector3(0, yaw, 0));
+                Block(PrimitiveType.Cube, parent, new Vector3(mid.x, (low + top) * 0.5f, mid.z), new Vector3(w * 0.96f, top - low, flat.magnitude / n), c * 0.8f, true, new Vector3(0, yaw, 0));
             }
         }
 

@@ -248,7 +248,7 @@ namespace Tsukuyomi
             string goal;
             Color gc = Color.white;
             if (_daruma[1].active) { goal = $"西の大将落としが狙われている！　二の丸へもどって守れ（あと {_daruma[1].left} 段）"; gc = new Color(1f, 0.6f, 0.5f); }
-            else if (_daruma[2].active) { goal = $"東の城の二の丸へ！　大将落としを叩き落とせ（あと {_daruma[2].left} 段）"; gc = Board.Teal; }
+            else if (_daruma[2].active) { goal = $"東の城の二の丸へ！　大将落としを近接攻撃（F でも殴れる）で叩き落とせ（あと {_daruma[2].left} 段）"; gc = Board.Teal; }
             else if (Owned(1) == 0) goal = "まずは櫓を取れ：北の山か、南の湖の浮き島へ";
             else goal = "櫓を守りながら、もう一つの櫓も取ろう";
             if (_dead || _phase != MPhase.Fight) goal = "";

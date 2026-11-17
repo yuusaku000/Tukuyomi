@@ -18,7 +18,7 @@ namespace Tsukuyomi
 
         public static readonly Weapon[] Weapons =
         {
-            new() { name = "二刀流", en = "TWIN BLADES", hint = "左クリック 連撃（3回目が強い）\n右クリック 先端から光弾\nE 長押し ワイヤー（建物に引っかけて飛ぶ・Space で離して跳ぶ）" },
+            new() { name = "二刀流", en = "TWIN BLADES", hint = "左クリック 連撃（3回目が強い）\n右クリック 先端から光弾\nF 殴る　E 長押し ワイヤー（建物に引っかけて飛ぶ・Space で離して跳ぶ）" },
             new() { name = "ハンマー", en = "HAMMER", hint = "左クリック 叩きつけ（重い一撃・吹き飛ばす）\n右クリック ミサイル（爆発）\nE 長押し ジェットで飛ぶ（燃料は地面で回復）" },
             new() { name = "傘", en = "UMBRELLA", hint = "左クリック 突き\n右クリック ブーメランのように投げる（もどってくる）\nE 傘を開いて浮かぶ（すべって速い・前の攻撃を防ぐ・Space でおりる）" },
             new() { name = "弓", en = "BOW", hint = "左クリック 長押しでためて、離して射る\n右クリック 長押しで狙う（ズーム）\nE 自分が矢になって飛ぶ（当たると痛い）" },
@@ -79,6 +79,8 @@ namespace Tsukuyomi
         void WeaponInput(float dt)
         {
             _cd -= dt; _cd2 -= dt; _abilityCd -= dt;
+            // F：どの武器でも殴れる（大将落としは近接攻撃でしか落とせない）
+            if (Act.Throw.Down && _cd <= 0 && !_hammerWind) { Melee(25, 2.4f, false); Swing(0.25f); _cd = 0.45f; }
             bool L = Act.Light.Down, LH = Act.Light.Held, LU = Act.Light.Up, R = Act.Heavy.Down, RH = Act.Heavy.Held, E = Act.Special.Down;
             switch (_w)
             {
@@ -183,7 +185,7 @@ namespace Tsukuyomi
                 foreach (var col in Physics.OverlapSphere(p + Vector3.up + _dashDir * 0.8f, 1.3f, ~0, QueryTriggerInteraction.Ignore))
                 {
                     var t = col.GetComponentInParent<SengokuTarget>();
-                    if (t != null && !t.Down && t.team != 1 && _dashHit.Add(t)) { t.Hit(70, col.ClosestPoint(p + Vector3.up), _dashDir, true); Play(_sHeavy, 0.8f); Sparks(col.ClosestPoint(p + Vector3.up), new Color(1f, 0.9f, 0.5f), 12); }
+                    if (t != null && !t.Down && t.team != 1 && _dashHit.Add(t)) { t.Hit(70, col.ClosestPoint(p + Vector3.up), _dashDir, true, true); Play(_sHeavy, 0.8f); Sparks(col.ClosestPoint(p + Vector3.up), new Color(1f, 0.9f, 0.5f), 12); }
                 }
                 if (_dashT <= 0) _vel *= 0.3f;
                 return true;
@@ -215,7 +217,7 @@ namespace Tsukuyomi
                 var t = col.GetComponentInParent<SengokuTarget>();
                 if (t == null || t.Down || (team != 0 && t.team == team) || !done.Add(t)) continue;
                 var pt = col.ClosestPoint(o);
-                t.Hit(dmg, pt, a, heavy);
+                t.Hit(dmg, pt, a, heavy, true);
                 if (team == 1 && t.team == 2) HitMark(t.Down);
                 if (shove > 0) { t.Shove(a * shove); if (t == _me) _vel += a * shove * 0.8f + Vector3.up * 3f; }
                 Sparks(pt, heavy ? new Color(1f, 0.6f, 0.3f) : new Color(0.5f, 1f, 1f), heavy ? 14 : 8);

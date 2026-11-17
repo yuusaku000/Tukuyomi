@@ -12,16 +12,18 @@ namespace Tsukuyomi
     /// </summary>
     public partial class Sengoku
     {
-        /// <summary>マップの広さの倍率（組み立ては元の数で行い、最後に全体を K 倍する）。</summary>
-        public const float K = 1.35f;
+        /// <summary>マップの広さの倍率。組み立ては元の数で行い、最後に横（x・z）を KX 倍、高さ（y）を KY 倍する。</summary>
+        public const float KX = 2.7f, KY = 1.35f;
+        /// <summary>元の数の位置を、試合場の位置にする。</summary>
+        public static Vector3 Sx(Vector3 v) => new(v.x * KX, v.y * KY, v.z * KX);
         static readonly Vector3 N0 = new(0, 12, 47), S0 = new(0, 1, -46);
-        public static readonly Vector3 NorthCapture = N0 * K, SouthCapture = S0 * K;
+        public static readonly Vector3 NorthCapture = Sx(N0), SouthCapture = Sx(S0);
         static Vector3 Castle0(int team) => new(team == 1 ? -66 : 66, 0, 0);
-        public static Vector3 CastleOf(int team) => Castle0(team) * K;
-        public static Vector3 DarumaSpot(int team) => new Vector3(team == 1 ? -55 : 55, 0, 0) * K;
-        public static Vector3 SpawnOf(int team, int i) => new Vector3(team == 1 ? -60 : 60, 0.2f, (i - 1) * 4.5f + 8f) * K;
+        public static Vector3 CastleOf(int team) => Sx(Castle0(team));
+        public static Vector3 DarumaSpot(int team) => Sx(new Vector3(team == 1 ? -55 : 55, 0, 0));
+        public static Vector3 SpawnOf(int team, int i) => Sx(new Vector3(team == 1 ? -60 : 60, 0.2f, (i - 1) * 4.5f + 8f));
         /// <summary>自分の城（本陣）の城壁の内側か。ここにいると回復する。</summary>
-        public static bool InBase(int team, Vector3 p) => (team == 1 ? p.x < -48f * K : p.x > 48f * K) && Mathf.Abs(p.z) < 22f * K && p.y > -1f;
+        public static bool InBase(int team, Vector3 p) => (team == 1 ? p.x < -48f * KX : p.x > 48f * KX) && Mathf.Abs(p.z) < 22f * KX && p.y > -1f;
 
         static readonly Color Tile = new(0.2f, 0.22f, 0.27f), Plaster = new(0.9f, 0.88f, 0.82f), Timber = new(0.32f, 0.2f, 0.13f),
             Road = new(0.52f, 0.46f, 0.38f), Cliff = new(0.42f, 0.37f, 0.32f), Pink = new(1f, 0.75f, 0.84f), Bamboo = new(0.38f, 0.6f, 0.34f);
@@ -30,6 +32,9 @@ namespace Tsukuyomi
         {
             _map = new GameObject("合戦場").transform;
             _map.SetParent(transform, false);
+            _rampRoot = new GameObject("合戦場の坂").transform;
+            _rampRoot.SetParent(transform, false);
+            _rs = new Vector3(KX, KY, KX);
 
             // ── 地面（谷と湖のところはあける）──
             foreach (float s in new[] { -1f, 1f })
@@ -95,9 +100,9 @@ namespace Tsukuyomi
             {
                 var l = new GameObject("灯り").AddComponent<Light>();
                 l.transform.SetParent(_map, false); l.transform.localPosition = new Vector3(s * 35, 18, 0);
-                l.type = LightType.Point; l.range = 70; l.intensity = 1.1f; l.color = new Color(1f, 0.85f, 0.65f);
+                l.type = LightType.Point; l.range = 150; l.intensity = 1.1f; l.color = new Color(1f, 0.85f, 0.65f);
             }
-            _map.localScale = Vector3.one * K;
+            _map.localScale = _rs;
         }
 
         /// <summary>城（team 1 西・2 東）。城壁と城門、二の丸の広場、石垣と天守閣。</summary>
@@ -299,12 +304,13 @@ namespace Tsukuyomi
             for (int i = 0; i < 40; i++)
             {
                 float a = i / 40f * Mathf.PI * 2;
-                Block(PrimitiveType.Cube, _map, at + new Vector3(Mathf.Cos(a) * CaptureR0, 0.06f, Mathf.Sin(a) * CaptureR0), new Vector3(0.9f, 0.04f, 0.12f), Color.white, false, new Vector3(0, -a * Mathf.Rad2Deg + 90, 0), true);
+                Block(PrimitiveType.Cube, _map, at + new Vector3(Mathf.Cos(a) * CaptureR / KX, 0.06f, Mathf.Sin(a) * CaptureR / KX), new Vector3(0.9f, 0.04f, 0.12f), Color.white, false, new Vector3(0, -a * Mathf.Rad2Deg + 90, 0), true);
             }
         }
 
         const float CaptureR0 = 6.5f;
-        public const float CaptureR = CaptureR0 * K;
+        /// <summary>櫓の占拠の円の半径（試合場の m）。</summary>
+        public const float CaptureR = 10f;
 
         /// <summary>本陣のしるし：城門の内側の地面に光る帯と、回復の灯り。</summary>
         void BaseMarks(int team)

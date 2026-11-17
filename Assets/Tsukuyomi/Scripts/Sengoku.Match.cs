@@ -47,6 +47,7 @@ namespace Tsukuyomi
             _me.onHit = (t, d, p) => { _hurt = Mathf.Min(1, _hurt + d / 40f); Kick(-1.5f); };
             _me.onDown = t => OnDown("あなた", 1);
             SpawnUnits();
+            BuildGuards();
             BuildMatchHud();
             BuildMarkers();
             _round = 0;
@@ -58,7 +59,7 @@ namespace Tsukuyomi
             foreach (var r in _map.GetComponentsInChildren<Renderer>())
             {
                 var p = r.transform.position;
-                if (Mathf.Abs(p.y - (t.c.y + 0.06f * K)) < 0.15f && Mathf.Abs(new Vector2(p.x - t.c.x, p.z - t.c.z).magnitude - CaptureR) < 0.4f) t.ring.Add(r);
+                if (Mathf.Abs(p.y - (t.c.y + 0.06f * KY)) < 0.15f && Mathf.Abs(new Vector2(p.x - t.c.x, p.z - t.c.z).magnitude - CaptureR) < 0.4f) t.ring.Add(r);
             }
         }
 
@@ -81,7 +82,7 @@ namespace Tsukuyomi
             head.rotation = Quaternion.LookRotation(team == 1 ? Vector3.right : Vector3.left);
             var col = d.root.gameObject.AddComponent<CapsuleCollider>(); col.center = new Vector3(0, 4.6f, 0); col.height = 9.4f; col.radius = 1.4f;
             d.target = d.root.gameObject.AddComponent<SengokuTarget>();
-            d.target.team = team; d.target.structure = true; d.target.maxHp = d.target.hp = Layers * 100; d.target.respawn = 0; d.target.visual = false; d.target.label = "大将落とし";
+            d.target.team = team; d.target.structure = true; d.target.meleeOnly = true; d.target.maxHp = d.target.hp = Layers * 100; d.target.respawn = 0; d.target.visual = false; d.target.label = "大将落とし";
             d.target.onHit = (t, dmg, p) => DarumaHit(team);
             d.root.gameObject.SetActive(false);
         }
@@ -142,6 +143,7 @@ namespace Tsukuyomi
                 d.active = false; d.root.gameObject.SetActive(false);
             }
             foreach (var u in _units) { u.lives = 2; u.respawnT = 0; Respawn(u); }
+            ResetGuards();
             _myLives = 2; _dead = false; _me.Revive(); _hp = 100;
             Teleport(SpawnOf(1, 0)); _yaw = 90; _pitch = 2;
             _phase = MPhase.Select; _phaseT = 0; _centerT = 0;
@@ -473,12 +475,12 @@ namespace Tsukuyomi
                     break;
                 case "overview":
                     s._phase = MPhase.Fight; s._centerT = 0;
-                    s._camOverride = true; s._camPos = new Vector3(-6, 78, -82) * K; s._camLook = new Vector3(0, -6, 10) * K;
+                    s._camOverride = true; s._camPos = Sx(new Vector3(-6, 78, -82)) + Vector3.up * 60f; s._camLook = Sx(new Vector3(0, -6, 10));
                     break;
-                case "town": s._phase = MPhase.Fight; s._centerT = 0; s.Teleport(K * new Vector3(-44, 0.3f, 0)); s._yaw = 90; s._pitch = 2; break;
-                case "valley": s._phase = MPhase.Fight; s._centerT = 0; s.Teleport(K * new Vector3(-14, 0.3f, 18)); s._yaw = 90; s._pitch = 8; break;
-                case "lake": s._phase = MPhase.Fight; s._centerT = 0; s.Teleport(K * new Vector3(-30, 0.3f, -42)); s._yaw = 95; s._pitch = 3; break;
-                case "mountain": s._phase = MPhase.Fight; s._centerT = 0; s.Teleport(K * new Vector3(-36, 0.3f, 36)); s._yaw = 70; s._pitch = 12; break;
+                case "town": s._phase = MPhase.Fight; s._centerT = 0; s.Teleport(Sx(new Vector3(-44, 0.3f, 0))); s._yaw = 90; s._pitch = 2; break;
+                case "valley": s._phase = MPhase.Fight; s._centerT = 0; s.Teleport(Sx(new Vector3(-14, 0.3f, 18))); s._yaw = 90; s._pitch = 8; break;
+                case "lake": s._phase = MPhase.Fight; s._centerT = 0; s.Teleport(Sx(new Vector3(-30, 0.3f, -42))); s._yaw = 95; s._pitch = 3; break;
+                case "mountain": s._phase = MPhase.Fight; s._centerT = 0; s.Teleport(Sx(new Vector3(-36, 0.3f, 36))); s._yaw = 70; s._pitch = 12; break;
                 case "capture":
                     s._phase = MPhase.Fight; s._centerT = 0;
                     s.Teleport(NorthCapture + new Vector3(-3, 0.3f, -4)); s._yaw = 30; s._pitch = 5;
@@ -489,7 +491,7 @@ namespace Tsukuyomi
                     s._phase = MPhase.Fight; s._centerT = 0;
                     s._towers[0].owner = 1; s._towers[0].prog = 1;
                     s.Towers(0);
-                    s._daruma[2].target.Hit(210, DarumaSpot(2), Vector3.right, false);
+                    s._daruma[2].target.Hit(210, DarumaSpot(2), Vector3.right, false, true);
                     s.Teleport(DarumaSpot(2) + new Vector3(-9, 0.3f, -2)); s._yaw = 80; s._pitch = 8;
                     foreach (var u in s._units) if (u.team == 2) u.go.SetActive(false);
                     break;
@@ -497,13 +499,13 @@ namespace Tsukuyomi
                     // 1ラウンド目に櫓を取り、大将落としを3段落とし、弾を飛ばしたまま次のラウンドへ → 名残が消えているかを見る
                     s._phase = MPhase.Fight;
                     s._towers[0].owner = 1; s._towers[0].prog = 1; s.Towers(0);
-                    s._daruma[2].target.Hit(300, DarumaSpot(2), Vector3.right, false);
+                    s._daruma[2].target.Hit(300, DarumaSpot(2), Vector3.right, false, true);
                     for (int i = 0; i < 4; i++) s.Fire(s.EyePos, Vector3.forward * 5f, 0, 10, 0, false, ShotKind.Spark);
                     s.EndRound(1, "確認");
                     s.NextRound(); s._pick = s._w; s.ConfirmPick(); s._centerT = 0;
                     s._phase = MPhase.Fight;
                     s._towers[0].owner = 1; s._towers[0].prog = 1; s.Towers(0); s._centerT = 0;
-                    s.Teleport(DarumaSpot(2) + K * new Vector3(-9, 0.3f, -2)); s._yaw = 80; s._pitch = 10;
+                    s.Teleport(DarumaSpot(2) + Sx(new Vector3(-9, 0.3f, -2))); s._yaw = 80; s._pitch = 10;
                     foreach (var u in s._units) if (u.team == 2) u.go.SetActive(false);
                     break;
                 case "result":
