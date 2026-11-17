@@ -391,7 +391,7 @@ namespace Tsukuyomi
             if (show)
                 foreach (var b in Board.All)
                 {
-                    if (b == null || b.canvas == null || !b.canvas.enabled || b.canvas.renderMode != RenderMode.WorldSpace || b.Alpha < 0.01f) continue;
+                    if (b == null || b.passive || b.canvas == null || !b.canvas.enabled || b.canvas.renderMode != RenderMode.WorldSpace || b.Alpha < 0.01f) continue;
                     var ct = (RectTransform)b.canvas.transform;
                     var plane = new Plane(ct.forward, ct.position);
                     if (!plane.Raycast(new Ray(o, dir), out var t) || t <= 0 || t >= best) continue;

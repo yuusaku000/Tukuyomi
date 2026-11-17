@@ -391,6 +391,85 @@ namespace Tsukuyomi
             return b;
         }
 
+        // ───────── IMGUI から移した表示のための部品 ─────────
+
+        /// <summary>見るだけの板（光の線をあてない。歌詞・釣りのゲージなど）。</summary>
+        public bool passive;
+
+        /// <summary>中身をぜんぶ消す（作り直す前に）。</summary>
+        public static void Clear(RectTransform parent)
+        {
+            for (int i = parent.childCount - 1; i >= 0; i--) Destroy(parent.GetChild(i).gameObject);
+        }
+
+        /// <summary>中身を入れる空の入れもの（左上が 0,0）。</summary>
+        public static RectTransform Group(RectTransform parent, string name, Rect r)
+        {
+            var go = new GameObject(name, typeof(RectTransform));
+            var rt = (RectTransform)go.transform;
+            rt.SetParent(parent, false);
+            rt.anchorMin = rt.anchorMax = rt.pivot = new Vector2(0, 1);
+            rt.anchoredPosition = new Vector2(r.x, -r.y);
+            rt.sizeDelta = new Vector2(r.width, r.height);
+            return rt;
+        }
+
+        /// <summary>細い枠線。</summary>
+        public static void Outline(RectTransform parent, Rect r, Color c, float t = 1.5f)
+        {
+            Panel(parent, new Rect(r.x, r.y, r.width, t), c);
+            Panel(parent, new Rect(r.x, r.yMax - t, r.width, t), c);
+            Panel(parent, new Rect(r.x, r.y, t, r.height), c);
+            Panel(parent, new Rect(r.xMax - t, r.y, t, r.height), c);
+        }
+
+        /// <summary>折り返す文字（説明など）。</summary>
+        public static Text Wrap(RectTransform parent, Rect r, string text, int size, Color color, TextAnchor align = TextAnchor.UpperLeft)
+        {
+            var t = Label(parent, r, text, size, color, align);
+            t.horizontalOverflow = HorizontalWrapMode.Wrap;
+            return t;
+        }
+
+        /// <summary>
+        /// えらぶ行（品物・魚・場所など）。えらんでいるときは水色の地・太い枠・左に桃色の帯。
+        /// 中の文字は返した RectTransform に Label で置く。押せないとき（確認の途中など）は on=false。
+        /// </summary>
+        public static RectTransform Pick(RectTransform parent, Rect r, bool selected, Action onClick, bool on = true)
+        {
+            var img = Node<Image>(parent, "えらぶ行", r);
+            img.color = selected ? new Color(Cyan.r * 0.3f, Cyan.g * 0.3f, Cyan.b * 0.35f, 0.9f) : new Color(0.02f, 0.05f, 0.12f, 0.6f);
+            var b = img.gameObject.AddComponent<UnityEngine.UI.Button>();
+            var cb = b.colors;
+            cb.highlightedColor = new Color(1.7f, 1.7f, 1.7f, 1f);
+            cb.pressedColor = new Color(0.8f, 0.8f, 0.8f, 1f);
+            cb.selectedColor = Color.white; cb.disabledColor = Color.white;
+            b.colors = cb;
+            b.interactable = on;
+            if (onClick != null) b.onClick.AddListener(() => { Sfx.Click(); onClick(); });
+            var rt = (RectTransform)img.transform;
+            Outline(rt, new Rect(0, 0, r.width, r.height), new Color(Cyan.r, Cyan.g, Cyan.b, selected ? 0.9f : 0.25f), selected ? 2f : 1f);
+            if (selected) Panel(rt, new Rect(0, 0, 5, r.height), Pink);
+            return rt;
+        }
+
+        /// <summary>ふつうのボタン（押すと音が鳴る）。押せないときは on=false。</summary>
+        public static UnityEngine.UI.Button Btn(RectTransform parent, Rect r, string text, int size, Action onClick, bool on = true)
+        {
+            var b = ButtonNode(parent, r, text, size, onClick == null ? null : () => { Sfx.Click(); onClick(); });
+            b.interactable = on;
+            if (!on) b.GetComponentInChildren<Text>().color = new Color(1, 1, 1, 0.4f);
+            return b;
+        }
+
+        /// <summary>確認の小さな板の地（濃い地と枠）。</summary>
+        public static void Dialog(RectTransform parent, Rect r)
+        {
+            Panel(parent, r, new Color(0.01f, 0.03f, 0.08f, 0.97f));
+            Outline(parent, r, new Color(Cyan.r, Cyan.g, Cyan.b, 0.6f), 1.5f);
+            Corners(parent, r, new Color(Cyan.r, Cyan.g, Cyan.b, 0.95f), 18, 3);
+        }
+
         static T Node<T>(RectTransform parent, string name, Rect r) where T : Component
         {
             var go = new GameObject(name, typeof(RectTransform));

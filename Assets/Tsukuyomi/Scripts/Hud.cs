@@ -235,7 +235,7 @@ namespace Tsukuyomi
                 // KASSEN の入口の板・試合のあいだは、島の表示と操作を止める（Esc なども KASSEN が使う）
                 Blocked = true; _menu = _map = false;
                 _toastT -= Time.unscaledDeltaTime;
-                NoticeTick(); ExchangeTick(); GuideTick(); MenuTick();
+                NoticeTick(); ExchangeTick(); GuideTick(); MenuTick(); BoardsTick();
                 return;
             }
             Vr.ChoiceTick();
@@ -313,6 +313,7 @@ namespace Tsukuyomi
             _toastT -= Time.unscaledDeltaTime;
             NoticeTick();
             ExchangeTick();
+            BoardsTick();
             GuideTick();
             MenuTick();
             _bannerT -= Time.unscaledDeltaTime;
@@ -407,7 +408,7 @@ namespace Tsukuyomi
             }
 
             // 板（メニュー・遊び方・両替）を開いている間は、画面に直接描く表示を出さない（板の上に重なるため）
-            if (_menu || _guide || _exchange) { GUI.matrix = Matrix4x4.identity; return; }
+            if (_menu || _guide || _exchange || _map || _book || _shipAsk != null || _tipOpen) { GUI.matrix = Matrix4x4.identity; return; }
 
             // 画面の四隅のかぎ（スマコンの視野）
             Corners(new Rect(14, 14, W - 28, H - 28), new Color(Cyan.r, Cyan.g, Cyan.b, 0.35f), 70, 2);
@@ -424,7 +425,6 @@ namespace Tsukuyomi
             // 座ってしばらくすると、表示を消して景色だけにする
             bool calm = Rest.Idle > 6f || LiveShow.AutoCam; // おまかせカメラの間も表示を消して景色だけにする
             if (!Blocked && calm && !LiveShow.AutoCam) DrawActivity();
-            if (LiveShow.Running) DrawLive();
             if (!Blocked && !calm)
             {
                 if (CompassOn) Compass();
@@ -472,12 +472,8 @@ namespace Tsukuyomi
             // お知らせは板（Hud.Notice）で出す
 
             if (_debug) DrawDebug();
-            if (_map) DrawMap();
-            else if (ShopOpen) DrawShop();
-            else if (_book) DrawBook();
-            else if (_shipAsk != null) DrawShipAsk();
+            if (_book || _shipAsk != null) { }
             else if (_talk) DrawTalk();
-            else if (_tipOpen) DrawTip();
             GUI.matrix = Matrix4x4.identity;
         }
 
@@ -553,97 +549,6 @@ namespace Tsukuyomi
                 Text(kr, k, 14, new Color(Cyan.r, Cyan.g, Cyan.b, a), TextAnchor.MiddleCenter, true, FontStyle.Normal, false);
                 x -= 18;
             }
-        }
-
-        void DrawMap()
-        {
-            Fill(new Rect(0, 0, W, H), new Color(0.01f, 0.03f, 0.08f, 0.7f));
-            float mh = 860f;
-            float mw = mh * (worldMax.x - worldMin.x) / (worldMax.y - worldMin.y);
-            var m = new Rect(W / 2 - (mw + 420) / 2, (H - mh) / 2, mw, mh);
-            Panel(new Rect(m.x - 10, m.y - 10, m.width + 20, m.height + 20));
-
-            Rect ToMap(Rect w)
-            {
-                float x0 = m.x + (w.xMin - worldMin.x) / (worldMax.x - worldMin.x) * m.width;
-                float x1 = m.x + (w.xMax - worldMin.x) / (worldMax.x - worldMin.x) * m.width;
-                float y0 = m.yMax - (w.yMax - worldMin.y) / (worldMax.y - worldMin.y) * m.height;
-                float y1 = m.yMax - (w.yMin - worldMin.y) / (worldMax.y - worldMin.y) * m.height;
-                return new Rect(x0, y0, x1 - x0, y1 - y0);
-            }
-            Vector2 ToMapP(Vector3 p) => new Vector2(
-                m.x + (p.x - worldMin.x) / (worldMax.x - worldMin.x) * m.width,
-                m.yMax - (p.z - worldMin.y) / (worldMax.y - worldMin.y) * m.height);
-
-            if (_mapTex == null) _mapTex = MapTexture();
-            GUI.DrawTexture(m, _mapTex);
-            for (float gx = m.x; gx < m.xMax; gx += 40) Fill(new Rect(gx, m.y, 1, m.height), new Color(Cyan.r, Cyan.g, Cyan.b, 0.06f));
-            for (float gy = m.y; gy < m.yMax; gy += 40) Fill(new Rect(m.x, gy, m.width, 1), new Color(Cyan.r, Cyan.g, Cyan.b, 0.06f));
-            Fill(ToMap(new Rect(-3.5f, -74, 7, 74)), new Color(0.85f, 0.3f, 0.22f));
-            Fill(ToMap(new Rect(-8, -74, 16, 12)), new Color(0.85f, 0.3f, 0.22f));
-            Fill(ToMap(new Rect(-2.5f, -100, 5, 26)), new Color(Cyan.r, Cyan.g, Cyan.b, 0.8f));
-            // 道
-            var sm = StreetMap.I;
-            if (sm != null && sm.points != null)
-            {
-                int idx = 0;
-                for (int si = 0; si < sm.counts.Length; si++)
-                {
-                    float wpx = Mathf.Max(2f, sm.halves[si] * 2 * m.width / (worldMax.x - worldMin.x));
-                    for (int k = 0; k < sm.counts[si]; k += 2)
-                    {
-                        var q = sm.points[idx + k];
-                        if (Island.NearestWater(q.x, q.y) < 0.5f || Mathf.Abs(Island.TerraceHeight(q.x, q.y) - Island.Height(q.x, q.y)) > 0.5f && Island.NearestWater(q.x, q.y) > 3f) continue;
-                        var mp = ToMapP(new Vector3(q.x, 0, q.y));
-                        Fill(new Rect(mp.x - wpx / 2, mp.y - wpx / 2, wpx, wpx), new Color(0.95f, 0.9f, 0.75f, 0.85f));
-                    }
-                    idx += sm.counts[si];
-                }
-            }
-
-            Zone hover = null;
-            foreach (var z in Zone.All)
-            {
-                if (!z.warpable) continue;
-                var r = ToMap(z.Area);
-                var dot = ToMapP(z.transform.position);
-                if (r.Contains(Event.current.mousePosition)) { hover = z; Corners(r, Cyan, 12, 2); }
-                var c = z.mapColor; c.a = 0.95f;
-                Fill(new Rect(dot.x - 5, dot.y - 5, 10, 10), c);
-                Text(new Rect(dot.x - 100, dot.y + 6, 200, 24), z.title, 17, Color.white, TextAnchor.UpperCenter);
-            }
-            var tp = ToMapP(new Vector3(0, 0, -82));
-            Fill(new Rect(tp.x - 14, tp.y - 3, 28, 6), new Color(1f, 0.3f, 0.2f));
-
-            if (player != null)
-            {
-                var p = ToMapP(player.Position);
-                float pulse = 10 + Mathf.Sin(Time.unscaledTime * 6) * 4;
-                Frame(new Rect(p.x - pulse, p.y - pulse, pulse * 2, pulse * 2), new Color(Pink.r, Pink.g, Pink.b, 0.8f), 2f);
-                Fill(new Rect(p.x - 5, p.y - 5, 10, 10), Color.white);
-                Text(new Rect(p.x - 70, p.y - 40, 140, 24), "YOU ▸ いまここ", 16, Gold, TextAnchor.MiddleCenter);
-            }
-            Text(new Rect(m.x + 10, m.y + 8, 300, 20), "MAP ▸ TSUKUYOMI ISLAND", 15, Cyan, TextAnchor.UpperLeft, true);
-
-            var list = new Rect(m.xMax + 30, m.y - 10, 390, mh + 20);
-            Panel(list);
-            Text(new Rect(list.x, list.y + 16, list.width, 22), "WARP", 18, Cyan, TextAnchor.MiddleCenter, true);
-            Text(new Rect(list.x, list.y + 38, list.width, 40), "ワープ", 32, Color.white, TextAnchor.MiddleCenter, false, FontStyle.Bold);
-            float y = list.y + 90;
-            var zones = new List<Zone>(Zone.All);
-            zones.Sort((a, b) => a.order.CompareTo(b.order));
-            foreach (var z in zones)
-            {
-                if (!z.warpable) continue;
-                if (Button(new Rect(list.x + 24, y, list.width - 48, 50), z.title, 21)) Warp(z);
-                y += 58;
-            }
-            if (hover != null && Event.current.type == EventType.MouseDown && Event.current.button == 0)
-            {
-                Warp(hover);
-                Event.current.Use();
-            }
-            Text(new Rect(list.x, list.yMax - 40, list.width, 30), "M・Esc で閉じる　地図の場所をクリックでも飛べます", 14, new Color(1, 1, 1, 0.7f), TextAnchor.MiddleCenter);
         }
 
         void Warp(Zone z)
