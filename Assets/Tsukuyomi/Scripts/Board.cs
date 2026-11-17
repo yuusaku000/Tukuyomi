@@ -90,7 +90,7 @@ namespace Tsukuyomi
                 canvas.renderMode = RenderMode.ScreenSpaceOverlay;
                 sc.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
                 sc.referenceResolution = new Vector2(1920, RefH);
-                sc.matchWidthOrHeight = 1f;
+                sc.screenMatchMode = CanvasScaler.ScreenMatchMode.Expand; // 横長でも縦長でも、1920×1080 がまるごと画面に入る
                 root.anchorMin = root.anchorMax = screenAnchor;
                 root.pivot = screenAnchor;
                 root.anchoredPosition = screenOffset;

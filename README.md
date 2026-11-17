@@ -117,6 +117,7 @@
 - 見た目のシェーダーは `Assets/Tsukuyomi/Shaders`（水・光る面・星・月・花びら・大画面）
 - 保存先：`%APPDATA%\Tsukuyomi\save.json`（環境変数 `TSUKUYOMI_DATA` で変えられる）
 - KASSEN（合戦）：入口は竹林の小道の「KASSEN の門」（`Kassen`。地図にも出る）。試合は実行中に作る別のシーンで遊び、島は止めて隠す（空・太陽と月・ポストプロセスだけ残す）。SETSUNA（1対1 の一人称の格闘）は `Setsuna`（進行）・`Setsuna.Stages`（舞台5つ：水上の闘技場・千本鳥居・月面〈重力が軽い〉・桜の丘・夜の竹林。入口の板で選ぶか、おまかせ）・`Setsuna.Combat`（当たり・刹那ガード・コンボ・狐火・コンピューター）・`Setsuna.View`（闘技場・相手の人形・自分の手・カメラ）・`Setsuna.Hud`（表示）・`SetsunaFighter`（技と相手3人）。勝つとふじゅ〜（やさしい 100・ふつう 300・つよい 800）、「つよい」に初めて勝つと狐のきぐるみ（`Catalog.KitsuneKigurumi`、着がえの形 style 4）。記録は save.json の setsunaWins・setsunaLosses
+- SENGOKU（第1段階＝練習場）：入口の板で SENGOKU をえらぶ。`Sengoku`（自分の動き・視点・表示）・`Sengoku.Map`（東西の天守閣・南北の櫓・五重塔・川と橋・崖・空の島。どれも当たり判定つき）・`Sengoku.Weapons`（二刀流・ハンマー・傘・弓・大筒・鎖鎌の攻撃／飛び道具／移動わざ）・`SengokuTarget`（当たるもの。いまはわら人形）。tour `sengoku:武器0〜5:view・overview・wire・ride・jet・tower・aim`
 - 表示の見た目（ツクヨミ風）：`Board` の Fan・Fans（四隅の扇）、NameTag（縦書きの白い名札）、Display（光る斜体の大きな文字）、Ring・RoundButton（細い輪）、Frame（夜の地と白い縁と扇）
 - ふじゅ〜の独立：残高はツクヨミの `save.json` の fuju（`Fuju`）。初ログインボーナス 5000（fujuBonus）。ミニヤチヨからは片道だけ両替できる（Esc のメニュー →「ふじゅ〜（両替）」、板 `Hud.Exchange`。ミニヤチヨの `POST /api/tsukuyomi/buy` を id=tsukuyomi_exchange で使う。1回 1〜10000）。稼ぐときは `Fuju.Earn`
 - 土台（VR 向け）：操作は動作の層 `Act`（Input System。キーを直接読まず `Act.Interact.Down` のように読む。割り当ては Act.cs の1か所。ゲームパッドも使える）、表示の板 `Board`（uGUI。画面モードは画面に重ね、VR では空間に浮かぶ。新しい表示はこれで作る。いまはお知らせ `Hud.Notice` だけ）。これからの予定は `ROADMAP.md`

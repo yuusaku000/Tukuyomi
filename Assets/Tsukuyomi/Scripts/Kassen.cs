@@ -25,7 +25,7 @@ namespace Tsukuyomi
 
         Board _menu;
         bool _menuOpen;
-        int _opp, _level = 1, _stageSel; // _stageSel：0 おまかせ・1〜 舞台
+        int _opp, _level = 1, _stageSel, _mode; // _mode：0 SETSUNA・1 SENGOKU // _stageSel：0 おまかせ・1〜 舞台
         Text _oppName, _oppDesc, _levelText, _record, _stageText;
         readonly Image[] _levelRing = new Image[3];
         Board _sign;
@@ -170,8 +170,8 @@ namespace Tsukuyomi
             Board.Panel(r, new Rect(76, 176, 260, 2), Board.Vermilion);
 
             // モード
-            ModeCard(r, new Rect(70, 206, 330, 170), "SETSUNA", "刹那", "1対1 の格闘。一人称で、\nコンボをつなげて勝つ。", true);
-            ModeCard(r, new Rect(70, 396, 330, 170), "SENGOKU", "戦国", "3対3 の陣取り。\nただいま準備中。", false);
+            _modeBar[0] = ModeCard(r, new Rect(70, 206, 330, 170), "SETSUNA", "刹那", "1対1 の格闘。一人称で、\nコンボをつなげて勝つ。", 0);
+            _modeBar[1] = ModeCard(r, new Rect(70, 396, 330, 170), "SENGOKU", "戦国", "3対3 の陣取り。いまは\n6つの武器の練習場。", 1);
 
             // 相手
             float cx = 760;
@@ -207,20 +207,26 @@ namespace Tsukuyomi
             Board.ButtonNode(r, new Rect(w - 300, h - 76, 220, 44), "閉じる（Esc）", 20, CloseMenu);
         }
 
-        void ModeCard(RectTransform r, Rect rc, string en, string jp, string desc, bool on)
+        readonly Image[] _modeBar = new Image[2];
+
+        /// <summary>モードの札（押すとそのモードをえらぶ）。左の帯を返す（えらんでいると青緑）。</summary>
+        Image ModeCard(RectTransform r, Rect rc, string en, string jp, string desc, int mode)
         {
-            Board.Panel(r, rc, on ? new Color(0.05f, 0.2f, 0.26f, 0.85f) : new Color(0.05f, 0.06f, 0.1f, 0.7f));
-            Board.Panel(r, new Rect(rc.x, rc.y, 5, rc.height), on ? Board.Teal : new Color(1, 1, 1, 0.25f));
-            Board.Display(r, new Rect(rc.x + 22, rc.y + 10, 260, 60), en, 44, on ? Board.Teal : new Color(1, 1, 1, 0.4f), TextAnchor.MiddleLeft);
-            Board.Label(r, new Rect(rc.x + 24, rc.y + 74, 290, 90), desc, 20, new Color(1, 1, 1, on ? 0.9f : 0.5f), TextAnchor.UpperLeft);
+            var bg = Board.ButtonNode(r, rc, "", 10, () => _mode = mode);
+            bg.GetComponent<Image>().color = new Color(0.05f, 0.2f, 0.26f, 0.85f);
+            var bar = Board.Panel(r, new Rect(rc.x, rc.y, 7, rc.height), Board.Teal);
+            Board.Display(r, new Rect(rc.x + 22, rc.y + 10, 260, 60), en, 44, Board.Teal, TextAnchor.MiddleLeft);
+            Board.Label(r, new Rect(rc.x + 24, rc.y + 74, 290, 90), desc, 20, new Color(1, 1, 1, 0.9f), TextAnchor.UpperLeft);
             var tag = new Rect(rc.xMax - 56, rc.y + 14, 40, 110);
-            Board.NameTag(r, tag, jp, on ? Board.Teal : new Color(0.5f, 0.5f, 0.5f), false, 26);
+            Board.NameTag(r, tag, jp, Board.Teal, false, 26);
+            return bar;
         }
 
         void MenuTick()
         {
             var st = SetsunaStyles.Cpu[_opp];
             _oppName.text = st.name;
+            for (int i = 0; i < 2; i++) _modeBar[i].color = i == _mode ? Board.Teal : new Color(1, 1, 1, 0.15f);
             _stageText.text = _stageSel == 0 ? "おまかせ" : Setsuna.StageNames[_stageSel - 1];
             _oppDesc.text = st.desc;
             _levelText.text = $"勝てば {Rewards[_level]:N0} ふじゅ〜" + (_level == 2 && !HardCleared ? "　＋　初めて勝つと「狐のきぐるみ」" : "");
@@ -236,7 +242,8 @@ namespace Tsukuyomi
         void StartSetsuna()
         {
             CloseMenu();
-            BeginMatch(_opp, _level, _stageSel - 1);
+            if (_mode == 1) BeginSengoku();
+            else BeginMatch(_opp, _level, _stageSel - 1);
         }
 
         // ───────── 試合の場面へ（島は止めて隠す）─────────
@@ -253,6 +260,15 @@ namespace Tsukuyomi
             I.HideIsland();
             InMatch = true;
             Setsuna.Begin(I._scene, opp, level, stage);
+        }
+
+        /// <summary>SENGOKU（いまは練習場）をはじめる。</summary>
+        public static void BeginSengoku()
+        {
+            if (I == null || InMatch) return;
+            I.HideIsland();
+            InMatch = true;
+            Sengoku.Begin(I._scene);
         }
 
         void HideIsland()
@@ -302,6 +318,7 @@ namespace Tsukuyomi
             if (I == null) return;
             I.CloseMenu();
             if (Setsuna.I != null) Destroy(Setsuna.I.gameObject);
+            if (Sengoku.I != null) Destroy(Sengoku.I.gameObject);
             EndMatch();
         }
 
