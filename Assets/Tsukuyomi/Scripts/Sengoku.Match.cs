@@ -395,7 +395,7 @@ namespace Tsukuyomi
             void Row(string n, float hp, int lives, bool dead)
             {
                 var (name, bar, lv) = _mRows[row++];
-                name.text = n; name.color = dead ? new Color(1, 1, 1, 0.35f) : Color.white;
+                name.text = dead && lives <= 0 ? n + "　退場" : dead ? n + "　復活待ち" : n; name.color = dead ? new Color(1, 1, 1, 0.35f) : Color.white;
                 bar.sizeDelta = new Vector2(300 * Mathf.Clamp01(hp), 8);
                 lv.text = new string('●', Mathf.Max(0, lives)) + new string('○', Mathf.Max(0, 2 - lives));
             }

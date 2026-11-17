@@ -267,7 +267,15 @@ namespace Tsukuyomi
             foreach (float s in new[] { -1f, 1f })
             {
                 // 桟橋（ひと続き）と、飛び石
-                Ramp(new Vector3(s * 26.5f, 0.05f, -42), new Vector3(s * 5.8f, 1.0f, -42), 2.4f, Timber);
+                Ramp(new Vector3(s * 26.5f, 0.05f, -42), new Vector3(s * 5.8f, 1.0f, -42), 3.2f, Timber);
+                // 桟橋の欄干（落ちにくいように）
+                foreach (float side in new[] { -1.65f, 1.65f })
+                {
+                    var a = new Vector3(s * 24f, 0.6f, -42 + side); var b = new Vector3(s * 6.2f, 1.45f, -42 + side);
+                    var rail = Block(PrimitiveType.Cube, _map, (a + b) * 0.5f, new Vector3(0.15f, 0.9f, (b - a).magnitude), Red);
+                    rail.transform.rotation = Quaternion.LookRotation(b - a);
+                }
+                Ramp(new Vector3(s * 11.5f, -1.6f, -48.5f), new Vector3(s * 5.9f, 1.0f, -48.5f), 3f, Cliff); // 湖から浮き島へ上がる坂
                 for (int i = 0; i < 6; i++) Box(new Vector3(s * (10 + i * 2.6f), -0.25f, -42), new Vector3(0.25f, 1f, 0.25f), Timber, false);
                 for (int i = 0; i < 4; i++) Box(new Vector3(s * (9 + i * 4.2f), 0.0f, -51 + (i % 2) * 1.5f), new Vector3(2.2f, 0.4f, 2.2f), Stone);
                 // 小舟

@@ -60,7 +60,21 @@ namespace Tsukuyomi
             float len = d.magnitude;
             var g = Block(PrimitiveType.Cube, _map, (from + to) * 0.5f - Vector3.up * 0.25f, new Vector3(w, 0.5f, len), c);
             g.transform.rotation = Quaternion.LookRotation(d.normalized, Vector3.up);
-            g.transform.position -= g.transform.up * 0.0f;
+            // 高い坂は、下を段々の箱で埋める（下にもぐりこんで引っかからないように）
+            float rise = Mathf.Abs(to.y - from.y);
+            if (rise < 1.5f) return;
+            float low = Mathf.Min(from.y, to.y);
+            var flat = new Vector3(d.x, 0, d.z);
+            var yaw = Quaternion.LookRotation(flat.normalized, Vector3.up).eulerAngles.y;
+            const int n = 6;
+            for (int k = 0; k < n; k++)
+            {
+                float t0 = k / (float)n, t1 = (k + 1) / (float)n;
+                float top = Mathf.Min(from.y + d.y * t0, from.y + d.y * t1) - 0.4f;
+                if (top - low < 0.3f) continue;
+                var mid = from + d * ((t0 + t1) * 0.5f);
+                Block(PrimitiveType.Cube, _map, new Vector3(mid.x, (low + top) * 0.5f, mid.z), new Vector3(w * 0.96f, top - low, flat.magnitude / n), c * 0.8f, true, new Vector3(0, yaw, 0));
+            }
         }
 
         void BuildMap()

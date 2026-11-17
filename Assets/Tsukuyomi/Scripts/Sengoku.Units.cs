@@ -19,7 +19,7 @@ namespace Tsukuyomi
             public Vector3 lastPos, goal = new(999, 0, 0);
             public List<Vector3> path = new List<Vector3>(); public int pathI;
             public SengokuTarget enemy; public float thinkT, strafeT, strafeDir = 1; public bool healing;
-            public int task, stuck, avoidSide = 1; public Vector3 taskGoal;
+            public int task, stuck, avoidSide = 1; public Vector3 taskGoal; public bool onSlope;
             public Board tag; public RectTransform hpFill;
             public bool Dead => target.Down;
             public Vector3 Pos => go.transform.position;
@@ -33,6 +33,7 @@ namespace Tsukuyomi
         // ───────── 道すじ ─────────
 
         readonly List<Vector3> _nodes = new List<Vector3>();
+        readonly int[] _pierNode = new int[2], _waterNode = new int[2];
         readonly List<List<int>> _edges = new List<List<int>>();
 
         int Node(Vector3 p) { _nodes.Add(p * K); _edges.Add(new List<int>()); return _nodes.Count - 1; }
@@ -48,12 +49,18 @@ namespace Tsukuyomi
                 n36 = Node(new Vector3(s * 36, 0, 18)); n20 = Node(new Vector3(s * 20, 0, 18)); brn = Node(new Vector3(s * 11.5f, 0, 18));
                 s36 = Node(new Vector3(s * 36, 0, -18)); s20 = Node(new Vector3(s * 20, 0, -18)); brs = Node(new Vector3(s * 11.5f, 0, -18));
                 n36b = Node(new Vector3(s * 36, 0, 33)); mt0 = Node(new Vector3(s * 37, 0, 44)); mt1 = Node(new Vector3(s * 19, 6, 44));
-                mt2 = Node(new Vector3(s * 7, 6, 34.5f)); mt3 = Node(new Vector3(s * 7, 12, 43.5f));
+                mt2 = Node(new Vector3(s * 7, 6, 34.4f)); mt3 = Node(new Vector3(s * 7, 12, 43.5f));
+                int mt1b = Node(new Vector3(s * 12.5f, 6, 34.8f)); // 坂の横から入らないよう、坂の手前へ回る
                 lk0 = Node(new Vector3(s * 36, 0, -33)); lk1 = Node(new Vector3(s * 29, 0, -42)); lk2 = Node(new Vector3(s * 15, 0.6f, -42));
                 vw1 = Node(new Vector3(s * 10.6f, 0, s < 0 ? 11 : -11));
                 Link(sp, dar); Link(dar, gate); Link(gate, c36); Link(c36, c20); Link(c36, n36); Link(c36, s36); Link(c20, n20); Link(c20, s20);
-                Link(n36, n20); Link(s36, s20); Link(n20, brn); Link(s20, brs); Link(n36, n36b); Link(n36b, mt0); Link(mt0, mt1); Link(mt1, mt2); Link(mt2, mt3);
+                Link(n36, n20); Link(s36, s20); Link(n20, brn); Link(s20, brs); Link(n36, n36b); Link(n36b, mt0); Link(mt0, mt1); Link(mt1, mt1b); Link(mt1b, mt2); Link(mt2, mt3);
                 Link(s36, lk0); Link(lk0, lk1); Link(lk1, lk2); Link(vw1, c20);
+                // 桟橋の先（ここから浮き島へ）と、湖に落ちたときに上がる道
+                int pier = Node(new Vector3(s * 7.2f, 1f, -42)); Link(lk2, pier);
+                int wl = Node(new Vector3(s * 12.5f, -1.6f, -48.5f)), lx0 = Node(new Vector3(s * 22.5f, -1.6f, -54)), lx1 = Node(new Vector3(s * 30f, 0, -54));
+                Link(wl, lx0); Link(lx0, lx1); Link(lx1, lk1);
+                _pierNode[s < 0 ? 0 : 1] = pier; _waterNode[s < 0 ? 0 : 1] = wl;
                 return 0;
             }
             Side(-1, out _, out _, out _, out _, out _, out _, out _, out var wbrn, out _, out _, out var wbrs, out _, out _, out _, out var wmt2, out var wmt3, out _, out _, out var wlk2, out var wvw1);
@@ -61,7 +68,8 @@ namespace Tsukuyomi
             int bcn = Node(new Vector3(0, -0.8f, 18)), bcs = Node(new Vector3(0, -0.8f, -18));
             Link(wbrn, bcn); Link(bcn, ebrn); Link(wbrs, bcs); Link(bcs, ebrs);
             int mtop = Node(N0 + new Vector3(0, 0, -2)); Link(wmt3, mtop); Link(emt3, mtop); Link(wmt2, emt2);
-            int ltop = Node(S0); Link(wlk2, ltop); Link(elk2, ltop);
+            int ltop = Node(S0);
+            for (int i = 0; i < 2; i++) { Link(_pierNode[i], ltop); Link(_waterNode[i], ltop); }
             // 谷の底（落ちたときに登る坂）
             int vc = Node(new Vector3(0, -10, 0)), vw0 = Node(new Vector3(-7.4f, -10, -24)), ve0 = Node(new Vector3(7.4f, -10, 24));
             int vwTop = Node(new Vector3(-7.4f, 0, 10)), veTop = Node(new Vector3(7.4f, 0, -10));
@@ -101,7 +109,7 @@ namespace Tsukuyomi
             var path = new List<Vector3>();
             for (int v = b; v >= 0; v = prev[v]) { path.Insert(0, _nodes[v]); if (v == a) break; }
             // いちばん近い点がうしろにあるときは飛ばす
-            if (path.Count > 1 && Vector3.Distance(from, path[1]) < Vector3.Distance(_nodes[a], path[1])) path.RemoveAt(0);
+            if (path.Count > 1 && Vector3.Distance(from, path[1]) < Vector3.Distance(_nodes[a], path[1]) && Mathf.Abs(from.y - path[1].y) < 1.5f && Walkable(from, path[1])) path.RemoveAt(0);
             path.Add(to);
             return path;
         }
@@ -192,11 +200,20 @@ namespace Tsukuyomi
         void UnitsTick(float dt)
         {
             PlanTeams(dt);
+            if (Ts.Flag("--sengoku-log")) { _logT -= dt; if (_logT <= 0) { _logT = 3f; LogUnits(); } }
             foreach (var u in _units)
             {
                 if (u.Dead)
                 {
-                    if (u.go.activeSelf && u.respawnT <= 0) { u.respawnT = 5f; u.lives--; DownFx(u); }
+                    if (u.go.activeSelf && u.respawnT <= 0)
+                    {
+                        u.respawnT = 5f; u.lives--; DownFx(u);
+                        if (u.lives <= 0 && _phase == MPhase.Fight)
+                        {
+                            Feed($"{u.name}（{(u.team == 1 ? "西" : "東")}）が退場（残機なし）");
+                            if (u.team == 1) Center($"味方の{u.name}が退場", Board.Vermilion, 1.6f, "残機を使いきった。このラウンドはもう出てこない");
+                        }
+                    }
                     u.respawnT -= dt;
                     if (u.respawnT <= 0 && u.lives > 0 && _phase == MPhase.Fight) Respawn(u);
                     continue;
@@ -208,6 +225,16 @@ namespace Tsukuyomi
                 u.tag.Alpha = _cam != null && Vector3.Distance(_cam.transform.position, u.Pos) < 45f ? 1 : 0;
                 u.target.facing = u.go.transform.forward;
             }
+        }
+
+        float _logT;
+        /// <summary>確認用（--sengoku-log）：武者の様子を記録に書く。</summary>
+        void LogUnits()
+        {
+            var sb = new System.Text.StringBuilder($"[SengokuLog] t={300 - _clock:0} phase={_phase} me={_rig.transform.position:F0} hp={_me.hp:0} N={_towers[0].owner}/{_towers[0].prog:F2} S={_towers[1].owner}/{_towers[1].prog:F2}");
+            foreach (var u in _units)
+                sb.Append($"\n  {u.name} t{u.team} act={u.go.activeSelf} dead={u.Dead} lives={u.lives} hp={u.target.hp:0} pos={u.Pos:F1} task={u.task} goal={u.goal:F0} path={u.pathI}/{u.path.Count} next={(u.path.Count > 0 ? u.path[Mathf.Min(u.pathI, u.path.Count - 1)].ToString("F0") : "-")} stuck={u.stuck} heal={u.healing} enemy={(u.enemy != null ? u.enemy.label : "-")}");
+            Debug.Log(sb.ToString());
         }
 
         void DownFx(Unit u)
@@ -336,7 +363,7 @@ namespace Tsukuyomi
                 var strafe = Vector3.Cross(Vector3.up, face) * u.strafeDir;
                 if (ranged)
                 {
-                    if (ed > 24f) want = DirectOk(p, enemy.transform.position) ? face : Follow(u, p, enemy.transform.position);
+                    if (ed > 24f) want = DirectOk(p, enemy.transform.position) && Walkable(p, enemy.transform.position) ? face : Follow(u, p, enemy.transform.position);
                     else if (ed < 10f) want = (-face + strafe * 0.6f).normalized;
                     else want = strafe * 0.8f;
                 }
@@ -345,7 +372,7 @@ namespace Tsukuyomi
                     float near = hybrid ? 2.2f : 2.0f;
                     if (ed > near + 0.4f)
                     {
-                        want = DirectOk(p, enemy.transform.position) ? (face + strafe * (ed > 6 ? 0.35f : 0f)).normalized : Follow(u, p, enemy.transform.position);
+                        want = DirectOk(p, enemy.transform.position) && Walkable(p, enemy.transform.position) ? (face + strafe * (ed > 6 ? 0.35f : 0f)).normalized : Follow(u, p, enemy.transform.position);
                         if (ed < 7f) run = 1.35f; // 間合いに飛びこむ
                     }
                     else want = strafe * 0.7f;
@@ -374,7 +401,7 @@ namespace Tsukuyomi
                 }
                 if (enemy != null && (ranged || hybrid)) { Attack(u, enemy, ed); }
             }
-            want = Avoid(u, p, want);
+            if (!(u.onSlope && !chase)) want = Avoid(u, p, want);
             if (want.sqrMagnitude > 0.01f && !chase && !atDar) face = new Vector3(want.x, 0, want.z).normalized;
 
             float speed = (u.weapon == 4 ? 5.2f : 6.2f) * run * (InLake(p) ? 0.55f : 1f);
@@ -427,6 +454,18 @@ namespace Tsukuyomi
             return dir.normalized * Mathf.Min(1f, want.magnitude);
         }
 
+        /// <summary>a から b へまっすぐ歩いて、途中で落ちないか（足もとに、ほぼ同じ高さの地面があるか）。</summary>
+        static bool Walkable(Vector3 a, Vector3 b)
+        {
+            for (int i = 1; i <= 4; i++)
+            {
+                var q = Vector3.Lerp(a, b, i / 5f);
+                if (!Physics.Raycast(q + Vector3.up * 1.5f, Vector3.down, out var h, 4f, ~0, QueryTriggerInteraction.Ignore)) return false;
+                if (Mathf.Abs(h.point.y - q.y) > 1.3f) return false;
+            }
+            return true;
+        }
+
         static bool InLake(Vector3 p) => p.z < -34 * K && Mathf.Abs(p.x) < 26 * K && p.y < -0.4f * K && !(Mathf.Abs(p.x) < 6 * K && p.z > -52 * K && p.z < -40 * K);
 
         Vector3 Follow(Unit u, Vector3 p, Vector3 goal)
@@ -443,8 +482,26 @@ namespace Tsukuyomi
             {
                 var nn = u.path[u.pathI + 1];
                 var a = p + Vector3.up * 0.9f; var b = nn + Vector3.up * 0.9f;
-                if (DirectOk(p, nn) && !Physics.Raycast(a, (b - a).normalized, Vector3.Distance(a, b), ~0, QueryTriggerInteraction.Ignore)) u.pathI++;
+                if (DirectOk(p, nn) && Walkable(p, nn) && !Physics.Raycast(a, (b - a).normalized, Vector3.Distance(a, b), ~0, QueryTriggerInteraction.Ignore)) u.pathI++;
             }
+            // 道の中心線に沿って歩く（前の点と次の点を結ぶ線の、少し先をめざす）。坂・橋・桟橋から落ちないように
+            if (u.pathI > 0 && u.pathI < u.path.Count)
+            {
+                var a0 = u.path[u.pathI - 1]; var b0 = u.path[u.pathI];
+                var seg = b0 - a0; seg.y = 0;
+                float len = seg.magnitude;
+                if (len > 0.5f)
+                {
+                    var dir = seg / len;
+                    var rel = p - a0; rel.y = 0;
+                    float along = Mathf.Clamp(Vector3.Dot(rel, dir) + 2.2f, 0, len);
+                    var aim = a0 + dir * along; aim.y = p.y;
+                    var tt = aim - p; tt.y = 0;
+                    u.onSlope = Mathf.Abs(b0.y - a0.y) > 0.8f;
+                    if (tt.sqrMagnitude > 0.04f) return tt.normalized;
+                }
+            }
+            u.onSlope = false;
             var t = u.path[Mathf.Min(u.pathI, u.path.Count - 1)] - p; t.y = 0;
             return t.sqrMagnitude > 0.04f ? t.normalized : Vector3.zero;
         }
