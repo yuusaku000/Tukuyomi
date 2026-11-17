@@ -160,6 +160,19 @@ namespace Tsukuyomi
             return img;
         }
 
+        /// <summary>画面モードで、板のうしろを暗くする（文字を読みやすく）。VR では何もしない。</summary>
+        public static void Dim(RectTransform parent, float w, float h, float a = 0.8f)
+        {
+            if (Current != Mode.Screen) return;
+            // 板の外まで広げるので、キャンバスいっぱいに張る（いちばん奥に）
+            var canvasT = parent.parent;
+            var go = new GameObject("うしろの暗がり", typeof(RectTransform));
+            var rt = (RectTransform)go.transform;
+            rt.SetParent(canvasT, false); rt.SetAsFirstSibling();
+            rt.anchorMin = Vector2.zero; rt.anchorMax = Vector2.one; rt.offsetMin = rt.offsetMax = Vector2.zero;
+            var img = go.AddComponent<Image>(); img.color = new Color(0.01f, 0.02f, 0.06f, a); img.raycastTarget = false;
+        }
+
         /// <summary>四隅のかぎ（Hud のパネルと同じ見た目）。</summary>
         public static void Corners(RectTransform parent, Rect r, Color c, float len = 18, float th = 2)
         {

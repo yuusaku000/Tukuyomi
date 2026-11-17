@@ -64,6 +64,7 @@ namespace Tsukuyomi
             _gd.worldOffset = new Vector3(0, -0.05f, 1.25f);
             _gd.Apply();
             var r = _gd.root;
+            Board.Dim(r, GdW, GdH);
             Board.Frame(r, new Rect(0, 0, GdW, GdH));
             Board.Display(r, new Rect(60, 30, 400, 30), "HOW TO PLAY", 22, Board.Teal, TextAnchor.MiddleLeft);
             _gdNum = Board.Display(r, new Rect(GdW - 260, 30, 200, 30), "", 22, Board.Gold, TextAnchor.MiddleRight);

@@ -41,6 +41,7 @@ namespace Tsukuyomi
             _ex.Apply();
             var r = _ex.root;
             var c = Board.Cyan;
+            Board.Dim(r, w, h);
             Board.Frame(r, new Rect(0, 0, w, h));
             Board.Display(r, new Rect(0, 14, w, 34), "FUJU EXCHANGE", 24, Board.Teal);
             Board.Label(r, new Rect(0, 48, w, 50), "ふじゅ〜の両替", 38, Color.white, TextAnchor.MiddleCenter, false, FontStyle.Bold);

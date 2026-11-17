@@ -84,9 +84,24 @@ namespace Tsukuyomi
         public static bool ClickHeld => Mouse.current != null && Mouse.current.leftButton.isPressed;
 
         /// <summary>マウスで見回す量（以前の Input.GetAxis("Mouse X/Y") と同じ大きさ）。</summary>
-        public static Vector2 LookMouse => Mouse.current != null ? Mouse.current.delta.ReadValue() * 0.1f : Vector2.zero;
+        public static Vector2 LookMouse => Mouse.current != null ? Tune(Mouse.current.delta.ReadValue() * 0.1f) : Vector2.zero;
+
+        static float _lookSpeed = -1; static int _invert = -1;
+        /// <summary>見回す速さ（0.3〜2.0。メニューの「操作」で変える）。</summary>
+        public static float LookSpeed
+        {
+            get { if (_lookSpeed < 0) _lookSpeed = PlayerPrefs.GetFloat("tsukuyomi_look", 1f); return _lookSpeed; }
+            set { _lookSpeed = Mathf.Clamp(value, 0.3f, 2f); PlayerPrefs.SetFloat("tsukuyomi_look", _lookSpeed); PlayerPrefs.Save(); }
+        }
+        /// <summary>上下を逆にする。</summary>
+        public static bool InvertY
+        {
+            get { if (_invert < 0) _invert = PlayerPrefs.GetInt("tsukuyomi_invert", 0); return _invert == 1; }
+            set { _invert = value ? 1 : 0; PlayerPrefs.SetInt("tsukuyomi_invert", _invert); PlayerPrefs.Save(); }
+        }
+        static Vector2 Tune(Vector2 v) => new Vector2(v.x, InvertY ? -v.y : v.y) * LookSpeed;
         /// <summary>右スティックで見回す量（マウスと同じ単位にそろえた、このフレームの分）。</summary>
-        public static Vector2 LookStick => Gamepad.current != null ? Gamepad.current.rightStick.ReadValue() * (Time.unscaledDeltaTime * 30f) : Vector2.zero;
+        public static Vector2 LookStick => Gamepad.current != null ? Tune(Gamepad.current.rightStick.ReadValue() * (Time.unscaledDeltaTime * 30f)) : Vector2.zero;
 
         /// <summary>ホイール（1目盛りで ±1。以前の Input.mouseScrollDelta.y と同じ）。</summary>
         public static float Scroll

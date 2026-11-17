@@ -125,7 +125,8 @@ namespace Tsukuyomi
                 if (p.Length > 1 && p[1].Length > 0) Ts.SetTime(p[1]);
                 if (p.Length > 2) ApplyCam(p[2]);
                 Hud.OpenMap(p.Length > 3 && p[3] == "map");
-                Hud.OpenMenu(p.Length > 3 && p[3] == "menu");
+                if (p.Length > 3 && p[3].StartsWith("menu:") && int.TryParse(p[3].Substring(5), out var mst)) Hud.MenuStart = mst;
+                Hud.OpenMenu(p.Length > 3 && p[3].StartsWith("menu"));
                 // shop:gofuku[:品物] でお店の画面、wear で着がえ、buy:品物 で本当に買う（ツクヨミのふじゅ〜で）
                 if (p.Length > 3 && p[3].StartsWith("shop:")) { var a = p[3].Split(':'); Hud.OpenShopFor(a[1], a.Length > 2 ? a[2] : null, true); }
                 if (p.Length > 3 && p[3] == "wear") Hud.OpenWardrobe();
