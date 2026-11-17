@@ -18,7 +18,7 @@ namespace Tsukuyomi
     public partial class LiveShow
     {
         public static readonly string[] HypeFx = { "float", "tunnel", "dragon", "chibi", "flyby", "island", "giant", "rain", "flood", "rise", "shatter", "clones", "sakura", "ribbons", "bloom" };
-        static readonly string[] AllFx = { "float", "tunnel", "dragon", "chibi", "flyby", "island", "giant", "rain", "flood", "rise", "shatter", "clones", "sakura", "ribbons", "bloom", "sea", "moon", "alone" };
+        static readonly string[] AllFx = { "float", "tunnel", "dragon", "chibi", "flyby", "island", "giant", "rain", "flood", "rise", "shatter", "clones", "sakura", "ribbons", "bloom", "sea", "moon", "alone", "spiral", "ascend", "morph", "split", "mirror" };
         public static readonly string[] Openings = { "gate", "stairs", "geyser" };
         /// <summary>確認用：演出・登場を決める（tour の fx= / open=）。</summary>
         public static string ForceFx, ForceOpen;
@@ -59,7 +59,7 @@ namespace Tsukuyomi
         void WowBegin()
         {
             _open = ForceOpen ?? Openings[Random.Range(0, Openings.Length)];
-            _fxBag.Clear(); _k.Clear(); _plan.Clear();
+            _fxBag.Clear(); _k.Clear(); _plan.Clear(); _grandUsed.Clear();
             _starQ.Clear(); _constDone = false;
             _wowMax = 0; FloatHeight = 0; PerformerOffset = Vector3.zero; PerformerYaw = 0;
             if (_wow) _wow.gameObject.SetActive(true);
@@ -70,6 +70,7 @@ namespace Tsukuyomi
         {
             FloatHeight = 0; PerformerOffset = Vector3.zero; PerformerYaw = 0;
             _k.Clear();
+            GrandEnd();
             if (_wow) _wow.gameObject.SetActive(false);
             RestoreSky();
             if (_onStageT > 0) { _onStageT = 0; }
@@ -86,7 +87,7 @@ namespace Tsukuyomi
             {
                 foreach (var sec in s.secs)
                 {
-                    if (sec.name == "bridge") { _plan[sec] = ForceFx ?? (Random.value < 0.7f ? "alone" : "rise"); continue; } // 急にふたりきり／舞台がせり上がる
+                    if (sec.name == "bridge") { _plan[sec] = ForceFx ?? NextGrandOr(Random.value < 0.7f ? "alone" : "rise"); continue; } // 大仕掛け／急にふたりきり／舞台がせり上がる
                     if (sec.name != "chorus" && sec.name != "drop" && sec.name != "inter") continue;
                     if (sec.name == "inter" && Random.value < 0.5f) continue;
                     _plan[sec] = ForceFx ?? NextFx();
@@ -102,7 +103,7 @@ namespace Tsukuyomi
                 {
                     if (sec.name == "bridge") late = true;
                     if (!late) { if (sec.name != "intro") _plan[sec] = first; }
-                    else if (sec.name == "bridge") _plan[sec] = ForceFx ?? (Random.value < 0.55f ? "alone" : "giant");
+                    else if (sec.name == "bridge") _plan[sec] = ForceFx ?? (Random.value < 0.45f ? "ascend" : Random.value < 0.55f ? "alone" : "giant"); // 会場ごと天へ（そのあと月へ）
                     else _plan[sec] = ForceFx ?? "moon";
                 }
             }
@@ -114,8 +115,12 @@ namespace Tsukuyomi
         /// <summary>確認用：演出をすぐ選びなおす。</summary>
         public void Replan() => WowSongStart();
 
+        string NextGrandOr(string other) => NextGrand() ?? other;
+
         string NextFx()
         {
+            var g = NextGrand(); // 大仕掛けを優先（毎回のライブで見られるように）
+            if (g != null) return g;
             if (_fxBag.Count == 0) { _fxBag.AddRange(HypeFx); }
             int i = Random.Range(0, _fxBag.Count);
             var f = _fxBag[i]; _fxBag.RemoveAt(i);
@@ -170,7 +175,8 @@ namespace Tsukuyomi
             Sakura(K("sakura"), t);
             Ribbons(K("ribbons"), t, beat);
             Bloom(K("bloom"), t, beat, onBeat);
-            Moon(K("moon"), dt);
+            Moon(Mathf.Max(K("moon"), K("ascend") * 0.85f), dt); // 会場ごと天へ：月が目の前に
+            GrandTick(dt, t, beat, onBeat);
             Constellation();
             SkyLyrics();
             SkyComments(dt);
@@ -181,8 +187,9 @@ namespace Tsukuyomi
         {
             float k = K(f), w = f == want ? 1f : 0f;
             bool sudden = f == "flood" || f == "shatter"; // 「急に」起こる演出
-            float up = sudden ? 0.45f : f == "alone" ? 2.6f : 1.4f; // ヤチヨが会いに来るのは、ゆっくり
-            k = Mathf.MoveTowards(k, w, dt / (w > k ? up : 1.8f));
+            float up = sudden ? 0.45f : f == "alone" ? 2.6f : f == "ascend" ? 6f : f == "spiral" || f == "morph" ? 3f : 1.4f; // ヤチヨが会いに来るのは、ゆっくり。会場が昇るのも、ゆっくり
+            float down = f == "ascend" ? 5f : f == "spiral" ? 2.6f : 1.8f;
+            k = Mathf.MoveTowards(k, w, dt / (w > k ? up : down));
             if (k <= 0) _k.Remove(f); else _k[f] = k;
         }
 
