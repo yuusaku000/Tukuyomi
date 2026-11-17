@@ -34,9 +34,19 @@ namespace Tsukuyomi
             Hud.Toast(firstPerson ? "一人称にしました（V でもどす）" : "三人称にしました（V で一人称）");
         }
 
+        /// <summary>歩く向き。VR では体の向き＋頭の左右の向き。</summary>
+        public float MoveYaw => Vr.On ? yaw + Vr.HeadYaw : yaw;
+
         void LateUpdate()
         {
             if (target == null) return;
+            if (Vr.On)
+            {
+                // VR：頭の動きにカメラを合わせる（見回しや視点の切りかえはしない）
+                Vr.PlaceCamera(this);
+                SetBodyHidden(true);
+                return;
+            }
             if (!Hud.Blocked && !Ts.ShotMode && !LiveShow.AutoCam && Cursor.lockState == CursorLockMode.Locked)
             {
                 var m = Act.LookMouse;

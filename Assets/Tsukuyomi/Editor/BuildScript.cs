@@ -41,6 +41,7 @@ namespace Tsukuyomi.EditorTools
         {
             try
             {
+                XrSetup.Ensure(); // VR（OpenXR）の設定をそろえる
                 var outPath = Environment.GetEnvironmentVariable("TSUKUYOMI_BUILD_OUT");
                 if (string.IsNullOrEmpty(outPath)) outPath = "Build/Tsukuyomi.exe";
                 Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(outPath)));
@@ -87,6 +88,7 @@ namespace Tsukuyomi.EditorTools
                     urp.shadowCascadeCount = 2;
                     EditorUtility.SetDirty(urp);
                 }
+            XrSetup.Ensure();
             AssetDatabase.SaveAssets();
         }
 

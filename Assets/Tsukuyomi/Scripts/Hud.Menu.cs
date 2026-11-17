@@ -46,7 +46,7 @@ namespace Tsukuyomi
             new MItem { group = "設定", name = "音", en = "SOUND", kind = MKind.Page, desc = "全体・環境音・効果音・ライブの音楽の大きさ。" },
             new MItem { group = "設定", name = "画面と表示", en = "DISPLAY", kind = MKind.Page, desc = "画質・視点・方位の帯・照準・吹き出し。" },
             new MItem { group = "設定", name = "操作", en = "CONTROLS", kind = MKind.Page, desc = "見回す速さ・上下の向き・キーの一覧。" },
-            new MItem { group = "設定", name = "VR", en = "VR", kind = MKind.Page, desc = "VR モードの設定（準備中）。" },
+            new MItem { group = "設定", name = "VR", en = "VR", kind = MKind.Page, desc = "VR の画質・回り方・酔い防止・ワープ・背の高さ。" },
             new MItem { group = "そのほか", name = "遊び方", en = "HOW TO PLAY", kind = MKind.Action, desc = "操作や遊び方を、ページをめくって読めます。", act = () => Sub(() => OpenGuide()) },
             new MItem { group = "そのほか", name = "ふじゅ〜と両替", en = "FUJU", kind = MKind.Action, desc = "残高を見る・ミニヤチヨから両替する（片道）。", act = () => Sub(() => OpenExchange()) },
             new MItem { group = "そのほか", name = "写真のフォルダ", en = "PHOTOS", kind = MKind.Action, desc = "F12 で撮った写真のフォルダを開きます。", act = () => { System.IO.Directory.CreateDirectory(PhotoDir); Application.OpenURL("file:///" + PhotoDir.Replace('\\', '/')); } },
@@ -111,7 +111,7 @@ namespace Tsukuyomi
 
         struct MSnap
         {
-            public float ma, am, fx, mu, look; public bool mute, fp, comp, cross, bub, inv; public int q;
+            public float ma, am, fx, mu, look, vh; public bool mute, fp, comp, cross, bub, inv, vsnap, vvig, vwarp; public int q, vq;
         }
 
         readonly List<MSnap> _mbUndo = new List<MSnap>();
@@ -121,6 +121,7 @@ namespace Tsukuyomi
             ma = SoundPrefs.Master, am = SoundPrefs.Ambient, fx = SoundPrefs.Effects, mu = SoundPrefs.Music, mute = SoundPrefs.Muted,
             q = Quality.Level, fp = cam != null && cam.firstPerson, comp = CompassOn, cross = CrosshairOn, bub = Crowd.BubblesOn,
             look = Act.LookSpeed, inv = Act.InvertY,
+            vq = Vr.QualityLevel, vsnap = Vr.SnapTurn, vvig = Vr.Vignette, vwarp = Vr.Warp, vh = Vr.Height,
         };
 
         void Restore(MSnap s)
@@ -137,6 +138,11 @@ namespace Tsukuyomi
             if (Crowd.BubblesOn != s.bub) Crowd.BubblesOn = s.bub;
             if (Act.LookSpeed != s.look) Act.LookSpeed = s.look;
             if (Act.InvertY != s.inv) Act.InvertY = s.inv;
+            if (Vr.QualityLevel != s.vq) Vr.QualityLevel = s.vq;
+            if (Vr.SnapTurn != s.vsnap) Vr.SnapTurn = s.vsnap;
+            if (Vr.Vignette != s.vvig) Vr.Vignette = s.vvig;
+            if (Vr.Warp != s.vwarp) Vr.Warp = s.vwarp;
+            if (Vr.Height != s.vh) Vr.Height = s.vh;
         }
 
         /// <summary>設定を変えるときに通す：変わっていたら、変える前の値を取り消し用に積む。</summary>
@@ -171,6 +177,22 @@ namespace Tsukuyomi
             h._mbItem = 1; h.MItems[1].act();
             Debug.Log($"[MenuTest] mapOpen={h._map} menu={h._menu} return={h._returnItem}");
         }
+        /// <summary>確認用（tour の vr:settings）：VR の設定を変えて、取り消しと初期設定を試して記録する。</summary>
+        public static void TestVrSettings()
+        {
+            if (_i == null) return;
+            var h = _i; h._menu = true; h.BuildMenuBoard(); h._mbItem = 7; h._mbFocus = 1; h.ShowMenuPane();
+            string Now() => $"画質={Vr.QualityName} 回り方={(Vr.SnapTurn ? "一気に" : "少しずつ")} ふち={Vr.Vignette} ワープ={Vr.Warp} 背={Vr.HeightText}";
+            Debug.Log($"[VrTest] 行={h._mbRows.Count} 最初：{Now()}");
+            foreach (var row in h._mbRows) if (row.change != null) row.change(1);
+            Debug.Log($"[VrTest] ▶ を全部：{Now()} 取り消し={h._mbUndo.Count}");
+            h.Undo(); h.Undo();
+            Debug.Log($"[VrTest] 2回もどす：{Now()} 取り消し={h._mbUndo.Count}");
+            h._mbRows[h._mbRows.Count - 1].press();
+            Debug.Log($"[VrTest] 初期設定：{Now()}");
+            h.ShowMenuPane();
+        }
+
         public static void TestCloseMap() { if (_i != null) _i._map = false; }
 
         static void NoSelect() { if (EventSystem.current != null) EventSystem.current.SetSelectedGameObject(null); }
@@ -230,9 +252,14 @@ namespace Tsukuyomi
                         "F12　写真　　Esc　閉じる・メニュー　　（KASSEN の操作は、それぞれの板に出ます）", 17, new Color(1, 1, 1, 0.8f), TextAnchor.UpperLeft);
                     return;
                 case "VR":
-                    Board.Label(p, new Rect(PaneX, 290, PaneW, 200),
-                        "VR モードは、いま準備中です。\n\nできたら、ここに次の設定が入ります：\n・画質（軽い／ふつう／きれい）\n・回り方（少しずつ／一気に）\n・視界のふちを暗くする（酔い防止）\n・ワープ移動\n・背の高さ", 20, new Color(1, 1, 1, 0.8f), TextAnchor.UpperLeft);
-                    return;
+                    AddRow("画質", Vr.On ? "VR 用。カクカクするときは「軽い」に" : "VR 用（いまは画面モード。VR で遊ぶときに効きます）", () => Vr.QualityName, d => Vr.QualityLevel = (Vr.QualityLevel + d + 3) % 3, () => Vr.QualityLevel = (Vr.QualityLevel + 1) % 3);
+                    AddRow("回り方", "右スティックを左右に倒したとき（一気に＝45度ずつ・酔いにくい）", () => Vr.SnapTurn ? "一気に" : "少しずつ", d => Vr.SnapTurn = !Vr.SnapTurn, () => Vr.SnapTurn = !Vr.SnapTurn);
+                    Toggle("視界のふちを暗くする", "歩いたり回ったりしている間だけ。酔いにくくなります", () => Vr.Vignette, v => Vr.Vignette = v);
+                    Toggle("ワープ移動", "右スティックを前に倒して行き先をえらび、離すとそこへ移る", () => Vr.Warp, v => Vr.Warp = v);
+                    AddRow("背の高さ", "◀▶ で目の高さを上げ下げ。決定で、いまの背に合わせる", () => Vr.HeightText, d => Vr.Height += d * 0.05f, () => Vr.FitHeight());
+                    UndoRow();
+                    AddRow("初期設定にもどす", "VR の設定を最初の値にもどします", null, null, () => { Vr.ResetSettings(); Sfx.Click(); });
+                    break;
                 default:
                     AddRow("開く", it.desc, null, null, it.act);
                     break;

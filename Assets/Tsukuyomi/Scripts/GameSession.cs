@@ -78,6 +78,7 @@ namespace Tsukuyomi
             Hud.Welcome(first, Ts.Arg("--from"));
             if (Fuju.GiveLoginBonus(_data)) { SaveItems(); Hud.Toast($"初ログインボーナス！ {Fuju.LoginBonus:N0} ふじゅ〜をもらいました（Esc のメニューで残高と両替）"); }
 
+            Vr.OnGameStart(); // 画面か VR か（--vr・--vr-sim・--screen、なければえらぶ板）
             if (Ts.Arg("--shot") != null) StartCoroutine(Shot(Ts.Arg("--shot"), Ts.ArgFloat("--shot-delay", 6f)));
             if (Ts.Arg("--tour") != null) StartCoroutine(Tour(Ts.Arg("--tour"), Ts.Arg("--tour-dir") ?? Ts.DataDir));
         }
@@ -186,6 +187,9 @@ namespace Tsukuyomi
                 if (p.Length > 3 && p[3].StartsWith("guide")) Hud.OpenGuide(p[3].Length > 6 && int.TryParse(p[3].Substring(6), out var gpg) ? gpg : 0);
                 if (p.Length > 3 && p[3].StartsWith("sit")) { Rest.I?.TestSit(p[3].Length > 4 && float.TryParse(p[3].Substring(4), NumberStyles.Float, CultureInfo.InvariantCulture, out var si) ? si : 0f); again = true; }
                 if (again && p.Length > 2) ApplyCam(p[2]);
+                // VR（--vr-sim）：vr:hands|point|click|warp|go|turn|smooth|walk|settings
+                if (p.Length > 3 && p[3].StartsWith("vr:")) Vr.Test(p[3].Substring(3));
+                if (p.Length > 3 && p[3].StartsWith("choice")) Vr.TestChoice(p[3] == "choice:vr"); // 起動時の「画面／VR」の板
                 cam.firstPerson = p.Length > 4 && p[4] == "fp";
                 // 6つ目で待ち秒数を変えられる（食べている途中を撮るときなど）
                 float wait = p.Length > 5 && float.TryParse(p[5], NumberStyles.Float, CultureInfo.InvariantCulture, out var wv) ? wv : 3.5f;

@@ -146,6 +146,24 @@ namespace Tsukuyomi
             return a;
         }
 
+        /// <summary>
+        /// VR のコントローラーの割り当て（OpenXR とまねる機器の共通の名前）。
+        ///  左スティック：歩く　左グリップ：走る　X：地図　Y・メニュー：もどる／メニュー
+        ///  右トリガー：竿・板を押す　A：調べる・話す・座る　B：ジャンプ
+        ///  右スティック（回る・ワープ）は Vr が読む。
+        /// </summary>
+        public static void AddXrBindings()
+        {
+            Move.Disable(); Move.AddBinding("<XRController>{LeftHand}/{Primary2DAxis}"); Move.Enable();
+            Run.Bind("<XRController>{LeftHand}/{GripButton}");
+            Map.Bind("<XRController>{LeftHand}/{PrimaryButton}");
+            Back.Bind("<XRController>{LeftHand}/{SecondaryButton}");
+            Back.Bind("<XRController>{LeftHand}/{MenuButton}");
+            Cast.Bind("<XRController>{RightHand}/{TriggerButton}");
+            Interact.Bind("<XRController>{RightHand}/{PrimaryButton}");
+            Jump.Bind("<XRController>{RightHand}/{SecondaryButton}");
+        }
+
         static Button[] All => new[] { Jump, Run, Descend, View, Interact, Cast, Wardrobe, Confirm, Back, Map, Book, HideHud, Info, Light, Heavy, Special, Throw, Super, Crouch };
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]

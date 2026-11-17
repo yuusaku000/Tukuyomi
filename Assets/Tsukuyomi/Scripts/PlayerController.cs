@@ -50,7 +50,7 @@ namespace Tsukuyomi
             }
             if (Fly)
             {
-                float yawF = cam != null ? cam.yaw : 0;
+                float yawF = cam != null ? cam.MoveYaw : 0;
                 var f = Quaternion.Euler(0, yawF, 0) * Vector3.forward;
                 var rgt = Quaternion.Euler(0, yawF, 0) * Vector3.right;
                 float up = 0;
@@ -65,7 +65,7 @@ namespace Tsukuyomi
                 if (doll != null) doll.speed = 0;
                 return;
             }
-            float camYaw = cam != null ? cam.yaw : 0;
+            float camYaw = cam != null ? cam.MoveYaw : 0;
             var fwd = Quaternion.Euler(0, camYaw, 0) * Vector3.forward;
             var right = Quaternion.Euler(0, camYaw, 0) * Vector3.right;
             bool run = Act.Run.Held;
@@ -73,8 +73,8 @@ namespace Tsukuyomi
             var want = (fwd * input.y + right * input.x) * speed;
             _move = Vector3.Lerp(_move, want, 1 - Mathf.Exp(-12f * Time.deltaTime));
 
-            if (cam != null && cam.firstPerson)
-                transform.rotation = Quaternion.Euler(0, cam.yaw, 0);
+            if (cam != null && (cam.firstPerson || Vr.On))
+                transform.rotation = Quaternion.Euler(0, cam.MoveYaw, 0);
             else if (want.sqrMagnitude > 0.01f)
             {
                 var face = Quaternion.LookRotation(new Vector3(want.x, 0, want.z));

@@ -238,6 +238,7 @@ namespace Tsukuyomi
                 NoticeTick(); ExchangeTick(); GuideTick(); MenuTick();
                 return;
             }
+            Vr.ChoiceTick();
             if (Ts.ShotMode)
             {
                 Blocked = ShopOpen || _book || _tipOpen || _exchange || _guide || _menu;
@@ -248,13 +249,13 @@ namespace Tsukuyomi
                 UpdateZone();
                 return;
             }
-            // 初めて島に入ったとき：遊び方の板を1回だけ開く
-            if (!_guideAuto && GameSession.Instance != null && GameSession.Instance.Data != null)
+            // 初めて島に入ったとき：遊び方の板を1回だけ開く（画面か VR かをえらんだあと）
+            if (!_guideAuto && !Vr.Choosing && GameSession.Instance != null && GameSession.Instance.Data != null)
             {
                 _guideAuto = true;
                 if (!GameSession.Instance.Data.guideSeen) OpenGuide();
             }
-            if (Act.Back.Down)
+            if (Act.Back.Down && !Vr.Choosing)
             {
                 if (_guide) CloseGuide();
                 else if (_tipOpen) { if (!_tipBusy) _tipOpen = false; }
@@ -278,7 +279,7 @@ namespace Tsukuyomi
             bool usedC = !_exchange && !_guide && !_menu && LiveKeys();
             bool usedE = !_exchange && !_guide && !_menu && ActivityKeys();
             if (!_exchange && !_guide && !_menu) ShopKeys(usedE, usedC);
-            Blocked = _menu || _map || ShopOpen || _book || _shipAsk != null || _talk || _tipOpen || _exchange || _guide;
+            Blocked = _menu || _map || ShopOpen || _book || _shipAsk != null || _talk || _tipOpen || _exchange || _guide || Vr.Choosing;
 
             if (Blocked)
             {

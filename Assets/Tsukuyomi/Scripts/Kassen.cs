@@ -138,7 +138,11 @@ namespace Tsukuyomi
             var pc = GameSession.Instance != null ? GameSession.Instance.player : null;
             if (pc == null) return;
             var d = pc.Position - transform.position; d.y = 0;
-            if (d.magnitude < 4.5f && Act.Interact.Down) OpenMenu();
+            if (d.magnitude < 4.5f && Act.Interact.Down)
+            {
+                if (Vr.On) Hud.Toast("KASSEN は、いまは画面モードで遊べます（VR はまだ準備中）");
+                else OpenMenu();
+            }
         }
 
         // ───────── 入口の板 ─────────

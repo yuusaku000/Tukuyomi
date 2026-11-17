@@ -53,6 +53,11 @@ namespace Tsukuyomi
         float _alpha = 1f;
         Vector3 _pos; Quaternion _rot; bool _placed;
 
+        /// <summary>作った板すべて（VR モードに切りかえたときに置き直す・光の線であたりを調べる）。</summary>
+        public static readonly System.Collections.Generic.List<Board> All = new();
+        public static void Unregister(Board b) => All.Remove(b);
+        void OnDestroy() => All.Remove(this);
+
         /// <summary>板の大きさはピクセル（1920×1080 の画面のつもり）で決める。</summary>
         public static Board Create(string name, Vector2 size, int order = 0)
         {
@@ -64,6 +69,7 @@ namespace Tsukuyomi
             b.canvas.sortingOrder = order;
             go.AddComponent<CanvasScaler>();
             go.AddComponent<GraphicRaycaster>();
+            go.AddComponent<TrackedDeviceRaycaster>(); // VR のコントローラーの光の線で押せるように
             b.group = go.AddComponent<CanvasGroup>();
 
             var r = new GameObject("中身", typeof(RectTransform)).GetComponent<RectTransform>();
@@ -71,6 +77,7 @@ namespace Tsukuyomi
             r.sizeDelta = size;
             b.root = r;
             b.Apply();
+            All.Add(b);
             return b;
         }
 
@@ -163,7 +170,13 @@ namespace Tsukuyomi
         /// <summary>画面モードで、板のうしろを暗くする（文字を読みやすく）。VR では何もしない。</summary>
         public static void Dim(RectTransform parent, float w, float h, float a = 0.8f)
         {
-            if (Current != Mode.Screen) return;
+            if (Current != Mode.Screen)
+            {
+                // 空間に浮かぶ板：うしろの景色が透けて読みにくいので、板の大きさの暗い地を1枚敷く
+                var back = Panel(parent, new Rect(4, 4, w - 8, h - 8), new Color(0.01f, 0.02f, 0.06f, 0.6f));
+                back.transform.SetAsFirstSibling();
+                return;
+            }
             // 板の外まで広げるので、キャンバスいっぱいに張る（いちばん奥に）
             var canvasT = parent.parent;
             var go = new GameObject("うしろの暗がり", typeof(RectTransform));
@@ -393,7 +406,7 @@ namespace Tsukuyomi
         static Font Mono => _mono != null ? _mono : (_mono = Font.CreateDynamicFontFromOSFont(new[] { "Consolas", "Cascadia Mono", "Courier New" }, 24));
 
         /// <summary>ボタンを押すための EventSystem（Input System 用）を1つだけ作る。</summary>
-        static void EnsureEventSystem()
+        public static void EnsureEventSystem()
         {
             if (EventSystem.current != null) return;
             var go = new GameObject("EventSystem");
