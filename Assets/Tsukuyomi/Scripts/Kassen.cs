@@ -7,7 +7,7 @@ using UnityEngine.UI;
 namespace Tsukuyomi
 {
     /// <summary>
-    /// KASSEN（合戦）の入り口。大画面広場のそばに「KASSEN の門」を置き、E で入口の板を開く。
+    /// KASSEN（合戦）の入り口。竹林の小道に「KASSEN の門」を置き、E で入口の板を開く。
     /// 試合は別の場面（実行中に作るシーン）で遊び、そのあいだ島は止めて隠す（空と光とカメラだけ残す）。
     /// モード：SETSUNA（1対1、Setsuna.cs）／SENGOKU（3対3、準備中）。
     /// ごほうび：勝つとふじゅ〜（やさしい 100・ふつう 300・つよい 800）。「つよい」に初めて勝つと狐のきぐるみ。
@@ -25,8 +25,8 @@ namespace Tsukuyomi
 
         Board _menu;
         bool _menuOpen;
-        int _opp, _level = 1;
-        Text _oppName, _oppDesc, _levelText, _record;
+        int _opp, _level = 1, _stageSel; // _stageSel：0 おまかせ・1〜 舞台
+        Text _oppName, _oppDesc, _levelText, _record, _stageText;
         readonly Image[] _levelRing = new Image[3];
         Board _sign;
         Transform _gate;
@@ -40,28 +40,18 @@ namespace Tsukuyomi
             new GameObject("KASSEN").AddComponent<Kassen>();
         }
 
+        /// <summary>門の場所（竹林の小道）と向き。</summary>
+        static readonly Vector3 Spot = new Vector3(-15.5f, 21.2f, 172.6f);
+        const float SpotYaw = 43f;
+
         void Awake() => I = this;
 
         void Start()
         {
-            var plaza = Zone.Find("plaza");
-            var basePos = plaza != null ? plaza.warpPos : Vector3.zero;
-            float yaw = plaza != null ? plaza.warpYaw : 0;
-            // 広場のまわりで、門（幅7m・高さ6m）がほかの物に重ならない平らな場所をさがす
-            Vector3 p = basePos; Quaternion face = Quaternion.Euler(0, yaw + 180f, 0);
-            bool found = false;
-            for (float dist = 8f; dist <= 26f && !found; dist += 3f)
-                for (int k = 0; k < 12 && !found; k++)
-                {
-                    float a = yaw + k * 30f;
-                    var c = basePos + Quaternion.Euler(0, a, 0) * new Vector3(0, 0, dist);
-                    if (!Physics.Raycast(c + Vector3.up * 40, Vector3.down, out var h, 80, ~0, QueryTriggerInteraction.Ignore)) continue;
-                    if (Mathf.Abs(h.point.y - basePos.y) > 1.5f || h.normal.y < 0.95f || Island.InWater(h.point)) continue;
-                    var q = Quaternion.Euler(0, a + 180f, 0); // 広場の方を向く
-                    if (Physics.CheckBox(h.point + Vector3.up * 3.4f, new Vector3(3.8f, 2.8f, 2.2f), q, ~0, QueryTriggerInteraction.Ignore)) continue;
-                    p = h.point; face = q; found = true;
-                }
-            if (!found && Physics.Raycast(p + Vector3.up * 40, Vector3.down, out var hit, 80, ~0, QueryTriggerInteraction.Ignore)) p.y = hit.point.y;
+            // 竹林の小道（ユーザーが決めた場所）。小道に向かって立ち、門の輪をくぐって入る
+            Vector3 p = Spot;
+            var face = Quaternion.Euler(0, SpotYaw, 0);
+            if (Physics.Raycast(p + Vector3.up * 30, Vector3.down, out var hit, 60, ~0, QueryTriggerInteraction.Ignore)) p.y = hit.point.y;
             transform.SetPositionAndRotation(p, face);
             BuildGate();
 
@@ -71,7 +61,7 @@ namespace Tsukuyomi
             var z = zgo.AddComponent<Zone>();
             z.id = "kassen"; z.title = "KASSEN の門"; z.english = "KASSEN GATE";
             z.size = new Vector2(10, 10); z.mapColor = new Color(0.13f, 0.86f, 0.86f); z.order = 13;
-            z.warpPos = p + face * new Vector3(0, 0.1f, 5f); z.warpYaw = face.eulerAngles.y + 180f;
+            z.warpPos = p + face * new Vector3(0, 0.1f, -5f); z.warpYaw = SpotYaw;
         }
 
         Material Mat(Color c, bool glow = false)
@@ -207,6 +197,11 @@ namespace Tsukuyomi
 
             // 名札・記録・出陣
             Board.NameTag(r, new Rect(w - 120, 70, 54, 250), "合戦場", Board.Vermilion, true, 34);
+            // 舞台
+            Board.Label(r, new Rect(930, 340, 290, 28), "舞台", 20, Board.Gold, TextAnchor.MiddleCenter);
+            _stageText = Board.Label(r, new Rect(980, 372, 190, 50), "", 24, Color.white, TextAnchor.MiddleCenter);
+            Board.ButtonNode(r, new Rect(926, 372, 50, 50), "◀", 22, () => { _stageSel = (_stageSel + Setsuna.StageNames.Length) % (Setsuna.StageNames.Length + 1); });
+            Board.ButtonNode(r, new Rect(1174, 372, 50, 50), "▶", 22, () => { _stageSel = (_stageSel + 1) % (Setsuna.StageNames.Length + 1); });
             _record = Board.Label(r, new Rect(70, 586, 400, 80), "", 18, new Color(1, 1, 1, 0.8f), TextAnchor.UpperLeft);
             Board.ButtonNode(r, new Rect(w - 300, h - 150, 220, 64), "出陣", 32, StartSetsuna);
             Board.ButtonNode(r, new Rect(w - 300, h - 76, 220, 44), "閉じる（Esc）", 20, CloseMenu);
@@ -226,6 +221,7 @@ namespace Tsukuyomi
         {
             var st = SetsunaStyles.Cpu[_opp];
             _oppName.text = st.name;
+            _stageText.text = _stageSel == 0 ? "おまかせ" : Setsuna.StageNames[_stageSel - 1];
             _oppDesc.text = st.desc;
             _levelText.text = $"勝てば {Rewards[_level]:N0} ふじゅ〜" + (_level == 2 && !HardCleared ? "　＋　初めて勝つと「狐のきぐるみ」" : "");
             for (int i = 0; i < 3; i++)
@@ -240,7 +236,7 @@ namespace Tsukuyomi
         void StartSetsuna()
         {
             CloseMenu();
-            BeginMatch(_opp, _level);
+            BeginMatch(_opp, _level, _stageSel - 1);
         }
 
         // ───────── 試合の場面へ（島は止めて隠す）─────────
@@ -251,12 +247,12 @@ namespace Tsukuyomi
         float _fov;
         OrbitCamera _orbit;
 
-        public static void BeginMatch(int opp, int level)
+        public static void BeginMatch(int opp, int level, int stage = -1)
         {
             if (I == null || InMatch) return;
             I.HideIsland();
             InMatch = true;
-            Setsuna.Begin(I._scene, opp, level);
+            Setsuna.Begin(I._scene, opp, level, stage);
         }
 
         void HideIsland()

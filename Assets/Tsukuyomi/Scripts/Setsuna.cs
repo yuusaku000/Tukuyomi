@@ -31,14 +31,17 @@ namespace Tsukuyomi
         Camera _cam;
         Transform _arena;
         AudioSource _audio;
+        bool _clearSet;
+        (CameraClearFlags, Color, bool) _clearKeep;
 
         // ───────── はじめる・おわる ─────────
 
-        public static void Begin(Scene scene, int opp, int level)
+        public static void Begin(Scene scene, int opp, int level, int stage = 0)
         {
             var go = new GameObject("SETSUNA");
             if (scene.IsValid()) SceneManager.MoveGameObjectToScene(go, scene);
             var s = go.AddComponent<Setsuna>();
+            s._stage = stage < 0 ? Random.Range(0, StageNames.Length) : Mathf.Clamp(stage, 0, StageNames.Length - 1);
             s.Init(opp, level);
         }
 
@@ -54,6 +57,13 @@ namespace Tsukuyomi
             P = new F { style = SetsunaStyles.Player, isPlayer = true };
             C = new F { style = SetsunaStyles.Cpu[_opp] };
             BuildArena();
+            if (_stage == 2 && _cam != null)
+            {
+                // 月面：空を宇宙の黒に
+                _clearKeep = (_cam.clearFlags, _cam.backgroundColor, RenderSettings.fog);
+                _cam.clearFlags = CameraClearFlags.SolidColor; _cam.backgroundColor = new Color(0.005f, 0.006f, 0.015f); RenderSettings.fog = false;
+                _clearSet = true;
+            }
             BuildCpuDoll();
             BuildArms();
             BuildHud();
@@ -67,6 +77,7 @@ namespace Tsukuyomi
             if (I == this) I = null;
             foreach (var b in new[] { _hud, _pauseB, _resultB }) if (b != null) Destroy(b.gameObject);
             if (_armsRoot != null) Destroy(_armsRoot.gameObject);
+            if (_clearSet && _cam != null) { _cam.clearFlags = _clearKeep.Item1; _cam.backgroundColor = _clearKeep.Item2; RenderSettings.fog = _clearKeep.Item3; }
             Time.timeScale = 1f;
         }
 
@@ -277,10 +288,10 @@ namespace Tsukuyomi
         }
 
         /// <summary>落ちる。着地したら true。</summary>
-        static bool Fall(F f, float dt)
+        bool Fall(F f, float dt)
         {
             if (f.y <= 0 && f.vy <= 0) { f.y = 0; f.vy = 0; return false; }
-            f.vy -= 22f * dt;
+            f.vy -= _grav * dt;
             f.y += f.vy * dt;
             if (f.y > 0) return false;
             f.y = 0; f.vy = 0; f.airVel = Vector3.zero;
@@ -291,7 +302,7 @@ namespace Tsukuyomi
 
         void Jump(F f)
         {
-            f.st = F.St.Air; f.t = 0; f.vy = 7.2f; f.y = 0.01f; f.airAttackUsed = false; f.crouch = false;
+            f.st = F.St.Air; f.t = 0; f.vy = 7.2f * Mathf.Sqrt(_grav / 22f) * (_grav < 20 ? 1.25f : 1f); f.y = 0.01f; f.airAttackUsed = false; f.crouch = false;
             f.airVel = (f.face * f.inMove.y + Right(f) * f.inMove.x) * 2.8f * f.style.speed;
         }
 

@@ -132,7 +132,7 @@ namespace Tsukuyomi
                 if (p.Length > 3 && p[3].StartsWith("exchange")) Hud.OpenExchange(p[3].StartsWith("exchange:") ? int.Parse(p[3].Substring(9)) : 0);   // exchange[:金額] で両替の板（金額があれば本当に両替）
                 // KASSEN：kassen で入口の板、setsuna:相手:強さ[:fight|combo|just|ko|result] で試合のその場面
                 if (p.Length > 3 && p[3] == "kassen") Kassen.OpenMenu();
-                if (p.Length > 3 && p[3].StartsWith("setsuna:")) { var a = p[3].Split(':'); Kassen.BeginMatch(int.Parse(a[1]), int.Parse(a[2])); if (a.Length > 3) Setsuna.TestPose(a[3]); }
+                if (p.Length > 3 && p[3].StartsWith("setsuna:")) { var a = p[3].Split(':'); Kassen.BeginMatch(int.Parse(a[1]), int.Parse(a[2]), a.Length > 4 ? int.Parse(a[4]) : 0); if (a.Length > 3) Setsuna.TestPose(a[3]); }
                 if (p.Length > 3 && p[3].StartsWith("buy:")) Hud.TestBuy(p[3].Substring(4));
                 // 段階3：fish:ready|charge|wait|bite|fight|catch[:魚] で釣り、book / rank で図鑑と番付、sit[:秒] で近くの席に座る
                 bool again = false;

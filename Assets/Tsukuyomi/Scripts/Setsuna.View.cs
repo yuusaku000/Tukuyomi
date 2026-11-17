@@ -45,18 +45,37 @@ namespace Tsukuyomi
         {
             _arena = new GameObject("闘技場").transform;
             _arena.SetParent(transform, false);
-            var wood = new Color(0.3f, 0.19f, 0.13f); var red = new Color(0.78f, 0.16f, 0.12f); var black = new Color(0.08f, 0.07f, 0.07f);
-            var teal = new Color(0.2f, 1f, 1f); var gold = new Color(1f, 0.78f, 0.4f);
-            Prim(PrimitiveType.Cylinder, _arena, new Vector3(0, -0.3f, 0), new Vector3(21f, 0.3f, 21f), wood);
-            Prim(PrimitiveType.Cylinder, _arena, new Vector3(0, -0.29f, 0), new Vector3(17.4f, 0.3f, 17.4f), new Color(0.42f, 0.3f, 0.22f));
-            Prim(PrimitiveType.Cylinder, _arena, new Vector3(0, -0.75f, 0), new Vector3(400f, 0.1f, 400f), new Color(0.03f, 0.07f, 0.13f));
-            // 床の輪（ここから外へは出られない）
+            switch (_stage)
+            {
+                case 1: StageTorii(); break;
+                case 2: StageMoon(); break;
+                case 3: StageSakura(); break;
+                case 4: StageBamboo(); break;
+                default: StageWater(); break;
+            }
+            // 床の輪（ここから外へは出られない）と、まん中の印
+            var teal = new Color(0.2f, 1f, 1f);
             for (int i = 0; i < 72; i++)
             {
                 float a = i / 72f * Mathf.PI * 2;
                 Prim(PrimitiveType.Cube, _arena, new Vector3(Mathf.Cos(a) * (ArenaR + 0.35f), 0.01f, Mathf.Sin(a) * (ArenaR + 0.35f)), new Vector3(0.75f, 0.02f, 0.06f), teal, true, new Vector3(0, -a * Mathf.Rad2Deg + 90, 0));
             }
             Prim(PrimitiveType.Cylinder, _arena, new Vector3(0, 0.005f, 0), new Vector3(2.2f, 0.01f, 2.2f), new Color(0.55f, 0.15f, 0.12f));
+            foreach (float sx in new[] { -1f, 1f })
+            {
+                var l = new GameObject("灯り").AddComponent<Light>();
+                l.transform.SetParent(_arena, false);
+                l.transform.localPosition = new Vector3(sx * 6f, 6.5f, sx * 2f);
+                l.type = LightType.Point; l.range = 24f; l.intensity = 2.2f; l.color = sx < 0 ? new Color(1f, 0.8f, 0.6f) : new Color(0.6f, 0.95f, 1f);
+            }
+        }
+        void StageWater()
+        {
+            var wood = new Color(0.3f, 0.19f, 0.13f); var red = new Color(0.78f, 0.16f, 0.12f); var black = new Color(0.08f, 0.07f, 0.07f);
+            var teal = new Color(0.2f, 1f, 1f); var gold = new Color(1f, 0.78f, 0.4f);
+            Prim(PrimitiveType.Cylinder, _arena, new Vector3(0, -0.3f, 0), new Vector3(21f, 0.3f, 21f), wood);
+            Prim(PrimitiveType.Cylinder, _arena, new Vector3(0, -0.29f, 0), new Vector3(17.4f, 0.3f, 17.4f), new Color(0.42f, 0.3f, 0.22f));
+            Prim(PrimitiveType.Cylinder, _arena, new Vector3(0, -0.75f, 0), new Vector3(400f, 0.1f, 400f), new Color(0.03f, 0.07f, 0.13f));
             // 四方の鳥居
             for (int k = 0; k < 4; k++)
             {
@@ -93,13 +112,6 @@ namespace Tsukuyomi
             {
                 float a = (float)rng.NextDouble() * Mathf.PI * 2, r = 16f + (float)rng.NextDouble() * 22f;
                 Ball(_arena, new Vector3(Mathf.Cos(a) * r, 3f + (float)rng.NextDouble() * 12f, Mathf.Sin(a) * r), 0.35f + (float)rng.NextDouble() * 0.3f, i % 3 == 0 ? teal : gold);
-            }
-            foreach (float sx in new[] { -1f, 1f })
-            {
-                var l = new GameObject("灯り").AddComponent<Light>();
-                l.transform.SetParent(_arena, false);
-                l.transform.localPosition = new Vector3(sx * 6f, 6.5f, sx * 2f);
-                l.type = LightType.Point; l.range = 24f; l.intensity = 2.2f; l.color = sx < 0 ? new Color(1f, 0.8f, 0.6f) : new Color(0.6f, 0.95f, 1f);
             }
         }
 
@@ -288,7 +300,7 @@ namespace Tsukuyomi
             var f = P; var o = C;
             float eye = f.crouch && f.st == F.St.Idle || (f.move != null && f.move.h == Height.Low) ? 0.95f : 1.52f;
             if (f.st == F.St.Down || f.st == F.St.KO) eye = 0.45f;
-            var pos = f.pos + Vector3.up * (eye + f.y) - f.face * 0.05f;
+            var pos = f.pos + Vector3.up * (eye + f.y) - f.face * 0.4f; // 目は少し後ろ（近づいても相手にめり込まない）
             var look = o.pos + Vector3.up * ((o.crouch ? 0.85f : 1.2f) + o.y);
             if (o.st == F.St.Down || o.st == F.St.KO) look = o.pos + Vector3.up * 0.4f;
             var rot = Quaternion.LookRotation(look - pos);
@@ -337,6 +349,7 @@ namespace Tsukuyomi
 
         void Fx(float udt)
         {
+            StageFx(udt);
             for (int i = _sparks.Count - 1; i >= 0; i--)
             {
                 var s = _sparks[i];

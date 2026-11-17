@@ -123,10 +123,10 @@ namespace Tsukuyomi
         {
             var off = C.pos - P.pos; off.y = 0;
             float dist = off.magnitude;
-            if (dist < 0.78f && Mathf.Abs(P.y - C.y) < 1.4f)
+            if (dist < 0.95f && Mathf.Abs(P.y - C.y) < 1.4f)
             {
                 var n = dist > 0.001f ? off / dist : Vector3.forward;
-                float push = (0.78f - dist) * 0.5f;
+                float push = (0.95f - dist) * 0.5f;
                 P.pos -= n * push; C.pos += n * push;
             }
         }
