@@ -78,6 +78,8 @@ namespace Tsukuyomi
 
             Castle2(1); Castle2(2);
             Town(-1); Town(1);
+            BigFeatures(-1); BigFeatures(1);
+            ValleySpires();
             Mountain();
             Lake();
             BaseMarks(1); BaseMarks(2);
@@ -178,6 +180,7 @@ namespace Tsukuyomi
                 float cx = (x0 + x1) * 0.5f, wx = Mathf.Abs(x0 - x1);
                 if (bi == 2) { FireTower(new Vector3(cx, 0, (za + zb) * 0.5f)); continue; }
                 if (bi == 8) { Kura(new Vector3(cx, 0, (za + zb) * 0.5f)); continue; }
+                if (bi == 5 || bi == 7 || bi == 10) continue; // 神木の社・五重塔・物見櫓の場所
                 // 区画を2〜3軒に分ける（間に1.2mのすき間＝跳べる）
                 int n = (zb - za) > 9 ? 2 : 1;
                 float seg = (zb - za) / n;
@@ -311,6 +314,108 @@ namespace Tsukuyomi
         const float CaptureR0 = 6.5f;
         /// <summary>櫓の占拠の円の半径（試合場の m）。</summary>
         public const float CaptureR = 10f;
+
+        // ───────── 移動わざが活きる、大きな物（神木・五重塔・物見櫓・杉林・大岩・土塁・谷の岩の柱）─────────
+        //  ここの数は「元の数」。横は KX＝2.7倍、高さは KY＝1.35倍になるので、細い物は横を小さめに書く。
+
+        /// <summary>神木（太い幹と大きな葉のかたまり。しめ縄つき）。</summary>
+        void SacredTree(Vector3 at, float h)
+        {
+            Block(PrimitiveType.Cylinder, _map, at + Vector3.up * h * 0.5f, new Vector3(0.9f, h * 0.5f, 0.9f), new Color(0.32f, 0.22f, 0.15f));
+            Block(PrimitiveType.Cylinder, _map, at + Vector3.up * 2.2f, new Vector3(1.05f, 0.08f, 1.05f), new Color(0.95f, 0.92f, 0.8f), false);
+            var greens = new[] { new Color(0.22f, 0.42f, 0.22f), new Color(0.28f, 0.5f, 0.26f), new Color(0.2f, 0.38f, 0.2f) };
+            for (int k = 0; k < 7; k++)
+            {
+                float a = k / 7f * Mathf.PI * 2;
+                var off = new Vector3(Mathf.Cos(a) * 2.4f, (k % 3) * 1.2f, Mathf.Sin(a) * 2.4f);
+                Block(PrimitiveType.Sphere, _map, at + Vector3.up * (h - 1f) + off, new Vector3(3.6f, 5f, 3.6f), greens[k % 3]);
+            }
+            Block(PrimitiveType.Sphere, _map, at + Vector3.up * (h + 1.5f), new Vector3(4.2f, 6f, 4.2f), greens[1]);
+        }
+
+        /// <summary>杉（細い幹と、円すいの葉を3段）。</summary>
+        void Cedar(Vector3 at, float h)
+        {
+            Block(PrimitiveType.Cylinder, _map, at + Vector3.up * h * 0.5f, new Vector3(0.3f, h * 0.5f, 0.3f), new Color(0.35f, 0.24f, 0.16f));
+            for (int k = 0; k < 3; k++)
+            {
+                var c = new GameObject("杉の葉"); c.transform.SetParent(_map, false);
+                c.transform.localPosition = at + Vector3.up * (h * 0.45f + k * h * 0.17f);
+                float w = 1.6f - k * 0.4f;
+                c.transform.localScale = new Vector3(w, h * 0.32f, w);
+                c.AddComponent<MeshFilter>().sharedMesh = Doll.Cone;
+                c.AddComponent<MeshRenderer>().sharedMaterial = Mat(new Color(0.16f, 0.32f, 0.2f));
+                c.AddComponent<MeshCollider>().sharedMesh = Doll.Cone;
+            }
+        }
+
+        /// <summary>五重塔（町の中の高い建物。屋根ごとに足場になる）。</summary>
+        void TownPagoda(Vector3 at)
+        {
+            float y = 0;
+            for (int i = 0; i < 5; i++)
+            {
+                float w = 3.4f - i * 0.4f;
+                Box(at + Vector3.up * (y + 1.8f), new Vector3(w, 3.6f, w), i % 2 == 0 ? Red : Timber);
+                Box(at + Vector3.up * (y + 3.8f), new Vector3(w + 1.6f, 0.4f, w + 1.6f), Tile);
+                y += 4.2f;
+            }
+            Block(PrimitiveType.Cylinder, _map, at + Vector3.up * (y + 2.5f), new Vector3(0.15f, 2.5f, 0.15f), GoldC);
+        }
+
+        /// <summary>物見櫓（高い足場。坂で上がれる）。</summary>
+        void Watchtower(Vector3 at, float s)
+        {
+            foreach (float dx in new[] { -1.2f, 1.2f }) foreach (float dz in new[] { -1.2f, 1.2f })
+                Box(at + new Vector3(dx, 6, dz), new Vector3(0.25f, 12, 0.25f), Timber);
+            Box(at + Vector3.up * 12.2f, new Vector3(3.6f, 0.4f, 3.6f), Timber);
+            Box(at + Vector3.up * 15f, new Vector3(4.2f, 0.4f, 4.2f), Tile);
+            foreach (float dx in new[] { -1.6f, 1.6f }) Box(at + new Vector3(dx, 13.1f, 0), new Vector3(0.15f, 1.4f, 3.6f), Red);
+        }
+
+        void BigFeatures(float s)
+        {
+            // 城下町：神木の社（区画5）・五重塔（区画7）・物見櫓（区画10）
+            SacredTree(new Vector3(s * 28, 0, 26), 18f);
+            Box(new Vector3(s * 28, 0.15f, 26), new Vector3(9.5f, 0.3f, 9.5f), Stone);
+            foreach (float dx in new[] { -1.3f, 1.3f }) Block(PrimitiveType.Cylinder, _map, new Vector3(s * 28 + dx, 2.4f, 21.4f), new Vector3(0.25f, 2.4f, 0.25f), Red);
+            Box(new Vector3(s * 28, 4.9f, 21.4f), new Vector3(3.6f, 0.3f, 0.4f), Red);
+            TownPagoda(new Vector3(s * 41.5f, 0, -10f));
+            Watchtower(new Vector3(s * 41.5f, 0, -26f), s);
+            // 城の外の野原：杉林・大岩・土塁（北と南）
+            var rng = new System.Random(77);
+            foreach (float sz in new[] { 1f, -1f })
+            {
+                for (int k = 0; k < 14; k++)
+                {
+                    float x = 52 + (float)rng.NextDouble() * 28f, z = sz * (27 + (float)rng.NextDouble() * 28f);
+                    Cedar(new Vector3(s * x, 0, z), 12f + (float)rng.NextDouble() * 6f);
+                }
+                for (int k = 0; k < 4; k++)
+                {
+                    float x = 54 + k * 7f, z = sz * (30 + (k % 2) * 14f);
+                    Block(PrimitiveType.Sphere, _map, new Vector3(s * x, 0.6f, z), new Vector3(3f, 3.2f, 2.6f), new Color(0.48f, 0.46f, 0.44f));
+                }
+                // 土塁（盛り土の壁。かくれる場所）
+                Box(new Vector3(s * 60, 1.1f, sz * 40), new Vector3(10f, 2.2f, 1.4f), new Color(0.42f, 0.36f, 0.28f));
+                Box(new Vector3(s * 72, 1.1f, sz * 34), new Vector3(1.4f, 2.2f, 8f), new Color(0.42f, 0.36f, 0.28f));
+            }
+            // 山の上の大きな杉
+            Cedar(new Vector3(s * 8, 12, 56), 16f);
+            // 湖の大岩（水面から出ている）
+            Block(PrimitiveType.Sphere, _map, new Vector3(s * 14, -1f, -52f), new Vector3(2.6f, 3.6f, 2.4f), new Color(0.45f, 0.44f, 0.42f));
+        }
+
+        /// <summary>谷底からそびえる岩の柱（地面より上まで出ている。谷を渡るときの引っかけ場所）。</summary>
+        void ValleySpires()
+        {
+            foreach (var (x, z) in new[] { (-3f, 8f), (3f, -8f), (-2.5f, -24f), (2.5f, 24f) })
+            {
+                Block(PrimitiveType.Cylinder, _map, new Vector3(x, -2f, z), new Vector3(1.8f, 8f, 1.8f), Cliff);
+                Block(PrimitiveType.Cylinder, _map, new Vector3(x, 6.05f, z), new Vector3(2f, 0.1f, 2f), Grass);
+            }
+        }
+
 
         /// <summary>本陣のしるし：城門の内側の地面に光る帯と、回復の灯り。</summary>
         void BaseMarks(int team)

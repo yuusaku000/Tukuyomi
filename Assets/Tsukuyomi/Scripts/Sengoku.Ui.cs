@@ -16,7 +16,7 @@ namespace Tsukuyomi
         {
             "速い連撃と光弾。ワイヤーで建物から建物へ飛び回る。",
             "一撃が重い。ミサイルで吹き飛ばし、ジェットで空を飛ぶ。",
-            "守りが固い。投げればもどる。開けば浮いて水の上も渡れる。",
+            "守りが固い。投げればもどる。乗物に乗れば浮いて水の上も渡れる。",
             "遠くから射ぬく。自分が矢になって一気に飛びこむ。",
             "大砲で建物（櫓・大将落とし）に強い。反動で跳ぶ。",
             "鎌と鎖。相手を引き寄せ、鎖で高いところへ登る。",
@@ -108,12 +108,24 @@ namespace Tsukuyomi
                 if (_viewModels[i] == null) continue;
                 var m = Instantiate(_viewModels[i], _pvRoot);
                 m.name = "見本：" + Weapons[i].name;
-                m.SetActive(false);
-                m.transform.localPosition = Vector3.zero; m.transform.localRotation = Quaternion.identity; m.transform.localScale = Vector3.one * 1.9f;
-                // 持ち手の位置のずれを打ち消して、まん中に寄せる
-                var bounds = new Bounds(m.transform.position, Vector3.zero);
-                foreach (var rr in m.GetComponentsInChildren<Renderer>(true)) bounds.Encapsulate(rr.bounds);
+                m.SetActive(true);
+                // 見本には、ふだん隠れている部品（開いた傘・ジェットの炎）を入れない
+                foreach (var t in m.GetComponentsInChildren<Transform>(true))
+                    if (t != null && (t.name == "開いた傘" || !t.gameObject.activeSelf)) DestroyImmediate(t.gameObject);
+                m.transform.localPosition = Vector3.zero; m.transform.localRotation = Quaternion.identity; m.transform.localScale = Vector3.one;
+                // 見えている部品の大きさをそろえて（いちばん長いところが 2.2m）、まん中に寄せる
+                Bounds Measure()
+                {
+                    bool first = true; var bb = new Bounds(m.transform.position, Vector3.zero);
+                    foreach (var rr in m.GetComponentsInChildren<Renderer>()) { if (first) { bb = rr.bounds; first = false; } else bb.Encapsulate(rr.bounds); }
+                    return bb;
+                }
+                var b0 = Measure();
+                float longest = Mathf.Max(b0.size.x, Mathf.Max(b0.size.y, b0.size.z));
+                if (longest > 0.01f) m.transform.localScale = Vector3.one * (2.2f / longest);
+                var bounds = Measure();
                 m.transform.position -= bounds.center - _pvRoot.position;
+                m.SetActive(false);
                 _pvModels[i] = m;
             }
             var camGo = new GameObject("見本のカメラ");

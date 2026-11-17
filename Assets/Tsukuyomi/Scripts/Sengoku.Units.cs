@@ -81,16 +81,23 @@ namespace Tsukuyomi
             Link(vc, vw0); Link(vc, ve0); Link(vw0, vwTop); Link(ve0, veTop); Link(vwTop, wvw1); Link(veTop, evw1);
         }
 
+        /// <summary>いちばん近い道すじの点。見通しのきく点（あいだに壁や崖がない点）を選ぶ。</summary>
         int Nearest(Vector3 p)
         {
-            int best = 0; float bd = float.MaxValue;
+            var order = new List<(float d, int i)>();
             for (int i = 0; i < _nodes.Count; i++)
             {
                 var d = _nodes[i] - p;
-                float dist = new Vector2(d.x, d.z).sqrMagnitude + d.y * d.y * 16f;
-                if (dist < bd) { bd = dist; best = i; }
+                order.Add((new Vector2(d.x, d.z).sqrMagnitude + d.y * d.y * 16f, i));
             }
-            return best;
+            order.Sort((a, b) => a.d.CompareTo(b.d));
+            for (int k = 0; k < Mathf.Min(8, order.Count); k++)
+            {
+                var n = _nodes[order[k].i];
+                var a = p + Vector3.up * 1f; var b = n + Vector3.up * 1f;
+                if (Mathf.Abs(n.y - p.y) < 3f && !Physics.Raycast(a, (b - a).normalized, Vector3.Distance(a, b), ~0, QueryTriggerInteraction.Ignore)) return order[k].i;
+            }
+            return order[0].i;
         }
 
         List<Vector3> FindPath(Vector3 from, Vector3 to)
@@ -557,7 +564,15 @@ namespace Tsukuyomi
                 {
                     u.stuck++;
                     if (u.cc.isGrounded) u.vel.y = 7.5f;
-                    if (u.stuck >= 2) { u.avoidSide = -u.avoidSide; u.repathT = 0; u.thinkT = 0; u.hasCover = false; u.vel += Random.insideUnitSphere * 3f; }
+                    if (u.stuck >= 2) { u.avoidSide = -u.avoidSide; u.repathT = 0; u.thinkT = 0; u.hasCover = false; u.vel += Random.insideUnitSphere * 3f; u.path.Clear(); }
+                    if (u.stuck >= 4) u.skillCd = 0; // 移動わざで抜け出せるなら使う
+                    // 最後の手段：10秒以上動けず、自分から見えていなければ、近くの道すじの点へもどす
+                    if (u.stuck >= 10 && (_cam == null || Vector3.Dot(_cam.transform.forward, (p - _cam.transform.position).normalized) < 0.3f || Vector3.Distance(p, _cam.transform.position) > 40f))
+                    {
+                        var n = _nodes[Nearest(p)];
+                        u.cc.enabled = false; u.go.transform.position = n + Vector3.up * 0.3f; u.cc.enabled = true;
+                        u.vel = Vector3.zero; u.stuck = 0; u.path.Clear(); u.repathT = 0;
+                    }
                 }
                 else u.stuck = 0;
                 u.lastPos = p; u.stuckT = 0;

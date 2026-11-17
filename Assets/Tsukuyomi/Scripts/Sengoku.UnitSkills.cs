@@ -7,7 +7,7 @@ namespace Tsukuyomi
     /// 武者（CPU）の移動わざ。武器ごとに、決めた場面で使う（強いほどよく使い、待ち時間も短い）。
     ///  二刀流・鎖鎌：引っかけて一気に引き寄せられる（高いところへ・谷を渡る・逃げる）
     ///  ハンマー：ジェットで斜め上へ（谷を飛びこえる・山の上へ・高いところの敵へ飛びこむ）
-    ///  傘：開いて浮いてすべる（湖を渡って浮き島へ）
+    ///  傘：吹き抜けの乗物（駕籠）に乗って浮いてすべる（湖を渡って浮き島へ）
     ///  弓：自分が矢になって一直線に飛ぶ（敵へ突っこむ・囲まれて逃げる）
     ///  大筒：撃った反動で後ろへ大きく跳ぶ（近づかれたら）
     /// 使ったあとは、近くの道すじから進みなおす。
@@ -96,7 +96,7 @@ namespace Tsukuyomi
             u.target.frontGuard = 0;
             SkillRope(u, false, Vector3.zero, Color.white); SkillFlame(u, false); SkillCanopy(u, false);
             // 着いた場所の近くの道すじから、進みなおす
-            u.path.Clear(); u.pathI = 0; u.repathT = 0; u.thinkT = 0; u.stuck = 0;
+            u.repathT = 0; u.thinkT = 0; u.stuck = 0; u.path.Clear(); u.pathI = 0;
         }
 
         void StartSkill(Unit u, int kind, Vector3 target, Vector3 dir)
@@ -168,6 +168,14 @@ namespace Tsukuyomi
                     var tgt = next + Vector3.up * 0.8f;
                     if (!Physics.Linecast(eye, tgt, out var h, ~0, QueryTriggerInteraction.Ignore) || Vector3.Distance(h.point, tgt) < 2.5f)
                     { StartSkill(u, SkHook, tgt, (tgt - eye).normalized); return; }
+                    // 崖のふちに隠れているときは、ふちの上をねらう
+                    var edgeDir = new Vector3(tgt.x - eye.x, 0, tgt.z - eye.z).normalized;
+                    if (Physics.Raycast(h.point - edgeDir * 0.3f + edgeDir * 1.5f + Vector3.up * 12f, Vector3.down, out var top, 14f, ~0, QueryTriggerInteraction.Ignore) && top.normal.y > 0.6f && top.point.y > p.y + 2f)
+                    {
+                        var lip = top.point + Vector3.up * 0.8f;
+                        if (!Physics.Linecast(eye, lip, out var h3, ~0, QueryTriggerInteraction.Ignore) || Vector3.Distance(h3.point, lip) < 2.5f)
+                        { StartSkill(u, SkHook, lip, (lip - eye).normalized); return; }
+                    }
                 }
                 if (u.weapon == 1) { StartSkill(u, SkJet, next, (next - p).normalized); return; }
             }
@@ -177,19 +185,20 @@ namespace Tsukuyomi
             float straight = new Vector2(goal.x - p.x, goal.z - p.z).magnitude;
             if (pathLen < straight * 1.45f || straight < 20f) return;
             var gdir = new Vector3(goal.x - p.x, 0, goal.z - p.z).normalized;
-            float hop = Mathf.Min(straight, u.weapon == 1 ? 48f : 40f);
-            var land = p + gdir * hop;
-            if (!Physics.Raycast(land + Vector3.up * 30f, Vector3.down, out var lg, 60f, ~0, QueryTriggerInteraction.Ignore)) return;
-            land = lg.point;
-            bool water = InLake(land + Vector3.up * 0.1f) || lg.point.y < -3f;
-            if (u.weapon == 2 && (InLake(p + gdir * 8f + Vector3.down * 0.5f) || water)) { StartSkill(u, SkHover, goal, gdir); return; } // 傘：湖を浮いて渡る
-            if (water || Mathf.Abs(land.y - p.y) > 6f) return;
-            if (u.weapon == 1) { StartSkill(u, SkJet, land, gdir); return; }
-            if (u.weapon == 0 || u.weapon == 5)
+            if (u.weapon == 2 && InLake(p + gdir * 8f + Vector3.down * 0.5f)) { StartSkill(u, SkHover, goal, gdir); return; } // 傘：湖を浮いて渡る
+            // 道すじのうち、届く距離でいちばん先の点へ（見通しがきき、高さが近い点）
+            float hop = u.weapon == 1 ? 48f : 40f;
+            for (int i = u.path.Count - 1; i > u.pathI; i--)
             {
-                var tgt = land + Vector3.up * 0.8f;
-                if (!Physics.Linecast(eye, tgt, out var h2, ~0, QueryTriggerInteraction.Ignore) || Vector3.Distance(h2.point, tgt) < 2.5f)
-                    StartSkill(u, SkHook, tgt, (tgt - eye).normalized);
+                var n = u.path[i];
+                if (Vector3.Distance(p, n) > hop || Mathf.Abs(n.y - p.y) > 6f || InLake(n + Vector3.down * 0.3f)) continue;
+                var tgt = n + Vector3.up * 0.8f;
+                if (Physics.Linecast(eye, tgt, out var h2, ~0, QueryTriggerInteraction.Ignore) && Vector3.Distance(h2.point, tgt) > 2.5f && u.weapon != 1) continue;
+                if (u.weapon == 1) StartSkill(u, SkJet, n, gdir);
+                else if (u.weapon == 0 || u.weapon == 5) StartSkill(u, SkHook, tgt, (tgt - eye).normalized);
+                else return;
+                u.pathI = i;
+                return;
             }
         }
 
@@ -221,8 +230,8 @@ namespace Tsukuyomi
             if (u.canopy == null)
             {
                 if (!on) return;
-                u.canopy = new GameObject("開いた傘").transform; u.canopy.SetParent(u.go.transform, false); u.canopy.localPosition = new Vector3(0, 1.9f, 0.2f);
-                BuildUmbrella(u.canopy, true, 1.6f);
+                u.canopy = new GameObject("乗物").transform; u.canopy.SetParent(u.go.transform, false); u.canopy.localPosition = new Vector3(0, 0.05f, 0);
+                BuildNorimono(u.canopy);
             }
             u.canopy.gameObject.SetActive(on);
         }

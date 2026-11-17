@@ -8,7 +8,7 @@ namespace Tsukuyomi
     /// SENGOKU の試合の決まり。西軍（1：自分と味方2人）対 東軍（2：敵3人）。3ラウンドのうち2本先取。1ラウンド5分、1人2機。
     ///  櫓（北の山・南の湖）：まわりの円に自分の組だけがいると、6秒で占拠（人数が多いほど速い・敵がいると止まる）。
     ///  櫓を1つでも持つと、相手の城の二の丸に「大将落とし」が出る。5段を全部叩き落とすと天守閣が落ちて勝ち。
-    ///  両方の櫓を30秒持ちつづけてもコールド勝ち。相手の残機を全部なくしても勝ち。時間切れは櫓の数→残りの人数でくらべる。
+    ///  両方の櫓を60秒持ちつづけてもコールド勝ち。相手の残機を全部なくしても勝ち。時間切れは櫓の数→残りの人数でくらべる。
     /// </summary>
     public partial class Sengoku
     {
@@ -31,6 +31,9 @@ namespace Tsukuyomi
         readonly List<string> _feed = new List<string>();
 
         const float HeadY = 0.45f + Layers * 0.9f + 0.65f;
+
+        /// <summary>両方の櫓を持ちつづけて勝つまでの秒。</summary>
+        const float ColdSec = 60f;
 
         int Owned(int team) { int n = 0; foreach (var t in _towers) if (t.owner == team) n++; return n; }
 
@@ -250,7 +253,7 @@ namespace Tsukuyomi
         {
             // コールド勝ち（両方の櫓を30秒）
             int both = Owned(1) == 2 ? 1 : Owned(2) == 2 ? 2 : 0;
-            if (both != 0) { _coldT += dt; if (_coldT >= 30f) { EndRound(both, "両方の櫓を守りきった（コールド勝ち）"); return; } }
+            if (both != 0) { _coldT += dt; if (_coldT >= ColdSec) { EndRound(both, "両方の櫓を守りきった（コールド勝ち）"); return; } }
             else _coldT = 0;
             // 全滅
             bool wAlive = _myLives > 0 || !_dead, eAlive = false;
@@ -394,7 +397,7 @@ namespace Tsukuyomi
                 _mTowerFill[i].color = t.prog >= 0 ? Board.Teal : Board.Vermilion;
             }
             int both = Owned(1) == 2 ? 1 : Owned(2) == 2 ? 2 : 0;
-            _mCold.text = both != 0 ? $"{(both == 1 ? "西軍" : "東軍")}のコールド勝ちまで {Mathf.Max(0, 30 - _coldT):0} 秒" : "";
+            _mCold.text = both != 0 ? $"{(both == 1 ? "西軍" : "東軍")}のコールド勝ちまで {Mathf.Max(0, ColdSec - _coldT):0} 秒" : "";
             var dE = _daruma[2]; var dW = _daruma[1];
             _mDar.text = (dE.active ? $"東の大将落とし　あと {dE.left} 段　" : "") + (dW.active ? $"　西の大将落とし　あと {dW.left} 段（守れ！）" : "");
             _mDar.color = dW.active ? new Color(1f, 0.6f, 0.5f) : Board.Teal;
@@ -473,7 +476,7 @@ namespace Tsukuyomi
         {
             var s = I;
             if (s == null || !s._match) return;
-            if (pose != "select") { s._pick = s._w; s.ConfirmPick(); }
+            if (pose.StartsWith("select")) { if (pose.Length > 6) s._pick = pose[6] - '0'; } else { s._pick = s._w; s.ConfirmPick(); }
             switch (pose)
             {
                 case "fight":

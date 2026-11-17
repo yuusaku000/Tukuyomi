@@ -20,7 +20,7 @@ namespace Tsukuyomi
         {
             new() { name = "二刀流", en = "TWIN BLADES", hint = "左クリック 連撃（3回目が強い）\n右クリック 先端から光弾\nF 殴る　E 長押し ワイヤー（建物に引っかけて飛ぶ・Space で離して跳ぶ）" },
             new() { name = "ハンマー", en = "HAMMER", hint = "左クリック 叩きつけ（重い一撃・吹き飛ばす）\n右クリック ミサイル（爆発）\nE 長押し ジェットで飛ぶ（燃料は地面で回復）" },
-            new() { name = "傘", en = "UMBRELLA", hint = "左クリック 突き\n右クリック ブーメランのように投げる（もどってくる）\nE 傘を開いて浮かぶ（すべって速い・前の攻撃を防ぐ・Space でおりる）" },
+            new() { name = "傘", en = "UMBRELLA", hint = "左クリック 突き\n右クリック ブーメランのように投げる（もどってくる）\nE 乗物（吹き抜けの駕籠）に乗って浮かぶ（すべって速い・水の上も渡れる・前の攻撃を防ぐ・Space でおりる）" },
             new() { name = "弓", en = "BOW", hint = "左クリック 長押しでためて、離して射る\n右クリック 長押しで狙う（ズーム）\nE 自分が矢になって飛ぶ（当たると痛い）" },
             new() { name = "大筒", en = "CANNON", hint = "左クリック 大砲（爆発・建物に2倍）\n右クリック 長押しで狙う\nE 撃った反動で後ろへ大きく跳ぶ" },
             new() { name = "鎖鎌", en = "KUSARIGAMA", hint = "左クリック 鎌で斬る\n右クリック 鎖を投げて相手を引き寄せる\nE 鎖を引っかけて、そこまで登る" },
@@ -437,9 +437,9 @@ namespace Tsukuyomi
                 var u = new GameObject("傘").transform; u.SetParent(_viewModels[2].transform, false);
                 u.localPosition = new Vector3(0.32f, -0.35f, 0.6f); u.localEulerAngles = new Vector3(-70, 0, 0);
                 BuildUmbrella(u, false, 1f);
-                _openUmbrella = new GameObject("開いた傘").transform; _openUmbrella.SetParent(_viewModels[2].transform, false);
-                _openUmbrella.localPosition = new Vector3(0, 0.55f, 0.15f);
-                BuildUmbrella(_openUmbrella, true, 2.2f);
+                _openUmbrella = new GameObject("乗物").transform; _openUmbrella.SetParent(_rig.transform, false);
+                _openUmbrella.localPosition = new Vector3(0, 0.05f, 0.15f);
+                BuildNorimono(_openUmbrella);
                 _openUmbrella.gameObject.SetActive(false);
             }
             // 弓
@@ -472,6 +472,40 @@ namespace Tsukuyomi
                 Block(PrimitiveType.Sphere, w, Vector3.zero, Vector3.one * 0.09f, new Color(0.35f, 0.35f, 0.37f), false);
             }
             foreach (var r in _viewRoot.GetComponentsInChildren<Renderer>(true)) r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        }
+
+        /// <summary>
+        /// 乗物：大名行列で使う駕籠を、壁のない吹き抜けにしたもの。黒漆の床・赤い座布団・金の柱・反りのある屋根・前後の担ぎ棒・房飾り。
+        /// 床の高さがその足もと（parent の原点）。底がうっすら光って浮かぶ。
+        /// </summary>
+        void BuildNorimono(Transform parent)
+        {
+            var lacquer = new Color(0.07f, 0.06f, 0.07f); var gold = new Color(1f, 0.78f, 0.32f); var red = new Color(0.72f, 0.12f, 0.12f);
+            Block(PrimitiveType.Cube, parent, new Vector3(0, 0.05f, 0), new Vector3(1.5f, 0.16f, 1.7f), lacquer, false);
+            Block(PrimitiveType.Cube, parent, new Vector3(0, 0.15f, 0), new Vector3(1.56f, 0.04f, 1.76f), gold, false);           // 縁の金
+            Block(PrimitiveType.Cube, parent, new Vector3(0, 0.2f, -0.1f), new Vector3(0.9f, 0.08f, 0.9f), red, false);            // 座布団
+            foreach (float sx in new[] { -0.68f, 0.68f }) foreach (float sz in new[] { -0.78f, 0.78f })
+                Block(PrimitiveType.Cylinder, parent, new Vector3(sx, 1.2f, sz), new Vector3(0.06f, 1.05f, 0.06f), gold, false);
+            // 反りのある屋根（重ねた板）と棟
+            Block(PrimitiveType.Cube, parent, new Vector3(0, 2.3f, 0), new Vector3(1.8f, 0.1f, 2.0f), lacquer, false);
+            Block(PrimitiveType.Cube, parent, new Vector3(0, 2.4f, 0), new Vector3(1.4f, 0.1f, 1.6f), lacquer, false);
+            Block(PrimitiveType.Cube, parent, new Vector3(0, 2.5f, 0), new Vector3(0.9f, 0.1f, 1.2f), lacquer, false);
+            Block(PrimitiveType.Cube, parent, new Vector3(0, 2.36f, 0), new Vector3(1.84f, 0.03f, 2.04f), gold, false);
+            Block(PrimitiveType.Cube, parent, new Vector3(0, 2.6f, 0), new Vector3(0.12f, 0.1f, 1.3f), gold, false);
+            foreach (float sx in new[] { -0.92f, 0.92f }) foreach (float sz in new[] { -1.02f, 1.02f })
+                Block(PrimitiveType.Cube, parent, new Vector3(sx, 2.38f, sz), new Vector3(0.14f, 0.08f, 0.14f), gold, false, new Vector3(0, 45, 0)); // 反った角
+            // 担ぎ棒（前後に長く）と房飾り
+            Block(PrimitiveType.Cube, parent, new Vector3(0, 2.15f, 0), new Vector3(0.12f, 0.12f, 4.2f), lacquer, false);
+            foreach (float sz in new[] { -2.05f, 2.05f })
+            {
+                Block(PrimitiveType.Cube, parent, new Vector3(0, 2.15f, sz), new Vector3(0.16f, 0.16f, 0.12f), gold, false);
+                Block(PrimitiveType.Cylinder, parent, new Vector3(0, 1.85f, sz), new Vector3(0.05f, 0.25f, 0.05f), new Color(1f, 0.55f, 0.75f), false, null, true);
+            }
+            foreach (float sx in new[] { -0.92f, 0.92f }) foreach (float sz in new[] { -1.02f, 1.02f })
+                Block(PrimitiveType.Sphere, parent, new Vector3(sx, 2.1f, sz), new Vector3(0.1f, 0.22f, 0.1f), new Color(1f, 0.55f, 0.75f), false, null, true);
+            // 底の光（浮いているしるし）
+            Block(PrimitiveType.Cylinder, parent, new Vector3(0, -0.1f, 0), new Vector3(1.6f, 0.02f, 1.8f), new Color(0.4f, 0.95f, 1f), false, null, true);
+            foreach (var r in parent.GetComponentsInChildren<Renderer>(true)) r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
         }
 
         /// <summary>ヤチヨの傘（クラゲのような和傘：うす青の笠と、ひらひらの光る足）。open で開いた形。</summary>
@@ -522,8 +556,9 @@ namespace Tsukuyomi
             if (_openUmbrella != null)
             {
                 _openUmbrella.gameObject.SetActive(_ride);
+                if (_ride) _openUmbrella.rotation = Quaternion.Slerp(_openUmbrella.rotation, Quaternion.Euler(0, _yaw, Mathf.Sin(Time.time * 2f) * 2f), 1 - Mathf.Exp(-6f * dt));
                 var closed = _viewModels[2].transform.Find("傘");
-                if (closed) closed.gameObject.SetActive(!_ride && _boomer == null);
+                if (closed) closed.gameObject.SetActive(_boomer == null);
             }
         }
     }

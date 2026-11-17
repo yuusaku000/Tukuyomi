@@ -36,7 +36,7 @@ namespace Tsukuyomi
         {
             var g = GameObject.CreatePrimitive(t);
             if (!solid) Destroy(g.GetComponent<Collider>());
-            else if (t == PrimitiveType.Cylinder)
+            else if (t == PrimitiveType.Cylinder || t == PrimitiveType.Sphere)
             {
                 // 円柱の当たり判定は丸いカプセルになってしまうので、形どおりにする
                 DestroyImmediate(g.GetComponent<Collider>());
