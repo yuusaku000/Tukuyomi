@@ -46,7 +46,40 @@ namespace Tsukuyomi
     /// </summary>
     public static class Doll
     {
-        static Mesh _cone;
+        static Mesh _cone, _lowSphere, _lowCapsule;
+        static bool _light; // 町の人用：球とカプセルを三角形の少ない形にする
+
+        /// <summary>三角形の少ない球（半径 0.5。標準の球 768 → 160）またはカプセル（高さ 2。標準 832 → 192）。</summary>
+        static Mesh Low(bool capsule)
+        {
+            const int seg = 10, rings = 8; // 横 10・縦 8
+            var v = new List<Vector3>(); var n = new List<Vector3>(); var t = new List<int>();
+            // カプセルは、上半分の球を +0.5、下半分を -0.5 ずらす（まん中の帯がのびる）
+            for (int r = 0; r <= rings + (capsule ? 1 : 0); r++)
+            {
+                int rr = capsule && r > rings / 2 ? r - 1 : r;
+                float lat = Mathf.PI * rr / rings;
+                float y = Mathf.Cos(lat) * 0.5f, rad = Mathf.Sin(lat) * 0.5f;
+                float off = capsule ? (r <= rings / 2 ? 0.5f : -0.5f) : 0f;
+                for (int i = 0; i <= seg; i++)
+                {
+                    float a = i * Mathf.PI * 2 / seg;
+                    var d = new Vector3(Mathf.Cos(a) * rad, y, Mathf.Sin(a) * rad);
+                    v.Add(d + Vector3.up * off); n.Add(d.normalized);
+                }
+            }
+            int rowsN = rings + (capsule ? 1 : 0);
+            for (int r = 0; r < rowsN; r++)
+                for (int i = 0; i < seg; i++)
+                {
+                    int a = r * (seg + 1) + i, b = a + seg + 1;
+                    t.AddRange(new[] { a, a + 1, b, a + 1, b + 1, b });
+                }
+            var m = new Mesh { name = capsule ? "DollLowCapsule" : "DollLowSphere" };
+            m.SetVertices(v); m.SetNormals(n); m.SetUVs(0, new Vector2[v.Count]); m.SetTriangles(t, 0);
+            m.RecalculateBounds();
+            return m;
+        }
 
         /// <summary>着物のすそ（下が広い円すい台）。</summary>
         public static Mesh Cone
@@ -102,12 +135,15 @@ namespace Tsukuyomi
             g.transform.localScale = scale;
             if (euler != null) g.transform.localEulerAngles = euler.Value;
             g.GetComponent<Renderer>().sharedMaterial = m;
+            if (_light && type == PrimitiveType.Sphere) g.GetComponent<MeshFilter>().sharedMesh = _lowSphere ??= Low(false);
+            if (_light && type == PrimitiveType.Capsule) g.GetComponent<MeshFilter>().sharedMesh = _lowCapsule ??= Low(true);
             NoCollider(g);
             return g;
         }
 
-        public static Parts Build(string name, DollLook L, Func<Color, Material> mat, Transform parent)
+        public static Parts Build(string name, DollLook L, Func<Color, Material> mat, Transform parent, bool light = false)
         {
+            _light = light;
             var root = new GameObject(name);
             root.transform.SetParent(parent, false);
             var body = new GameObject("Body").transform;
@@ -164,6 +200,7 @@ namespace Tsukuyomi
             }
 
             var parts = new Parts { root = root, body = body, head = head, armL = Arm("ArmL", -1), armR = Arm("ArmR", 1) };
+            _light = false;
             var anim = root.AddComponent<DollAnimator>();
             anim.body = body; anim.head = head; anim.armL = parts.armL; anim.armR = parts.armR;
             return parts;

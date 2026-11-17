@@ -191,6 +191,7 @@ namespace Tsukuyomi
                 if (p.Length > 3 && p[3].StartsWith("vr:")) Vr.Test(p[3].Substring(3));
                 if (p.Length > 3 && p[3].StartsWith("choice")) Vr.TestChoice(p[3] == "choice:vr"); // 起動時の「画面／VR」の板
                 cam.firstPerson = p.Length > 4 && p[4] == "fp";
+                if (p.Length > 3 && p[3] == "perf") { yield return new WaitForSeconds(2f); yield return Perf.Run(p[0]); } // 重さをはかる（物を1つずつ消してくらべる）
                 // 6つ目で待ち秒数を変えられる（食べている途中を撮るときなど）
                 float wait = p.Length > 5 && float.TryParse(p[5], NumberStyles.Float, CultureInfo.InvariantCulture, out var wv) ? wv : 3.5f;
                 yield return new WaitForSeconds(Mathf.Max(0.2f, wait - 1f));

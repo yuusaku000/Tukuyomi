@@ -12,6 +12,32 @@ namespace Tsukuyomi
         static readonly float[] Shadow = { 40f, 70f, 110f };
 
         public static int Level { get; private set; } = 1;
+
+        // 遠くでは描かない物（島を組み立てるときに、この番号の層に入れる）
+        public const int SmallLayer = 24;   // 1.6m より小さい動かない小物（花瓶・桶・提灯など）
+        public const int PeopleLayer = 25;  // 町を歩く人
+        static readonly float[] SmallFar = { 100f, 140f, 200f };   // 画面：小物を描く距離（見た目はほぼ変わらない）
+        static readonly float[] VrSmallFar = { 40f, 60f, 90f };     // VR：小物を描く距離
+        static readonly float[] VrPeopleFar = { 50f, 60f, 80f };    // VR：人を描く距離
+
+        static void SetCull(Camera cam, float small, float people)
+        {
+            if (cam == null) return;
+            var d = new float[32];
+            d[SmallLayer] = small; d[PeopleLayer] = people; // 0 は「カメラの見える距離まで」
+            cam.layerCullDistances = d;
+            cam.layerCullSpherical = true; // 頭を回しても、出たり消えたりしないように（向きでなく距離で）
+        }
+
+        /// <summary>URP の「物のかげ」（SSAO）。すべての物をもう1回（深さと向きだけ）描くので重い。</summary>
+        public static ScriptableRendererFeature Ssao()
+        {
+            var urp = GraphicsSettings.currentRenderPipeline as UniversalRenderPipelineAsset;
+            var f = typeof(UniversalRenderPipelineAsset).GetField("m_RendererDataList", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+            if (urp == null || f == null || !(f.GetValue(urp) is ScriptableRendererData[] list)) return null;
+            foreach (var d in list) if (d != null) foreach (var x in d.rendererFeatures) if (x != null && x.name.Contains("Ambient")) return x;
+            return null;
+        }
         public static string Name => Names[Level];
 
         public static void Load()
@@ -62,7 +88,9 @@ namespace Tsukuyomi
                 urp.maxAdditionalLightsCount = level == 0 ? 2 : 4; // 軽い：1つの物を照らす小さな明かりは2つまで
             }
             QualitySettings.lodBias = VrLod[level];
-            Debug.Log($"[VR] 画質 {level}: 描く細かさ {VrScale[level]} 影 {VrShadow[level]}m MSAA {VrMsaa[level]}");
+            Ssao()?.SetActive(false); // VR：物のかげは切る（物を2回描かずにすむ。いちばん効く）
+            SetCull(cam, VrSmallFar[level], VrPeopleFar[level]);
+            Debug.Log($"[VR] 画質 {level}: 描く細かさ {VrScale[level]} 影 {VrShadow[level]}m MSAA {VrMsaa[level]} 小物 {VrSmallFar[level]}m 人 {VrPeopleFar[level]}m SSAO なし");
         }
 
         static void ApplyOnly(int level)
@@ -72,6 +100,7 @@ namespace Tsukuyomi
             var cam = Camera.main;
             if (cam != null && cam.TryGetComponent<UniversalAdditionalCameraData>(out var data))
                 data.antialiasing = level == 0 ? AntialiasingMode.None : level == 1 ? AntialiasingMode.FastApproximateAntialiasing : AntialiasingMode.SubpixelMorphologicalAntiAliasing;
+            SetCull(cam, SmallFar[level], 0f);
             if (GraphicsSettings.currentRenderPipeline is UniversalRenderPipelineAsset urp)
             {
                 urp.renderScale = Scale[level];

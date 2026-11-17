@@ -15,6 +15,8 @@ namespace Tsukuyomi.EditorTools
     public static class Combiner
     {
         const int Atlas = 128;
+        static readonly Dictionary<string, (int n, long tris)> _byMesh = new();
+        static readonly Dictionary<string, (int n, long tris)> _bySize = new();
 
         public static void Run(Transform root, float cell = 48f)
         {
@@ -39,8 +41,20 @@ namespace Tsukuyomi.EditorTools
                     if (m == null || m.renderQueue >= 2500 || m.shader.name == "Tsukuyomi/Screen") skip = true;
                 if (skip) continue;
                 var b = mr.bounds;
-                bool shadow = mr.shadowCastingMode != ShadowCastingMode.Off && Mathf.Max(b.size.x, Mathf.Max(b.size.y, b.size.z)) > 1.6f;
-                int cx = Mathf.FloorToInt(b.center.x / cell), cz = Mathf.FloorToInt(b.center.z / cell);
+                {   // 確かめ用の数え上げ：どの形・どの大きさが三角形を多く使っているか
+                    long tri = 0; for (int q = 0; q < mesh.subMeshCount; q++) tri += (long)mesh.GetIndexCount(q) / 3;
+                    string mk = mesh.name;
+                    _byMesh.TryGetValue(mk, out var e); _byMesh[mk] = (e.n + 1, e.tris + tri);
+                    float sz = b.size.magnitude;
+                    string bk = sz < 0.6f ? "0.6m未満" : sz < 1.6f ? "1.6m未満" : sz < 4f ? "4m未満" : sz < 12f ? "12m未満" : "12m以上";
+                    _bySize.TryGetValue(bk, out var e2); _bySize[bk] = (e2.n + 1, e2.tris + tri);
+                }
+                float big = Mathf.Max(b.size.x, Mathf.Max(b.size.y, b.size.z));
+                bool shadow = mr.shadowCastingMode != ShadowCastingMode.Off && big > 1.6f;
+                // 小物（1.6m 未満）は区画を半分にして別にまとめ、遠くでは描かない層に入れる（Quality.SmallLayer）
+                bool small = big < 1.6f;
+                float cs = small ? cell * 0.5f : cell;
+                int cx = Mathf.FloorToInt(b.center.x / cs), cz = Mathf.FloorToInt(b.center.z / cs);
 
                 // 色だけのマテリアル → 色見本の絵へ
                 if (mats.Length == 1 && mesh.subMeshCount == 1 && mats[0].name.StartsWith("c_") && mats[0].HasProperty("_BaseColor"))
@@ -63,7 +77,7 @@ namespace Tsukuyomi.EditorTools
                         for (int i = 0; i < uv.Length; i++) uv[i] = c;
                         copy.uv = uv;
                         temps.Add(copy);
-                        string akey = "atlas_" + cx + "_" + cz + "_" + shadow;
+                        string akey = "atlas_" + cx + "_" + cz + "_" + shadow + (small ? "_s" : "");
                         if (!groups.TryGetValue(akey, out var ag)) { ag = (atlasMat, shadow, new List<CombineInstance>()); groups[akey] = ag; }
                         ag.list.Add(new CombineInstance { mesh = copy, subMeshIndex = 0, transform = mr.localToWorldMatrix });
                         victims.Add(mr);
@@ -74,7 +88,7 @@ namespace Tsukuyomi.EditorTools
 
                 for (int s = 0; s < mesh.subMeshCount && s < mats.Length; s++)
                 {
-                    string key = mats[s].GetInstanceID() + "_" + cx + "_" + cz + "_" + shadow;
+                    string key = mats[s].GetInstanceID() + "_" + cx + "_" + cz + "_" + shadow + (small ? "_s" : "");
                     if (!groups.TryGetValue(key, out var gr))
                     {
                         gr = (mats[s], shadow, new List<CombineInstance>());
@@ -114,6 +128,7 @@ namespace Tsukuyomi.EditorTools
                 var r = go.AddComponent<MeshRenderer>();
                 r.sharedMaterial = mat;
                 r.shadowCastingMode = shadow ? ShadowCastingMode.On : ShadowCastingMode.Off;
+                if (kv.Key.EndsWith("_s")) go.layer = Quality.SmallLayer;
             }
             foreach (var t in temps) Object.DestroyImmediate(t);
             foreach (var mr in victims)
@@ -122,6 +137,13 @@ namespace Tsukuyomi.EditorTools
                 Object.DestroyImmediate(mr);
                 if (mf != null) Object.DestroyImmediate(mf);
             }
+            var top = new List<KeyValuePair<string, (int n, long tris)>>(_byMesh);
+            top.Sort((a, c) => c.Value.tris.CompareTo(a.Value.tris));
+            var sb = new System.Text.StringBuilder("[Tsukuyomi] 三角形の多い形:");
+            for (int i = 0; i < top.Count && i < 30; i++) sb.Append($"\n  {top[i].Key} x{top[i].Value.n} = {top[i].Value.tris / 1000}k ({top[i].Value.tris / top[i].Value.n}/個)");
+            foreach (var kv in _bySize) sb.Append($"\n  大きさ {kv.Key}: {kv.Value.n}個 {kv.Value.tris / 1000}k");
+            Debug.Log(sb.ToString());
+            _byMesh.Clear(); _bySize.Clear();
             Debug.Log($"[Tsukuyomi] combined {count} renderers into {groups.Count} meshes ({atlased} by color atlas, {cells.Count} colors)");
         }
     }

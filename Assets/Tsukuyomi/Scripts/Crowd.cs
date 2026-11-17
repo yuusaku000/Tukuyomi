@@ -311,7 +311,7 @@ namespace Tsukuyomi
 
         Walker Make(string name, DollLook look, float scale, bool still = false)
         {
-            var parts = Doll.Build(name, look, TmpMat, transform);
+            var parts = Doll.Build(name, look, TmpMat, transform, true); // 町の人は三角形の少ない形で
             parts.root.transform.localScale = Vector3.one * scale;
             var anim = parts.root.GetComponent<DollAnimator>();
             var rs = new List<Renderer>();
@@ -321,12 +321,14 @@ namespace Tsukuyomi
                 rs.Add(Bake(parts.body, null, null));
                 anim.enabled = false;
                 anim.head = null; anim.armL = anim.armR = null;
+                foreach (var r in rs) r.gameObject.layer = Quality.PeopleLayer; // VR では遠くの人を描かない
                 return new Walker { root = parts.root.transform, anim = anim, rends = rs.ToArray(), still = true };
             }
             rs.Add(Bake(parts.body, parts.armL, parts.armR));
             rs.Add(Bake(parts.armL, null, null));
             rs.Add(Bake(parts.armR, null, null));
             anim.head = null; // 頭は体といっしょの形にした
+            foreach (var r in rs) r.gameObject.layer = Quality.PeopleLayer; // VR では遠くの人を描かない
             return new Walker { root = parts.root.transform, anim = anim, rends = rs.ToArray() };
         }
 
