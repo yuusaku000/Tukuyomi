@@ -166,14 +166,14 @@ namespace Tsukuyomi
                 return new Vector3(lp.x, lp.y, fz);
             }
             var sp = _cam.WorldToScreenPoint(world);
-            float s = Screen.height / 1080f;
+            float s = _hud != null && _hud.canvas.scaleFactor > 0 ? _hud.canvas.scaleFactor : Screen.height / 1080f; // 板の実際の縮み具合
             var ui = new Vector2((sp.x - Screen.width / 2f) / s, (sp.y - Screen.height / 2f) / s);
             if (sp.z < 0) ui = -ui;
             return new Vector3(ui.x, ui.y, sp.z);
         }
 
         /// <summary>板の横の半分（ピクセル）。</summary>
-        float HudHalfW => VrOn ? 960f : Screen.width / 2f / (Screen.height / 1080f);
+        float HudHalfW => VrOn || _hud == null ? 960f : Mathf.Min(960f, ((RectTransform)_hud.canvas.transform).rect.width / 2f);
 
         // ───────── VR の文字 ─────────
 

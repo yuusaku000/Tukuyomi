@@ -55,6 +55,14 @@ namespace Tsukuyomi
             BuildHud();
             Select(0);
             if (_match) InitMatch();
+            // 画面の縦横の比に合わせて、表示を画面のふちに寄せる（ダメージの数字と目標の印は、画面のまん中が基準のまま）
+            if (_hud != null)
+            {
+                var keep = new List<Component>();
+                foreach (var d in _dmg) keep.Add(d.t);
+                foreach (var m in _marks) { keep.Add(m.ring); keep.Add(m.label); keep.Add(m.dist); keep.Add(m.arrow); }
+                _hud.FitToScreen(keep.ToArray());
+            }
             if (_cam != null) _cam.fieldOfView = _fov;
             VrInit();
         }
@@ -275,7 +283,7 @@ namespace Tsukuyomi
                 _wList[i] = Board.Label(r, new Rect(1440, 640 + i * 30, 350, 28), "", 18, Color.white, TextAnchor.MiddleRight);
             _hint = Board.Label(r, new Rect(980, 900, 810, 140), "", 18, new Color(1, 1, 1, 0.85f), TextAnchor.UpperRight);
             if (Vr.On) Board.Label(r, new Rect(60, 1010, 1300, 30), _match ? VrKeys : VrKeysPractice, 16, new Color(1, 1, 1, 0.7f), TextAnchor.MiddleLeft);
-            else Board.Label(r, new Rect(60, 1010, 900, 30), _match ? "WASD 移動　Shift 走る　Space ジャンプ　F 殴る（大将落としは近接だけ）　Esc 一時停止　自分の城の中で回復" : "WASD 移動　Shift 走る　Space ジャンプ　1〜6・ホイール 武器　Esc 一時停止", 16, new Color(1, 1, 1, 0.7f), TextAnchor.MiddleLeft);
+            else Board.Label(r, new Rect(60, 1010, 1300, 30), _match ? "WASD 移動　Shift 走る　Space ジャンプ　E（Q・ホイール押しこみでも）移動わざ　F 殴る（大将落としは近接だけ）　Esc 一時停止　自分の城の中で回復" : "WASD 移動　Shift 走る　Space ジャンプ　E（Q・ホイール押しこみでも）移動わざ　1〜6・ホイール 武器　Esc 一時停止", 16, new Color(1, 1, 1, 0.7f), TextAnchor.MiddleLeft);
             for (int i = 0; i < 14; i++)
             {
                 var t = Board.Display(r, new Rect(0, 0, 200, 50), "", 34, Board.Gold);

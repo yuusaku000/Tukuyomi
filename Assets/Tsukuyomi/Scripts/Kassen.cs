@@ -30,6 +30,7 @@ namespace Tsukuyomi
         Text _oppName, _oppDesc, _levelText, _record, _stageText;
         readonly Image[] _levelRing = new Image[3];
         Board _sign;
+        bool _wasNear = true; // 起動したとき門の前にいても、いきなり開かないように
         Transform _gate;
 
         // ───────── 起動のときに門を置く ─────────
@@ -138,10 +139,10 @@ namespace Tsukuyomi
             var pc = GameSession.Instance != null ? GameSession.Instance.player : null;
             if (pc == null) return;
             var d = pc.Position - transform.position; d.y = 0;
-            if (d.magnitude < 4.5f && Act.Interact.Down)
-            {
-                OpenMenu();
-            }
+            // 門を通ったら（近づいたら）、ボタンを押さなくても入口の板を開く。閉じたあとは、一度はなれてから
+            bool near = d.magnitude < 3.2f;
+            if ((near && !_wasNear && !Hud.IntroOn) || (d.magnitude < 4.5f && Act.Interact.Down)) OpenMenu();
+            _wasNear = near;
         }
 
         // ───────── 入口の板 ─────────

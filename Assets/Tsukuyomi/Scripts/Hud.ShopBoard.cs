@@ -28,6 +28,7 @@ namespace Tsukuyomi
         void BoardsTick()
         {
             ShopBoardTick();
+            IntroTick();
             MapBoardTick();
             BookBoardTick();
             ShipBoardTick();
@@ -65,6 +66,15 @@ namespace Tsukuyomi
 
         void ShopBoardTick()
         {
+            if (_introDress)
+            {
+                // 初めてのログインの着がえ：人形を回すボタンと、VR の鏡だけ出す（品物の板は Hud.Intro）
+                BuildShopBoard();
+                _sb.Alpha = 0; _sbDoll.Alpha = 1; _sbKey = null;
+                _mirrorBox.gameObject.SetActive(Vr.On);
+                Mirror(Vr.On);
+                return;
+            }
             bool open = ShopOpen && !_map && !_menu && _i == this;
             if (!open)
             {

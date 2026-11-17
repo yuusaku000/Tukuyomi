@@ -54,7 +54,8 @@ namespace Tsukuyomi
         /// <summary>強攻撃（右クリック）。</summary>
         public static readonly Button Heavy = new("Heavy", "<Mouse>/rightButton", "<Keyboard>/k", "<Gamepad>/buttonNorth");
         /// <summary>必殺技（E）。前後のキーと組み合わせて出す。</summary>
-        public static readonly Button Special = new("Special", "<Keyboard>/e", "<Gamepad>/rightShoulder");
+        // Q・マウスのホイールボタン・サイドボタンでも出せる（ノート PC のキーボードは Shift＋W＋E を同時に読めないことがあるため）
+        public static readonly Button Special = new("Special", "<Keyboard>/e", "<Keyboard>/q", "<Mouse>/middleButton", "<Mouse>/forwardButton", "<Mouse>/backButton", "<Gamepad>/rightShoulder");
         /// <summary>投げ（F）。</summary>
         public static readonly Button Throw = new("Throw", "<Keyboard>/f", "<Gamepad>/leftShoulder");
         /// <summary>超必殺（R）。</summary>

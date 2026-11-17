@@ -18,7 +18,7 @@ namespace Tsukuyomi
 
         public static readonly Weapon[] Weapons =
         {
-            new() { name = "二刀流", en = "TWIN BLADES", hint = "左クリック 連撃（3回目が強い）\n右クリック 先端から光弾\nF 殴る　E 長押し ワイヤー（建物に引っかけて飛ぶ・Space で離して跳ぶ）" },
+            new() { name = "二刀流", en = "TWIN BLADES", hint = "左クリック 連撃（3回目が強い）\n右クリック 先端から光弾\nF 殴る　E ワイヤー（建物に引っかけて飛ぶ・もう一度 E で離して跳ぶ・Space で巻きとる）" },
             new() { name = "ハンマー", en = "HAMMER", hint = "左クリック 叩きつけ（重い一撃・吹き飛ばす）\n右クリック ミサイル（爆発）\nE 長押し ジェットで飛ぶ（燃料は地面で回復）" },
             new() { name = "傘", en = "UMBRELLA", hint = "左クリック 突き\n右クリック ブーメランのように投げる（もどってくる）\nE 乗物（吹き抜けの駕籠）に乗って浮かぶ（すべって速い・水の上も渡れる・前の攻撃を防ぐ・Space でおりる）" },
             new() { name = "弓", en = "BOW", hint = "左クリック 長押しでためて、離して射る\n右クリック 長押しで狙う（ズーム）\nE 自分が矢になって飛ぶ（当たると痛い）" },
@@ -50,7 +50,7 @@ namespace Tsukuyomi
 
         string GaugeText => _w switch
         {
-            0 => _wire ? "ワイヤー中" : WireTarget(out _) ? "E ワイヤー（届く）" : "ワイヤーが届かない",
+            0 => _wire ? "ワイヤー中（E で離す・Space で巻きとる）" : WireTarget(out _) ? "E ワイヤー（届く）" : "ワイヤーが届かない",
             1 => $"燃料 {_fuel * 100:0}%",
             2 => _ride ? "傘で浮かんでいる（Space でおりる）" : "E で傘を開く",
             3 => _charge > 0 ? $"ため {_charge * 100:0}%" : _abilityCd > 0 ? "矢になる：準備中" : "E 矢になって飛ぶ",
@@ -88,8 +88,10 @@ namespace Tsukuyomi
                 case 0: // 二刀流
                     if (L && _cd <= 0) { _combo = (_combo + 1) % 3; bool big = _combo == 0; Melee(big ? 45 : 28, 2.5f, big); Swing(big ? 0.38f : 0.24f); _cd = big ? 0.42f : 0.24f; }
                     if (R && _cd2 <= 0) { Fire(From + Aim * 0.7f + Side(0.15f), Aim * 55f, 0, 14, 0, false, ShotKind.Spark); _cd2 = 0.22f; Swing(0.15f); }
-                    if (E && WireTarget(out var hit)) { _wire = true; _anchor = hit.point; _ropeLen = Vector3.Distance(_rig.transform.position + Vector3.up, _anchor); Play(_sWhoosh, 0.6f); }
-                    if (_wire && (!Act.Special.Held)) _wire = false;
+                    // ワイヤー：E で引っかける・もう一度 E で離して跳ぶ（押しっぱなしにしなくてよい。Shift と同時に E を押しつづけられないキーボードでも切れないように）
+                    if (E && _wire) { _wire = false; _vel += Vector3.up * 6f + Forward * 3f; Play(_sJump, 0.5f); }
+                    else if (E && WireTarget(out var hit)) { _wire = true; _anchor = hit.point; _ropeLen = Vector3.Distance(_rig.transform.position + Vector3.up, _anchor); Play(_sWhoosh, 0.6f); }
+                    else if (E) { ShowText(EyePos + Aim * 4f, "ワイヤーが届かない", Color.white); Play(_sClick, 0.4f); }
                     break;
                 case 1: // ハンマー
                     if (L && _cd <= 0 && !_hammerWind) { _hammerWind = true; _windT = 0.32f; Swing(0.7f); }
@@ -151,7 +153,7 @@ namespace Tsukuyomi
                 var off = next - _anchor;
                 if (off.magnitude > _ropeLen) { var fix = _anchor + off.normalized * _ropeLen; _vel = (fix - c) / dt; }
                 _vel = Vector3.ClampMagnitude(_vel, 32f);
-                if (play && Act.Jump.Down) { _wire = false; _vel += Vector3.up * 6f + Forward * 3f; Play(_sJump, 0.5f); }
+                if (play && Act.Jump.Held) _ropeLen = Mathf.Max(2.5f, _ropeLen - 16f * dt); // Space：ロープを巻きとって上がる（離さない）
                 ShowLine(_anchor, new Color(0.4f, 1f, 1f), 0f);
                 return true;
             }

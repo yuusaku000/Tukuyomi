@@ -261,7 +261,7 @@ namespace Tsukuyomi
         /// <summary>お店・着がえの間、人形をその場で回す（Update から）。</summary>
         void TurnTick()
         {
-            if (!ShopOpen || player == null) { _turnBtn = 0; return; }
+            if ((!ShopOpen && !_introDress) || player == null) { _turnBtn = 0; return; }
             if (_shop != null && _shop.kind == ItemKind.Food) return;
             float dir = _turnBtn;
             float tx = Act.TurnX;

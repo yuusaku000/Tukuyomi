@@ -21,7 +21,8 @@ namespace Tsukuyomi
         readonly List<(Text name, Text info, RectTransform bar, Image barImg)> _iRows = new List<(Text, Text, RectTransform, Image)>();
         readonly List<Image> _iDots = new List<Image>();
         readonly Image[] _iTower = new Image[2], _iTowerFill = new Image[2];
-        Image _iMe, _iFlicker;
+        Image _iMe, _iFlicker, _iMePulse;
+        RectTransform _iMeG, _iMeDir;
         readonly List<string> _log = new List<string>();
         static AudioClip _sFin;
 
@@ -108,7 +109,15 @@ namespace Tsukuyomi
                 Board.Label(r, new Rect(c.x - 40, c.y + (i == 0 ? -46 : 18), 80, 26), i == 0 ? "北の櫓" : "南の櫓", 16, Color.white, TextAnchor.MiddleCenter);
             }
             for (int i = 0; i < 6; i++) { var d = Board.Panel(r, new Rect(0, 0, 14, 14), Color.white); d.sprite = Board.DiscSprite; _iDots.Add(d); }
-            _iMe = Board.Panel(r, new Rect(0, 0, 20, 20), Color.white); _iMe.sprite = Board.RingSprite;
+            // 自分の印：味方の点よりずっと大きく、桃色の丸・白い縁・広がる輪・向きの三角・「あなた」の名札（2026-11-18 見にくいとの指摘で大きく）
+            _iMeG = Board.Group(r, "自分の印", new Rect(0, 0, 0, 0));
+            _iMePulse = Board.Panel(_iMeG, new Rect(-24, -24, 48, 48), Board.Pink); _iMePulse.sprite = Board.RingSprite;
+            var rim = Board.Panel(_iMeG, new Rect(-15, -15, 30, 30), Color.white); rim.sprite = Board.DiscSprite;
+            _iMe = Board.Panel(_iMeG, new Rect(-12, -12, 24, 24), Board.Pink); _iMe.sprite = Board.DiscSprite;
+            _iMeDir = Board.Group(_iMeG, "向き", new Rect(0, 0, 0, 0));
+            var tri = Board.Panel(_iMeDir, new Rect(-7, -34, 14, 18), Color.white); tri.sprite = Board.DiscSprite;
+            var tag = Board.Panel(_iMeG, new Rect(-44, 30, 88, 28), new Color(Board.Pink.r, Board.Pink.g, Board.Pink.b, 0.95f));
+            Board.Label(_iMeG, new Rect(-44, 30, 88, 28), "あなた", 18, Color.white, TextAnchor.MiddleCenter, false, FontStyle.Bold);
 
             // 下：大将落とし・コールド・記録
             _iDarW = Board.Label(r, new Rect(60, 570, 420, 34), "", 22, Board.Teal);
@@ -188,9 +197,14 @@ namespace Tsukuyomi
                 d.color = u.team == 1 ? Board.Teal : Board.Vermilion;
             }
             var me = MapPt(_rig.transform.position);
-            ((RectTransform)_iMe.transform).anchoredPosition = new Vector2(me.x - 10, -(me.y - 10));
-            _iMe.color = Mathf.Repeat(Time.unscaledTime, 0.6f) < 0.4f ? Color.white : Board.Gold;
-            _iMe.enabled = !_dead;
+            _iMeG.anchoredPosition = new Vector2(me.x, -me.y);
+            _iMeG.SetAsLastSibling(); // いちばん上に描く（櫓や味方の点に隠れない）
+            float pulse = Mathf.Repeat(Time.unscaledTime * 1.2f, 1f);
+            var pr = _iMePulse.rectTransform; float ps = 30 + pulse * 40;
+            pr.anchoredPosition = new Vector2(-ps / 2, ps / 2); pr.sizeDelta = new Vector2(ps, ps);
+            _iMePulse.color = new Color(Board.Pink.r, Board.Pink.g, Board.Pink.b, 1 - pulse);
+            _iMeDir.localEulerAngles = new Vector3(0, 0, -(VrOn ? MoveYaw : _yaw)); // 見取り図は北が上：向いている方へ三角
+            _iMeG.gameObject.SetActive(!_dead);
             // 下
             _iDarW.text = _daruma[1].active ? $"西の大将落とし　残り {_daruma[1].left} 段（守れ）" : "西の大将落とし　出ていない";
             _iDarE.text = _daruma[2].active ? $"東の大将落とし　残り {_daruma[2].left} 段（叩け）" : "東の大将落とし　出ていない";

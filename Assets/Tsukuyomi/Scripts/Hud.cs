@@ -241,7 +241,7 @@ namespace Tsukuyomi
             Vr.ChoiceTick();
             if (Ts.ShotMode)
             {
-                Blocked = ShopOpen || _book || _tipOpen || _exchange || _guide || _menu;
+                Blocked = ShopOpen || _book || _tipOpen || _exchange || _guide || _menu || _intro || _bonusOpen;
                 GuideTick(); MenuTick();
 
                 if (_menu || _map) { }
@@ -250,10 +250,19 @@ namespace Tsukuyomi
                 return;
             }
             // 初めて島に入ったとき：遊び方の板を1回だけ開く（画面か VR かをえらんだあと）
-            if (!_guideAuto && !Vr.Choosing && GameSession.Instance != null && GameSession.Instance.Data != null)
+            if (!_guideAuto && !Vr.Choosing && !_intro && GameSession.Instance != null && GameSession.Instance.Data != null)
             {
                 _guideAuto = true;
                 if (!GameSession.Instance.Data.guideSeen) OpenGuide();
+            }
+            // 初めてのログインの演出と、初ログインボーナスの板の間：ほかの操作はしない（人形を回すのだけ）
+            if (_intro || _bonusOpen)
+            {
+                Blocked = true;
+                Cursor.lockState = CursorLockMode.None; Cursor.visible = true;
+                TurnTick();
+                UpdateZone();
+                return;
             }
             if (Act.Back.Down && !Vr.Choosing)
             {
@@ -408,7 +417,7 @@ namespace Tsukuyomi
             }
 
             // 板（メニュー・遊び方・両替）を開いている間は、画面に直接描く表示を出さない（板の上に重なるため）
-            if (_menu || _guide || _exchange || _map || _book || _shipAsk != null || _tipOpen) { GUI.matrix = Matrix4x4.identity; return; }
+            if (_menu || _guide || _exchange || _map || _book || _shipAsk != null || _tipOpen || _intro || _bonusOpen) { GUI.matrix = Matrix4x4.identity; return; }
 
             // 画面の四隅のかぎ（スマコンの視野）
             Corners(new Rect(14, 14, W - 28, H - 28), new Color(Cyan.r, Cyan.g, Cyan.b, 0.35f), 70, 2);

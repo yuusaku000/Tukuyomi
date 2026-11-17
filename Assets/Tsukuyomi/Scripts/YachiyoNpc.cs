@@ -45,8 +45,16 @@ namespace Tsukuyomi
             Hud.Banner("日が沈み、夜がやってきます", "YACHIYO ▸ NIGHTFALL", 6f);
         }
 
+        /// <summary>初めてのログインの夜を、起動しなおしたあとも続ける（いきなり夜の時刻へ。動かさない）。</summary>
+        public static void KeepNight(TimeSpan offset)
+        {
+            Ts.Offset = offset;
+            TimeChanged = true;
+        }
+
         public void RestoreTime()
         {
+            Hud.ClearKeptNight();
             Shift(TimeSpan.Zero, 8f);
             TimeChanged = false;
             Hud.Banner("時間が、もとにもどります", "YACHIYO ▸ REAL TIME", 5f);

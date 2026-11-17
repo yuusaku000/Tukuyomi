@@ -77,6 +77,7 @@ namespace Tsukuyomi
                 "W/S 前後（S 押したまま＝ガード）　A/D 回りこむ　Space ジャンプ　Ctrl しゃがみ\n左クリック 弱　右クリック 強　E 必殺（S→W＋E 突進・W→S＋E 狐火）　F 投げ　R 超必殺",
                 15, new Color(1, 1, 1, 0.75f), TextAnchor.LowerLeft);
             Board.Label(r, new Rect(1400, 1010, 460, 30), Vr.On ? "Y 一時停止" : "Esc 一時停止", 16, new Color(1, 1, 1, 0.7f), TextAnchor.MiddleRight);
+            _hud.FitToScreen(); // 画面の縦横の比に合わせて、表示を画面のふちに寄せる
         }
 
         RectTransform Bar(RectTransform r, Rect rc, Color c, bool rightSide, out RectTransform white)

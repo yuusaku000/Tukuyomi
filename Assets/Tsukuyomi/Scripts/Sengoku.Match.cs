@@ -307,6 +307,7 @@ namespace Tsukuyomi
 
         Text _mClock, _mRound, _mCenter, _mSub, _mFeed, _mDar, _mCold, _mLives;
         readonly Text[] _mTower = new Text[2];
+        RectTransform _mTowerG;
         readonly RectTransform[] _mTowerBar = new RectTransform[2];
         readonly Image[] _mTowerImg = new Image[2], _mTowerFill = new Image[2];
         readonly List<(Text name, RectTransform hp, Text lives)> _mRows = new List<(Text, RectTransform, Text)>();
@@ -333,25 +334,26 @@ namespace Tsukuyomi
                 var c = new Vector2(i < 2 ? 870 - i * 26 : 1050 + (i - 2) * 26, 78);
                 _mWins[i] = Board.Panel(r, new Rect(c.x - 8, c.y - 8, 16, 16), new Color(1, 1, 1, 0.2f)); _mWins[i].sprite = Board.DiscSprite;
             }
-            // 櫓・両軍・大将落とし・記録は、ふだんは隠す（Tab のホログラムの戦況で見る）
+            // 両軍・記録は、ふだんは隠す（Tab のホログラムの戦況で見る）。櫓の占領と大将落としは、いつも出す
             var info = new GameObject("ふだんは隠す一覧", typeof(RectTransform)).GetComponent<RectTransform>();
             info.SetParent(r, false); info.anchorMin = info.anchorMax = info.pivot = new Vector2(0, 1); info.anchoredPosition = Vector2.zero; info.sizeDelta = r.sizeDelta;
             info.gameObject.SetActive(false);
-            // 櫓
+            _mTowerG = Board.Group(r, "櫓の表示", new Rect(0, 0, 1920, 1080)); // 戦況の板を開いている間は隠す
+            // 櫓（占領の状況）：いつも画面に出す（2026-11-18 ユーザーの指示）。時計の左右の下に、小さめに
             for (int i = 0; i < 2; i++)
             {
                 float x = i == 0 ? 760 : 1060;
-                _mTowerImg[i] = Board.Panel(info, new Rect(x, 180, 100, 100), new Color(0.03f, 0.05f, 0.12f, 0.8f)); _mTowerImg[i].sprite = Board.DiscSprite;
-                Board.Ring(info, new Vector2(x + 50, 230), 50, new Color(1, 1, 1, 0.8f), false);
-                _mTowerFill[i] = Board.Panel(info, new Rect(x - 6, 174, 112, 112), Board.Teal);
+                _mTowerImg[i] = Board.Panel(_mTowerG, new Rect(x, 180, 100, 100), new Color(0.03f, 0.05f, 0.12f, 0.8f)); _mTowerImg[i].sprite = Board.DiscSprite;
+                Board.Ring(_mTowerG, new Vector2(x + 50, 230), 50, new Color(1, 1, 1, 0.8f), false);
+                _mTowerFill[i] = Board.Panel(_mTowerG, new Rect(x - 6, 174, 112, 112), Board.Teal);
                 _mTowerFill[i].sprite = Board.ThickRingSprite; _mTowerFill[i].type = Image.Type.Filled; _mTowerFill[i].fillMethod = Image.FillMethod.Radial360; _mTowerFill[i].fillOrigin = 2;
-                _mTower[i] = Board.Label(info, new Rect(x, 200, 100, 60), i == 0 ? "北" : "南", 34, Color.white, TextAnchor.MiddleCenter);
+                _mTower[i] = Board.Label(_mTowerG, new Rect(x, 200, 100, 60), i == 0 ? "北" : "南", 34, Color.white, TextAnchor.MiddleCenter);
                 _mTower[i].font = Board.Mincho;
-                Board.Panel(info, new Rect(x, 290, 100, 6), new Color(0, 0, 0, 0.6f));
-                _mTowerBar[i] = (RectTransform)Board.Panel(info, new Rect(x + 50, 290, 0, 6), Board.Teal).transform;
+                Board.Panel(_mTowerG, new Rect(x, 290, 100, 6), new Color(0, 0, 0, 0.6f));
+                _mTowerBar[i] = (RectTransform)Board.Panel(_mTowerG, new Rect(x + 50, 290, 0, 6), Board.Teal).transform;
             }
-            _mCold = Board.Label(info, new Rect(760, 300, 400, 30), "", 20, Board.Gold, TextAnchor.MiddleCenter);
-            _mDar = Board.Label(info, new Rect(560, 330, 800, 34), "", 24, Color.white, TextAnchor.MiddleCenter);
+            _mCold = Board.Label(_mTowerG, new Rect(760, 300, 400, 30), "", 20, Board.Gold, TextAnchor.MiddleCenter);
+            _mDar = Board.Label(_mTowerG, new Rect(560, 330, 800, 34), "", 24, Color.white, TextAnchor.MiddleCenter);
             // 両軍の一覧
             Board.Display(info, new Rect(60, 150, 300, 50), "西軍", 36, Board.Teal, TextAnchor.MiddleLeft);
             Board.Display(info, new Rect(1560, 150, 300, 50), "東軍", 36, Board.Vermilion, TextAnchor.MiddleRight);
@@ -386,6 +388,7 @@ namespace Tsukuyomi
         {
             if (_mClock == null) return;
             float udt = Time.unscaledDeltaTime;
+            if (_mTowerG != null) _mTowerG.gameObject.SetActive(_intelT <= 0.01f);
             int sec = Mathf.CeilToInt(_clock);
             _mClock.text = $"{sec / 60}:{sec % 60:00}";
             _mRound.text = _round == 3 ? "FINAL ROUND" : $"ROUND {_round}";

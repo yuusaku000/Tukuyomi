@@ -76,6 +76,7 @@ namespace Tsukuyomi
             r.SetParent(go.transform, false);
             r.sizeDelta = size;
             b.root = r;
+            b._size = size;
             b.Apply();
             All.Add(b);
             return b;
@@ -104,9 +105,18 @@ namespace Tsukuyomi
                 sc.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
                 sc.referenceResolution = new Vector2(1920, RefH);
                 sc.screenMatchMode = CanvasScaler.ScreenMatchMode.Expand; // 横長でも縦長でも、1920×1080 がまるごと画面に入る
-                root.anchorMin = root.anchorMax = screenAnchor;
-                root.pivot = screenAnchor;
-                root.anchoredPosition = screenOffset;
+                if (fill)
+                {
+                    // 画面いっぱい：板を画面の大きさに広げる（中身は FitToScreen で、ふちに寄せてある）
+                    root.anchorMin = Vector2.zero; root.anchorMax = Vector2.one; root.pivot = new Vector2(0.5f, 0.5f);
+                    root.offsetMin = root.offsetMax = Vector2.zero;
+                }
+                else
+                {
+                    root.anchorMin = root.anchorMax = screenAnchor;
+                    root.pivot = screenAnchor;
+                    root.anchoredPosition = screenOffset;
+                }
             }
             else
             {
@@ -114,6 +124,7 @@ namespace Tsukuyomi
                 canvas.worldCamera = Camera.main;
                 sc.uiScaleMode = CanvasScaler.ScaleMode.ConstantPixelSize;
                 sc.dynamicPixelsPerUnit = 3f; // 近くで見ても文字がぼやけないように
+                if (fill || root.sizeDelta.sqrMagnitude < 1f) root.sizeDelta = _size; // 画面いっぱいだった板を、空間ではもとの大きさに
                 ct.sizeDelta = root.sizeDelta;
                 ct.localScale = Vector3.one * worldScale;
                 root.anchorMin = root.anchorMax = root.pivot = new Vector2(0.5f, 0.5f);
@@ -395,6 +406,70 @@ namespace Tsukuyomi
 
         /// <summary>見るだけの板（光の線をあてない。歌詞・釣りのゲージなど）。</summary>
         public bool passive;
+
+        /// <summary>
+        /// 画面いっぱいの表示（1920×1080 で作った HUD）。画面モードでは、画面の縦横の比に合わせて広げる：
+        /// 中身を画面の左・まん中・右（上・まん中・下）のどこに寄せるかを、置いた場所から決めなおす（FitToScreen）。
+        /// 16:9 でない画面（3:2 のノート PC など）で、上下や左右にすき間ができないように。
+        /// </summary>
+        public bool fill;
+        Vector2 _size;
+        RectTransform _center;
+
+        /// <summary>fill の板で、画面のまん中を基準に動かす表示を入れる入れもの（1920×1080、まん中に固定）。</summary>
+        public RectTransform Center
+        {
+            get
+            {
+                if (_center != null) return _center;
+                var go = new GameObject("まん中", typeof(RectTransform));
+                _center = (RectTransform)go.transform;
+                _center.SetParent(root, false);
+                _center.anchorMin = _center.anchorMax = new Vector2(0.5f, 0.5f);
+                _center.pivot = new Vector2(0.5f, 0.5f);
+                _center.sizeDelta = _size; _center.anchoredPosition = Vector2.zero;
+                return _center;
+            }
+        }
+
+        /// <summary>
+        /// 作り終えた fill の板の中身を、画面のふちに寄せなおす。keep は画面のまん中を基準に動かす表示（Center へ移す）。
+        /// 画面ぜんたいをおおう物（暗がり・入れもの）は画面いっぱいに広げ、その中身も同じように寄せなおす。
+        /// </summary>
+        public void FitToScreen(params Component[] keep)
+        {
+            fill = true;
+            var c = Center;
+            foreach (var k in keep) if (k != null) k.transform.SetParent(c, false);
+            Refit(root, _size);
+            Apply();
+        }
+
+        static void Refit(RectTransform parent, Vector2 size)
+        {
+            for (int i = 0; i < parent.childCount; i++)
+            {
+                var t = parent.GetChild(i) as RectTransform;
+                if (t == null || t.name == "まん中") continue;
+                if (t.anchorMin != new Vector2(0, 1) || t.anchorMax != new Vector2(0, 1)) continue;
+                var ap = t.anchoredPosition; var sz = t.sizeDelta;
+                float left = ap.x - t.pivot.x * sz.x, top = -ap.y - (1 - t.pivot.y) * sz.y;
+                // 画面ぜんたいをおおう物：画面いっぱいに広げ、中身も寄せなおす
+                if (left <= 0.5f && top <= 0.5f && left + sz.x >= size.x - 0.5f && top + sz.y >= size.y - 0.5f)
+                {
+                    t.anchorMin = Vector2.zero; t.anchorMax = Vector2.one;
+                    t.offsetMin = new Vector2(left, size.y - (top + sz.y));
+                    t.offsetMax = new Vector2(left + sz.x - size.x, -top);
+                    Refit(t, size);
+                    continue;
+                }
+                float cx = left + sz.x * 0.5f, cy = top + sz.y * 0.5f;
+                float ax = cx < size.x / 3f ? 0 : cx > size.x * 2f / 3f ? 1 : 0.5f;
+                float ay = cy < size.y / 3f ? 1 : cy > size.y * 2f / 3f ? 0 : 0.5f;
+                t.anchorMin = t.anchorMax = new Vector2(ax, ay);
+                t.anchoredPosition = ap - new Vector2(ax * size.x, -(1 - ay) * size.y);
+            }
+        }
 
         /// <summary>中身をぜんぶ消す（作り直す前に）。</summary>
         public static void Clear(RectTransform parent)

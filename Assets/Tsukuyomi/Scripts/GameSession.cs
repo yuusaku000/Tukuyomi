@@ -39,6 +39,10 @@ namespace Tsukuyomi
         void Start()
         {
             _shotMode = Ts.ShotMode;
+            // ふつうに起動したときは、この PC の画面の大きさの全画面で開く（確認用の小さな窓の設定が残っていても。
+            // 16:9 以外の画面で、絵がのびたり小さな窓になったりしないように）
+            if (!_shotMode && Ts.Arg("-screen-width") == null && Ts.Arg("-screen-fullscreen") == null)
+                Screen.SetResolution(Display.main.systemWidth, Display.main.systemHeight, FullScreenMode.FullScreenWindow);
             Quality.Load();
             SoundPrefs.Apply();
             Sfx.Ensure();
@@ -52,6 +56,9 @@ namespace Tsukuyomi
             FishBook.RollWeek(_data);
             if (Catalog.Get(_data.clothes) == null) _data.clothes = Catalog.StartClothes;
             bool first = !_data.has;
+            // 演出を作る前から遊んでいた人は、初めてのログインの演出をしない
+            if (_data.has && !_data.introStarted && !_data.introDone) _data.introDone = true;
+            bool intro = !_data.introDone && !_shotMode;
             var ward = player.GetComponent<Wardrobe>();
             if (ward != null) ward.Wear(_data.clothes, _data.wearing);
             if (ward != null && _data.hairSet) ward.SetHair(_data.hairColor, _data.hairStyle);
@@ -75,8 +82,10 @@ namespace Tsukuyomi
             if (first) _data.firstLogin = now;
             _data.lastLogin = now;
             _data.logins++;
-            Hud.Welcome(first, Ts.Arg("--from"));
-            if (Fuju.GiveLoginBonus(_data)) { SaveItems(); Hud.Toast($"初ログインボーナス！ {Fuju.LoginBonus:N0} ふじゅ〜をもらいました（Esc のメニューで残高と両替）"); }
+            if (!intro) Hud.Welcome(first, Ts.Arg("--from"));
+            // 初ログインボーナスは、月見商店街に着いたときに受け取る（Hud.Intro）
+            Hud.KeepNightOnStart(_data);
+            if (intro) Hud.StartIntro();
 
             Vr.OnGameStart(); // 画面か VR か（--vr・--vr-sim・--screen、なければえらぶ板）
             if (Ts.Arg("--shot") != null) StartCoroutine(Shot(Ts.Arg("--shot"), Ts.ArgFloat("--shot-delay", 6f)));
@@ -142,6 +151,9 @@ namespace Tsukuyomi
                 bool again = false;
                 if (p.Length > 3 && p[3].StartsWith("fish:")) { Fishing.I?.Test(p[3].Substring(5)); again = true; }
                 if (p.Length > 3 && p[3] == "talk") Hud.TestTalk();
+                if (p.Length > 3 && p[3] == "reset") { _shotMode = false; ResetData(true); _shotMode = true; } // 確認用：記録を消す（起動しなおさない）
+                // 初めてのログイン：intro（ヤチヨのセリフ）・intro:dress（無料の着がえ）・intro:bye（夜の景色のあと）・bonus（初ログインボーナス）
+                if (p.Length > 3 && (p[3].StartsWith("intro") || p[3] == "bonus")) Hud.TestIntro(p[3] == "bonus" ? "bonus" : p[3].Length > 6 ? p[3].Substring(6) : "");
                 if (p.Length > 3 && p[3] == "night") YachiyoNpc.I?.MakeNight();
                 // 段階4：live:秒[:c番号][:tip][:ask] ／ live:s1:chorus:2[+秒]… でライブのその場面へ（音は出さない）
                 if (p.Length > 3 && p[3].StartsWith("live:") && LiveShow.I != null)
@@ -226,7 +238,7 @@ namespace Tsukuyomi
         public void Save()
         {
             _saveTimer = 0;
-            if (_shotMode || player == null) return;
+            if (_shotMode || player == null || _resetting) return;
             var p = player.Position;
             if (player.InWater) return; // 水の中は保存しない（岸にもどされる途中のため）
             if (Rest.Sitting || (SkyShip.I != null && SkyShip.I.OnDeck(p))) { SaveStore.Save(_data); return; } // 遊覧船の上も場所は保存しない // 座っている間は場所を変えない（ソファの中から始まらないように）
@@ -234,6 +246,36 @@ namespace Tsukuyomi
             _data.x = p.x; _data.y = p.y; _data.z = p.z; _data.yaw = player.Yaw;
             _data.camYaw = cam.yaw; _data.camPitch = cam.pitch; _data.camDist = cam.distance; _data.firstPerson = cam.firstPerson;
             SaveStore.Save(_data);
+        }
+
+        bool _resetting;
+
+        /// <summary>
+        /// データの初期化：遊んだ記録（save.json）だけを消して、ツクヨミを起動しなおす（初めてのログインから）。
+        /// 音量・画質・操作・VR の設定（PlayerPrefs）は残す。写真も残す。
+        /// </summary>
+        public void ResetData(bool test = false)
+        {
+            _resetting = true;
+            _data = new SaveData();
+            SaveStore.Save(_data);
+            try
+            {
+                // 今のツクヨミが終わってから起動しなおす（2秒待つ）。VR で遊んでいたら VR で
+                var exe = System.Diagnostics.Process.GetCurrentProcess().MainModule.FileName;
+                var args = new System.Collections.Generic.List<string>();
+                var all = Environment.GetCommandLineArgs();
+                for (int i = 1; i < all.Length; i++) if (all[i] != "--vr" && all[i] != "--screen") args.Add("\"" + all[i].Replace("\"", "") + "\"");
+                args.Add(Vr.On && !Vr.Sim ? "--vr" : "--screen");
+                var cmd = $"/c ping -n 3 127.0.0.1 >nul & start \"\" \"{exe}\" {string.Join(" ", args)}";
+                Debug.Log("[Reset] 記録を消しました。起動しなおす命令: cmd.exe " + cmd);
+                if (test) return; // 確認用（tour の reset）：起動しなおさない
+                var psi = new System.Diagnostics.ProcessStartInfo("cmd.exe", cmd)
+                { CreateNoWindow = true, UseShellExecute = false, WindowStyle = System.Diagnostics.ProcessWindowStyle.Hidden };
+                System.Diagnostics.Process.Start(psi);
+            }
+            catch (Exception e) { Debug.LogWarning("[Reset] 起動しなおせませんでした: " + e.Message); }
+            if (!test) Application.Quit();
         }
 
         public void Logout()

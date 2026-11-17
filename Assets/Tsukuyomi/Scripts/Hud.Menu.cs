@@ -50,6 +50,7 @@ namespace Tsukuyomi
             new MItem { group = "そのほか", name = "遊び方", en = "HOW TO PLAY", kind = MKind.Action, desc = "操作や遊び方を、ページをめくって読めます。", act = () => Sub(() => OpenGuide()) },
             new MItem { group = "そのほか", name = "ふじゅ〜と両替", en = "FUJU", kind = MKind.Action, desc = "残高を見る・ミニヤチヨから両替する（片道）。", act = () => Sub(() => OpenExchange()) },
             new MItem { group = "そのほか", name = "写真のフォルダ", en = "PHOTOS", kind = MKind.Action, desc = "F12 で撮った写真のフォルダを開きます。", act = () => { System.IO.Directory.CreateDirectory(PhotoDir); Application.OpenURL("file:///" + PhotoDir.Replace('\\', '/')); } },
+            new MItem { group = "そのほか", name = "データの初期化", en = "RESET DATA", kind = MKind.Action, desc = "服・髪・ふじゅ〜・図鑑・番付・KASSEN の記録を消して、初めてのログインからやりなおします（音量・画質・VR の設定と写真は残ります）。", act = () => { _mbConfirm = true; ShowMenuPane(); } },
             new MItem { group = "そのほか", name = "ログアウト", en = "LOGOUT", kind = MKind.Action, desc = "ツクヨミを終わります。", act = () => { _mbConfirm = true; ShowMenuPane(); } },
         };
 
@@ -209,6 +210,15 @@ namespace Tsukuyomi
             Board.Panel(p, new Rect(PaneX, 216, 140, 2), Board.Vermilion);
             Board.Label(p, new Rect(PaneX, 228, PaneW, 30), it.desc, 19, new Color(1, 1, 1, 0.75f));
 
+            if (_mbConfirm && it.name == "データの初期化")
+            {
+                Board.Label(p, new Rect(PaneX, 300, PaneW, 40), "遊んだ記録を消して、最初からやりなおしますか？（もどせません）", 24, Board.Pink);
+                AddRow("はい、初期化する", "記録を消して、ツクヨミを起動しなおします", null, null, () => GameSession.Instance?.ResetData());
+                AddRow("いいえ", "メニューにもどります", null, null, () => { _mbConfirm = false; _mbFocus = 0; ShowMenuPane(); });
+                _mbRow = Mathf.Clamp(_mbRow, 0, 1);
+                LayoutRows(360);
+                return;
+            }
             if (_mbConfirm)
             {
                 Board.Label(p, new Rect(PaneX, 300, PaneW, 40), "ログアウトして、ツクヨミを終わりますか？", 26, Color.white);
