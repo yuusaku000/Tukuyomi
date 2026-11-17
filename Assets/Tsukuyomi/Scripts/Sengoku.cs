@@ -26,11 +26,14 @@ namespace Tsukuyomi
         AudioSource _audio;
         const float Gravity = 20f, Eye = 1.6f;
 
-        public static void Begin(Scene scene)
+        /// <summary>match＝3対3 の試合（false なら練習場）。level：0 やさしい・1 ふつう・2 つよい。</summary>
+        public static void Begin(Scene scene, bool match = false, int level = 1)
         {
             var go = new GameObject("SENGOKU");
             if (scene.IsValid()) SceneManager.MoveGameObjectToScene(go, scene);
-            go.AddComponent<Sengoku>().Init();
+            var s = go.AddComponent<Sengoku>();
+            s._match = match; s._level = Mathf.Clamp(level, 0, 2);
+            s.Init();
         }
 
         void Init()
@@ -40,8 +43,7 @@ namespace Tsukuyomi
             _audio = gameObject.AddComponent<AudioSource>();
             _audio.playOnAwake = false; _audio.spatialBlend = 0;
             Sounds();
-            BuildMap();
-            PlaceDummies();
+            if (!_match) { BuildMap(); PlaceDummies(); }
             _rig = new GameObject("自分（SENGOKU）");
             _rig.transform.SetParent(transform, false);
             _rig.transform.position = WestCastle + new Vector3(14f, 0.2f, 0);
@@ -50,13 +52,15 @@ namespace Tsukuyomi
             BuildWeapons();
             BuildHud();
             Select(0);
+            if (_match) InitMatch();
             if (_cam != null) _cam.fieldOfView = _fov;
         }
 
         void OnDestroy()
         {
             if (I == this) I = null;
-            foreach (var b in new[] { _hud, _pauseB }) if (b != null) Destroy(b.gameObject);
+            foreach (var b in new[] { _hud, _pauseB, _resultB }) if (b != null) Destroy(b.gameObject);
+            foreach (var u in _units) if (u.tag != null) Destroy(u.tag.gameObject);
             if (_viewRoot != null) Destroy(_viewRoot.gameObject);
             Time.timeScale = 1f;
         }
@@ -106,11 +110,15 @@ namespace Tsukuyomi
         void Update()
         {
             float dt = Time.deltaTime;
-            bool play = !_paused && !Ts.ShotMode;
-            Cursor.lockState = play ? CursorLockMode.Locked : CursorLockMode.None;
-            Cursor.visible = !play;
+            bool result = _match && _phase == MPhase.Result;
+            bool play = !_paused && !Ts.ShotMode && !result && (!_match || (!_dead && _phase == MPhase.Fight));
+            bool lockIt = !_paused && !Ts.ShotMode && !result;
+            Cursor.lockState = lockIt ? CursorLockMode.Locked : CursorLockMode.None;
+            Cursor.visible = !lockIt;
             if (_paused) { if (Act.Back.Down) Resume(); HudTick(); return; }
-            if (!Ts.ShotMode && Act.Back.Down) { Pause(); return; }
+            if (!Ts.ShotMode && !result && Act.Back.Down) { Pause(); return; }
+            if (_match) { MatchTick(dt); UnitsTick(dt); }
+            if (_me != null) { _me.frontGuard = _w == 2 && _ride ? 0.7f : 0f; _me.facing = Forward; }
 
             if (play)
             {
@@ -160,7 +168,7 @@ namespace Tsukuyomi
             if (_grounded && _vel.y < 0) _vel.y = -2f;
             if ((flags & CollisionFlags.Above) != 0 && _vel.y > 0) _vel.y = 0;
             // 落ちたら天守閣の前へもどす
-            if (_rig.transform.position.y < -12f) Teleport(WestCastle + new Vector3(14f, 0.5f, 0));
+            if (_rig.transform.position.y < -14f) Teleport(_match ? SpawnOf(1, 0) : WestCastle + new Vector3(14f, 0.5f, 0));
         }
 
         public void Teleport(Vector3 p)
@@ -173,6 +181,8 @@ namespace Tsukuyomi
         void CameraTick(float dt)
         {
             if (_cam == null) return;
+            if (SpectateCam()) return;
+            if (_viewRoot != null && !_camOverride && !_viewRoot.gameObject.activeSelf) _viewRoot.gameObject.SetActive(true);
             if (_camOverride) { _cam.transform.position = _camPos; _cam.transform.rotation = Quaternion.LookRotation(_camLook - _camPos); _cam.fieldOfView = 60; return; }
             _cam.transform.position = EyePos;
             _cam.transform.rotation = Quaternion.Euler(_pitch, _yaw, 0) * Quaternion.Euler(_tilt);
@@ -216,7 +226,7 @@ namespace Tsukuyomi
             var dot = Board.Panel(r, new Rect(957, 537, 6, 6), Board.Teal); dot.sprite = Board.DiscSprite;
             // 上
             Board.Display(r, new Rect(60, 34, 600, 70), "SENGOKU", 56, Board.Teal, TextAnchor.MiddleLeft);
-            Board.Label(r, new Rect(64, 100, 600, 30), "練習場　―　わら人形で武器をためす", 20, Color.white);
+            Board.Label(r, new Rect(64, 100, 600, 30), _match ? "" : "練習場　―　わら人形で武器をためす", 20, Color.white);
             _kill = Board.Label(r, new Rect(1260, 40, 600, 40), "", 26, Board.Gold, TextAnchor.MiddleRight);
             // 体力
             Board.NameTag(r, new Rect(46, 820, 50, 170), "あなた", Board.Teal, false, 28);
@@ -266,7 +276,8 @@ namespace Tsukuyomi
                 _wList[i].fontSize = i == _w ? 22 : 18;
             }
             _hint.text = w.hint;
-            _kill.text = $"倒したわら人形　{_kills}";
+            _kill.text = _match ? "" : $"倒したわら人形　{_kills}";
+            MatchHudTick();
             _hpFill.sizeDelta = new Vector2(416 * _hp / 100f, 16);
             float g = Gauge01;
             _gauge.sizeDelta = new Vector2(200 * g, 8);
@@ -298,9 +309,14 @@ namespace Tsukuyomi
                 var r = _pauseB.root;
                 Board.Frame(r, new Rect(0, 0, 720, 420));
                 Board.Display(r, new Rect(0, 40, 720, 90), "PAUSE", 76, Board.Teal);
-                Board.Label(r, new Rect(0, 130, 720, 34), "SENGOKU 練習場", 24, Color.white, TextAnchor.MiddleCenter);
+                Board.Label(r, new Rect(0, 130, 720, 34), _match ? "SENGOKU　3対3" : "SENGOKU 練習場", 24, Color.white, TextAnchor.MiddleCenter);
                 Board.ButtonNode(r, new Rect(210, 200, 300, 64), "つづける（Esc）", 26, Resume);
-                Board.ButtonNode(r, new Rect(210, 285, 300, 56), "島へもどる", 22, () => { Hud.Toast($"SENGOKU 練習場：わら人形を {_kills} 体倒しました"); Leave(); });
+                Board.ButtonNode(r, new Rect(210, 285, 300, 56), _match ? "降参して島へもどる" : "島へもどる", 22, () =>
+                {
+                    if (_match) { if (!Ts.ShotMode) Kassen.RewardSengoku(false, _level); Hud.Toast("SENGOKU：また挑戦してね"); }
+                    else Hud.Toast($"SENGOKU 練習場：わら人形を {_kills} 体倒しました");
+                    Leave();
+                });
             }
             _pauseB.Alpha = 1;
         }

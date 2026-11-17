@@ -39,6 +39,7 @@ namespace Tsukuyomi
         public bool fujuBonus;
         // KASSEN：SETSUNA の勝ち負け
         public int setsunaWins, setsunaLosses;
+        public int sengokuWins, sengokuLosses;
     }
 
     /// <summary>%APPDATA%\Tsukuyomi\save.json に、ログアウトした場所などを残す。</summary>

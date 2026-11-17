@@ -183,7 +183,7 @@ namespace Tsukuyomi
                 foreach (var col in Physics.OverlapSphere(p + Vector3.up + _dashDir * 0.8f, 1.3f, ~0, QueryTriggerInteraction.Ignore))
                 {
                     var t = col.GetComponentInParent<SengokuTarget>();
-                    if (t != null && !t.Down && _dashHit.Add(t)) { t.Hit(70, col.ClosestPoint(p + Vector3.up), _dashDir, true); Play(_sHeavy, 0.8f); Sparks(col.ClosestPoint(p + Vector3.up), new Color(1f, 0.9f, 0.5f), 12); }
+                    if (t != null && !t.Down && t.team != 1 && _dashHit.Add(t)) { t.Hit(70, col.ClosestPoint(p + Vector3.up), _dashDir, true); Play(_sHeavy, 0.8f); Sparks(col.ClosestPoint(p + Vector3.up), new Color(1f, 0.9f, 0.5f), 12); }
                 }
                 if (_dashT <= 0) _vel *= 0.3f;
                 return true;
@@ -203,22 +203,24 @@ namespace Tsukuyomi
 
         // ───────── 近接攻撃 ─────────
 
-        void Melee(float dmg, float range, bool heavy, float shove = 0)
+        /// <summary>近接攻撃。from・dir を渡すと武者の攻撃（team は攻めた側。同じ組には当たらない）。</summary>
+        void Melee(float dmg, float range, bool heavy, float shove = 0, Vector3? from = null, Vector3? dir = null, int team = 1)
         {
-            var center = EyePos + Aim * range * 0.55f;
+            var o = from ?? EyePos; var a = dir ?? Aim;
+            var center = o + a * range * 0.55f;
             var done = new HashSet<SengokuTarget>();
             bool any = false;
             foreach (var col in Physics.OverlapSphere(center, range * 0.6f, ~0, QueryTriggerInteraction.Ignore))
             {
                 var t = col.GetComponentInParent<SengokuTarget>();
-                if (t == null || t.Down || !done.Add(t)) continue;
-                var pt = col.ClosestPoint(EyePos);
-                t.Hit(dmg, pt, Aim, heavy);
-                if (shove > 0) t.Shove(Aim * shove);
+                if (t == null || t.Down || (team != 0 && t.team == team) || !done.Add(t)) continue;
+                var pt = col.ClosestPoint(o);
+                t.Hit(dmg, pt, a, heavy);
+                if (shove > 0) { t.Shove(a * shove); if (t == _me) _vel += a * shove * 0.8f + Vector3.up * 3f; }
                 Sparks(pt, heavy ? new Color(1f, 0.6f, 0.3f) : new Color(0.5f, 1f, 1f), heavy ? 14 : 8);
                 any = true;
             }
-            Play(any ? (heavy ? _sHeavy : _sHit) : _sWhoosh, any ? 0.8f : 0.4f);
+            if (team == 1 && from == null || Vector3.Distance(o, EyePos) < 14f) Play(any ? (heavy ? _sHeavy : _sHit) : _sWhoosh, (any ? 0.8f : 0.4f) * (from == null ? 1f : 0.5f));
         }
 
         void ChainThrow()
@@ -227,7 +229,7 @@ namespace Tsukuyomi
             {
                 ShowLine(h.point, new Color(0.7f, 0.7f, 0.75f), 0.3f);
                 var t = h.collider.GetComponentInParent<SengokuTarget>();
-                if (t != null && !t.Down) { t.Hit(20, h.point, -Aim); t.Shove(-Aim * 8f); Play(_sHit, 0.7f); Sparks(h.point, Color.white, 8); }
+                if (t != null && !t.Down && t.team != 1) { t.Hit(20, h.point, -Aim); t.Shove(-Aim * 8f); Play(_sHit, 0.7f); Sparks(h.point, Color.white, 8); }
                 else Play(_sClick, 0.5f);
             }
             else ShowLine(EyePos + Aim * 18f, new Color(0.7f, 0.7f, 0.75f), 0.2f);
@@ -242,13 +244,14 @@ namespace Tsukuyomi
         {
             public Vector3 p, v; public float grav, dmg, aoe, life, t; public bool heavy, boomerang, back;
             public ShotKind kind; public Transform tr;
+            public int team = 1; public Collider self;
             public readonly HashSet<SengokuTarget> hit = new HashSet<SengokuTarget>();
         }
         readonly List<Shot> _shots = new List<Shot>();
 
-        Shot Fire(Vector3 from, Vector3 vel, float grav, float dmg, float aoe, bool heavy, ShotKind kind)
+        Shot Fire(Vector3 from, Vector3 vel, float grav, float dmg, float aoe, bool heavy, ShotKind kind, int team = 1, Collider self = null)
         {
-            var s = new Shot { p = from, v = vel, grav = grav, dmg = dmg, aoe = aoe, heavy = heavy, kind = kind, life = kind == ShotKind.Boomerang ? 4f : 5f };
+            var s = new Shot { p = from, v = vel, grav = grav, dmg = dmg, aoe = aoe, heavy = heavy, kind = kind, life = kind == ShotKind.Boomerang ? 4f : 5f, team = team, self = self != null ? self : _cc };
             var root = new GameObject("飛び道具").transform; root.SetParent(transform, false);
             switch (kind)
             {
@@ -264,7 +267,7 @@ namespace Tsukuyomi
             }
             s.tr = root; root.position = from; root.rotation = Quaternion.LookRotation(vel);
             _shots.Add(s);
-            if (kind != ShotKind.Ball) Play(_sWhoosh, 0.45f);
+            if (kind != ShotKind.Ball && (team == 1 || Vector3.Distance(from, EyePos) < 18f)) Play(_sWhoosh, team == 1 ? 0.45f : 0.25f);
             return s;
         }
 
@@ -283,7 +286,8 @@ namespace Tsukuyomi
                 s.v += Vector3.down * s.grav * dt;
                 var step = s.v * dt;
                 bool gone = s.life <= 0;
-                if (!gone && Physics.SphereCast(s.p, s.kind == ShotKind.Ball ? 0.25f : 0.12f, step.normalized, out var h, step.magnitude, ~0, QueryTriggerInteraction.Ignore) && h.collider != _cc)
+                if (!gone && Physics.SphereCast(s.p, s.kind == ShotKind.Ball ? 0.25f : 0.12f, step.normalized, out var h, step.magnitude, ~0, QueryTriggerInteraction.Ignore) && h.collider != s.self
+                    && !(h.collider.GetComponentInParent<SengokuTarget>() is SengokuTarget ft && s.team != 0 && ft.team == s.team))
                 {
                     var t = h.collider.GetComponentInParent<SengokuTarget>();
                     if (s.boomerang)
@@ -294,7 +298,7 @@ namespace Tsukuyomi
                     else
                     {
                         if (t != null && !t.Down && s.dmg > 0) { t.Hit(s.dmg, h.point, s.v, s.heavy); Play(s.heavy ? _sHeavy : _sHit, 0.8f); }
-                        if (s.aoe > 0) Explode(h.point, s.aoe, s.kind == ShotKind.Ball ? 4.5f : 3.5f, s.heavy);
+                        if (s.aoe > 0) Explode(h.point, s.aoe, s.kind == ShotKind.Ball ? 4.5f : 3.5f, s.heavy, s.team);
                         else Sparks(h.point, s.kind == ShotKind.Arrow ? new Color(0.8f, 0.95f, 1f) : new Color(0.4f, 1f, 1f), 7);
                         gone = true;
                     }
@@ -311,20 +315,20 @@ namespace Tsukuyomi
             _shots.RemoveAt(i);
         }
 
-        void Explode(Vector3 at, float dmg, float radius, bool heavy)
+        void Explode(Vector3 at, float dmg, float radius, bool heavy, int team = 1)
         {
             var done = new HashSet<SengokuTarget>();
             foreach (var col in Physics.OverlapSphere(at, radius, ~0, QueryTriggerInteraction.Ignore))
             {
                 var t = col.GetComponentInParent<SengokuTarget>();
-                if (t == null || t.Down || !done.Add(t)) continue;
+                if (t == null || t.Down || (team != 0 && t.team == team) || !done.Add(t)) continue;
                 var pt = col.ClosestPoint(at);
                 float k = 1f - Mathf.Clamp01(Vector3.Distance(pt, at) / radius) * 0.6f;
                 t.Hit(dmg * k, pt, pt - at, heavy);
                 t.Shove((pt - at).normalized * 6f);
             }
             Boom(at, radius / 3f, new Color(1f, 0.6f, 0.25f));
-            Play(_sBoom, 0.7f);
+            if (Vector3.Distance(at, EyePos) < 30f) Play(_sBoom, 0.7f);
             if (Vector3.Distance(at, EyePos) < radius + 2f) Kick(3f);
         }
 

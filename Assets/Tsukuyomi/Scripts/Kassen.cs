@@ -22,10 +22,11 @@ namespace Tsukuyomi
 
         public static readonly string[] Levels = { "やさしい", "ふつう", "つよい" };
         public static readonly int[] Rewards = { 100, 300, 800 };
+        public static readonly int[] SengokuRewards = { 250, 500, 900 };
 
         Board _menu;
         bool _menuOpen;
-        int _opp, _level = 1, _stageSel, _mode; // _mode：0 SETSUNA・1 SENGOKU // _stageSel：0 おまかせ・1〜 舞台
+        int _opp, _level = 1, _stageSel, _mode, _sgSel; // _mode：0 SETSUNA・1 SENGOKU // _stageSel：0 おまかせ・1〜 舞台
         Text _oppName, _oppDesc, _levelText, _record, _stageText;
         readonly Image[] _levelRing = new Image[3];
         Board _sign;
@@ -200,8 +201,8 @@ namespace Tsukuyomi
             // 舞台
             Board.Label(r, new Rect(930, 340, 290, 28), "舞台", 20, Board.Gold, TextAnchor.MiddleCenter);
             _stageText = Board.Label(r, new Rect(980, 372, 190, 50), "", 24, Color.white, TextAnchor.MiddleCenter);
-            Board.ButtonNode(r, new Rect(926, 372, 50, 50), "◀", 22, () => { _stageSel = (_stageSel + Setsuna.StageNames.Length) % (Setsuna.StageNames.Length + 1); });
-            Board.ButtonNode(r, new Rect(1174, 372, 50, 50), "▶", 22, () => { _stageSel = (_stageSel + 1) % (Setsuna.StageNames.Length + 1); });
+            Board.ButtonNode(r, new Rect(926, 372, 50, 50), "◀", 22, () => { if (_mode == 1) _sgSel = 1 - _sgSel; else _stageSel = (_stageSel + Setsuna.StageNames.Length) % (Setsuna.StageNames.Length + 1); });
+            Board.ButtonNode(r, new Rect(1174, 372, 50, 50), "▶", 22, () => { if (_mode == 1) _sgSel = 1 - _sgSel; else _stageSel = (_stageSel + 1) % (Setsuna.StageNames.Length + 1); });
             _record = Board.Label(r, new Rect(70, 586, 400, 80), "", 18, new Color(1, 1, 1, 0.8f), TextAnchor.UpperLeft);
             Board.ButtonNode(r, new Rect(w - 300, h - 150, 220, 64), "出陣", 32, StartSetsuna);
             Board.ButtonNode(r, new Rect(w - 300, h - 76, 220, 44), "閉じる（Esc）", 20, CloseMenu);
@@ -225,11 +226,11 @@ namespace Tsukuyomi
         void MenuTick()
         {
             var st = SetsunaStyles.Cpu[_opp];
-            _oppName.text = st.name;
+            _oppName.text = _mode == 1 ? "西 対 東" : st.name;
             for (int i = 0; i < 2; i++) _modeBar[i].color = i == _mode ? Board.Teal : new Color(1, 1, 1, 0.15f);
-            _stageText.text = _stageSel == 0 ? "おまかせ" : Setsuna.StageNames[_stageSel - 1];
-            _oppDesc.text = st.desc;
-            _levelText.text = $"勝てば {Rewards[_level]:N0} ふじゅ〜" + (_level == 2 && !HardCleared ? "　＋　初めて勝つと「狐のきぐるみ」" : "");
+            _stageText.text = _mode == 1 ? (_sgSel == 0 ? "3対3 の試合" : "練習場") : _stageSel == 0 ? "おまかせ" : Setsuna.StageNames[_stageSel - 1];
+            _oppDesc.text = _mode == 1 ? "味方：茜・楓\n敵：疾風・岩鉄・朧" : st.desc;
+            _levelText.text = _mode == 1 ? (_sgSel == 0 ? $"勝てば {SengokuRewards[_level]:N0} ふじゅ〜（相手と味方の強さ）" : "練習場はごほうびなし") : $"勝てば {Rewards[_level]:N0} ふじゅ〜" + (_level == 2 && !HardCleared ? "　＋　初めて勝つと「狐のきぐるみ」" : "");
             for (int i = 0; i < 3; i++)
                 _levelRing[i].color = i == _level ? new Color(0.5f, 0.12f, 0.1f, 0.95f) : new Color(0.04f, 0.1f, 0.18f, 0.85f);
             var d = Data;
@@ -242,7 +243,7 @@ namespace Tsukuyomi
         void StartSetsuna()
         {
             CloseMenu();
-            if (_mode == 1) BeginSengoku();
+            if (_mode == 1) BeginSengoku(_sgSel == 0, _level);
             else BeginMatch(_opp, _level, _stageSel - 1);
         }
 
@@ -263,12 +264,24 @@ namespace Tsukuyomi
         }
 
         /// <summary>SENGOKU（いまは練習場）をはじめる。</summary>
-        public static void BeginSengoku()
+        public static void BeginSengoku(bool match = false, int level = 1)
         {
             if (I == null || InMatch) return;
             I.HideIsland();
             InMatch = true;
-            Sengoku.Begin(I._scene);
+            Sengoku.Begin(I._scene, match, level);
+        }
+
+        /// <summary>SENGOKU の試合の結果を記録して、ふじゅ〜を渡す。</summary>
+        public static string RewardSengoku(bool win, int level)
+        {
+            var d = Data;
+            if (d == null) return "";
+            if (!win) { d.sengokuLosses++; GameSession.Instance.SaveItems(); return "ふじゅ〜はもらえませんでした"; }
+            d.sengokuWins++;
+            int amt = SengokuRewards[Mathf.Clamp(level, 0, 2)];
+            Fuju.Earn(amt);
+            return $"＋{amt:N0} ふじゅ〜";
         }
 
         void HideIsland()
