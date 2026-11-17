@@ -21,6 +21,8 @@ namespace Tsukuyomi
         /// <summary>まねる頭の左右と上下の向き（度）。</summary>
         public static float SimYaw, SimPitch = 5f;
         /// <summary>tour から：右スティック・トリガー・グリップをこの値にしておく。</summary>
+        /// <summary>確認用：右手を左右に振りつづける（KASSEN の振る攻撃）。</summary>
+        public static bool SimSwing;
         public static Vector2 SimStick; public static float SimTrigger, SimGrip;
         static bool _simByTour;
 
@@ -88,6 +90,7 @@ namespace Tsukuyomi
                 var w = ct.TransformPoint(new Vector3(SimAimPx.x - sz.x / 2, sz.y / 2 - SimAimPx.y, 0));
                 aim = Quaternion.Inverse(OriginRot(cam)) * (w - OriginPos(cam));
             }
+            if (SimSwing) rp += yawOnly * new Vector3(Mathf.Sin(Time.time * 12f) * 0.35f, 0, 0); // 確認用：右手を左右に振る（最大 4m/秒）
             var lp = head + yawOnly * new Vector3(-0.19f, -0.36f, 0.3f);
             var rr = Quaternion.LookRotation(aim - rp, Vector3.up);
             var lr = Quaternion.Euler(SimPitch * 0.5f + 10f, SimYaw - 8f, 6f);

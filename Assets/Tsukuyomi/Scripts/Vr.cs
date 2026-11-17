@@ -191,13 +191,65 @@ namespace Tsukuyomi
         // ───────── カメラ（OrbitCamera から呼ぶ）─────────
 
         /// <summary>遊ぶ場所の原点（足もと）。体の位置と向き＋背の高さ。</summary>
-        public static Vector3 OriginPos(OrbitCamera cam) => cam.target.position + Vector3.up * (Height + (_floor ? 0f : cam.eyeHeight));
-        public static Quaternion OriginRot(OrbitCamera cam) => Quaternion.Euler(0, cam.yaw, 0);
+        public static Vector3 OriginPos(OrbitCamera cam) => Body != null ? Body.Feet + Vector3.up * (Height + (_floor ? 0f : 1.6f)) : cam.target.position + Vector3.up * (Height + (_floor ? 0f : cam.eyeHeight));
+        public static Quaternion OriginRot(OrbitCamera cam) => Quaternion.Euler(0, Body != null ? Body.Yaw : cam.yaw, 0);
+
+        // ───────── KASSEN などの体（島の人形の代わり）─────────
+
+        /// <summary>
+        /// 島の人形の代わりに VR の体になるもの（KASSEN の試合中の自分）。入れている間は、頭と手はこの足もとと向きに合わせ、
+        /// 右スティックでこの向きを回す（ワープはしない）。光の線は Pointer のときだけ出す。
+        /// </summary>
+        public interface IBody
+        {
+            /// <summary>足もと（遊ぶ場所の原点）。</summary>
+            Vector3 Feet { get; }
+            /// <summary>体の左右の向き（度）。</summary>
+            float Yaw { get; set; }
+            /// <summary>回ったときに頭がずれないよう、体をこれだけ動かす。</summary>
+            void Carry(Vector3 shift);
+            /// <summary>板を押すための光の線を出す（一時停止・武器えらび・結果など）。</summary>
+            bool Pointer { get; }
+            /// <summary>カメラを試合のほうで動かす（倒れたあとの観戦など）。</summary>
+            bool CameraFree { get; }
+        }
+        public static IBody Body;
+        /// <summary>右スティック（KASSEN の練習場で武器を持ちかえる）。</summary>
+        public static Vector2 RightStick => _rStick.ReadValue<Vector2>();
+
+        /// <summary>右手・左手（見た目の手。位置と向きは世界の座標）。VR でないときは null。</summary>
+        public static Transform RightHand => I != null ? I._rHand : null;
+        public static Transform LeftHand => I != null ? I._lHand : null;
+        /// <summary>手の速さ（メートル／秒、遊ぶ場所の中の動きだけ。振る攻撃に使う）。</summary>
+        public static Vector3 RightVel, LeftVel;
+        static Vector3 _rPrev, _lPrev; static bool _velInit;
+
+        static void HandVel()
+        {
+            float dt = Mathf.Max(1e-4f, Time.deltaTime);
+            var r = _rPos.ReadValue<Vector3>(); var l = _lPos.ReadValue<Vector3>();
+            if (_velInit) { RightVel = Vector3.Lerp(RightVel, (r - _rPrev) / dt, 0.6f); LeftVel = Vector3.Lerp(LeftVel, (l - _lPrev) / dt, 0.6f); }
+            _rPrev = r; _lPrev = l; _velInit = true;
+        }
+
+        /// <summary>コントローラーをふるわせる（当たった感じ）。amp 0〜1。</summary>
+        public static void Buzz(bool right, float amp, float seconds)
+        {
+            if (!On) return;
+            var want = right ? UnityEngine.InputSystem.CommonUsages.RightHand : UnityEngine.InputSystem.CommonUsages.LeftHand;
+            foreach (var d in UnityEngine.InputSystem.InputSystem.devices)
+            {
+                if (!(d is UnityEngine.InputSystem.XR.XRControllerWithRumble rc)) continue;
+                bool hand = false;
+                foreach (var u in d.usages) if (u == want) hand = true;
+                if (hand) rc.SendImpulse(Mathf.Clamp01(amp), seconds);
+            }
+        }
 
         /// <summary>カメラを頭の位置と向きに置く。</summary>
         public static void PlaceCamera(OrbitCamera cam)
         {
-            if (cam == null || cam.target == null) return;
+            if (cam == null || cam.target == null || (Body != null && Body.CameraFree)) return;
             var r = OriginRot(cam);
             cam.transform.SetPositionAndRotation(OriginPos(cam) + r * HeadPos, r * HeadRot);
         }
@@ -260,8 +312,10 @@ namespace Tsukuyomi
         void Update()
         {
             if (Sim) SimTick();
+            HandVel();
             var cam = Cam; var pl = Player;
             if (cam == null || pl == null) return;
+            if (Body != null) { BodyTick(cam); return; }
             bool free = !Hud.Blocked && (!Ts.ShotMode || _simByTour) && !PlayerController.Busy && !Kassen.Busy && !Choosing;
             var rs = _rStick.ReadValue<Vector2>();
 
@@ -292,6 +346,27 @@ namespace Tsukuyomi
 
             // 酔い防止：動いている間だけ、視界のふちを暗く
             var p = pl.Position; var d = p - _lastPos; d.y = 0; _lastPos = p;
+            float speed = d.magnitude / Mathf.Max(1e-4f, Time.deltaTime);
+            bool moving = speed > 0.6f && speed < 60f;
+            float want = Vignette && (moving || turning) ? 1f : 0f;
+            _comfort = Mathf.MoveTowards(_comfort, want, Time.deltaTime * (want > _comfort ? 4f : 2f));
+            _flash = Mathf.Max(0, _flash - Time.deltaTime);
+            _vigNow = Vignette ? Mathf.Max(_comfort, _flash > 0 ? 1f : 0f) : 0f;
+        }
+
+        /// <summary>KASSEN の体：回るのと、酔い防止のふちだけ（ワープはしない）。</summary>
+        void BodyTick(OrbitCamera cam)
+        {
+            var rs = _rStick.ReadValue<Vector2>();
+            bool turning = false;
+            if (!Body.Pointer && Mathf.Abs(rs.x) > Mathf.Abs(rs.y))
+            {
+                if (SnapTurn) { if (Mathf.Abs(rs.x) > 0.7f && !_turnHeld) { Turn(cam, 45f * Mathf.Sign(rs.x)); _turnHeld = true; _flash = 0.25f; } }
+                else if (Mathf.Abs(rs.x) > 0.2f) { Turn(cam, rs.x * 100f * Time.deltaTime); turning = true; }
+            }
+            if (Mathf.Abs(rs.x) < 0.3f) _turnHeld = false;
+            _aiming = false; _arc.enabled = _ringLine.enabled = false;
+            var p = Body.Feet; var d = p - _lastPos; d.y = 0; _lastPos = p;
             float speed = d.magnitude / Mathf.Max(1e-4f, Time.deltaTime);
             bool moving = speed > 0.6f && speed < 60f;
             float want = Vignette && (moving || turning) ? 1f : 0f;
@@ -374,18 +449,18 @@ namespace Tsukuyomi
         void Turn(OrbitCamera cam, float deg)
         {
             // 頭のまわりで回る（体のまわりだと、頭が横にずれて酔いやすい）
-            var head = cam.transform.position;
-            cam.yaw += deg;
+            var head = OriginPos(cam) + OriginRot(cam) * HeadPos;
+            if (Body != null) Body.Yaw += deg; else cam.yaw += deg;
             var after = OriginPos(cam) + OriginRot(cam) * HeadPos;
             var shift = head - after; shift.y = 0;
-            if (shift.sqrMagnitude > 1e-6f && Player != null && shift.sqrMagnitude < 1f) Player.Carry(shift, 0);
+            if (shift.sqrMagnitude > 1e-6f && shift.sqrMagnitude < 1f) { if (Body != null) Body.Carry(shift); else if (Player != null) Player.Carry(shift, 0); }
             if (Sim && Mathf.Abs(deg) > 10f) Log($"回った {deg:0.#}度 → 向き {Mathf.Repeat(cam.yaw, 360):0}");
         }
 
         /// <summary>今いる板を、光の線で指す（板にあたったところに点）。</summary>
         void UpdateRay()
         {
-            bool show = Choosing || Hud.Blocked || Kassen.Busy;
+            bool show = Body != null ? Body.Pointer : Choosing || Hud.Blocked || Kassen.Busy;
             var o = _rHand.position; var dir = _rHand.forward;
             float best = 4f; bool hit = false;
             if (show)

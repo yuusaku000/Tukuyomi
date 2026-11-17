@@ -151,6 +151,8 @@ namespace Tsukuyomi
         ///  左スティック：歩く　左グリップ：走る　X：地図　Y・メニュー：もどる／メニュー
         ///  右トリガー：竿・板を押す　A：調べる・話す・座る　B：ジャンプ
         ///  右スティック（回る・ワープ）は Vr が読む。
+        ///  KASSEN：右トリガー 攻撃（Light）・右グリップ 飛び道具／狙う（Heavy）・A 移動わざ・必殺（Special）・
+        ///          左トリガー 殴る・投げ（Throw）・X 戦況（Info）・左スティック押しこみ 超必殺（Super）。近接は手を振っても出る（Sengoku／Setsuna が読む）。
         /// </summary>
         public static void AddXrBindings()
         {
@@ -162,6 +164,12 @@ namespace Tsukuyomi
             Cast.Bind("<XRController>{RightHand}/{TriggerButton}");
             Interact.Bind("<XRController>{RightHand}/{PrimaryButton}");
             Jump.Bind("<XRController>{RightHand}/{SecondaryButton}");
+            Light.Bind("<XRController>{RightHand}/{TriggerButton}");
+            Heavy.Bind("<XRController>{RightHand}/{GripButton}");
+            Special.Bind("<XRController>{RightHand}/{PrimaryButton}");
+            Throw.Bind("<XRController>{LeftHand}/{TriggerButton}");
+            Info.Bind("<XRController>{LeftHand}/{PrimaryButton}");
+            Super.Bind("<XRController>{LeftHand}/{Primary2DAxisClick}");
         }
 
         static Button[] All => new[] { Jump, Run, Descend, View, Interact, Cast, Wardrobe, Confirm, Back, Map, Book, HideHud, Info, Light, Heavy, Special, Throw, Super, Crouch };

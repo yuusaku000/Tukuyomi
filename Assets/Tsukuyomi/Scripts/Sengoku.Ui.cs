@@ -234,7 +234,7 @@ namespace Tsukuyomi
             if (_daruma[2].active) items.Add((DarumaSpot(2) + Vector3.up * 6f, "叩け：東の大将落とし", Board.Teal));
             else if (_daruma[1].active) items.Add((DarumaSpot(1) + Vector3.up * 6f, "守れ：西の大将落とし", Board.Vermilion));
             if (!_dead && _me.hp < 40 && !InBase(1, _rig.transform.position)) items.Add((SpawnOf(1, 1) + Vector3.up * 2f, "本陣で回復", Board.Gold));
-            float s = Screen.height / 1080f, halfW = Screen.width / 2f / s;
+            float halfW = HudHalfW;
             bool show = (_phase == MPhase.Fight || _phase == MPhase.Intro) && _intelT <= 0.01f; // 戦況の板を開いているあいだは隠す
             for (int i = 0; i < _marks.Count; i++)
             {
@@ -243,10 +243,9 @@ namespace Tsukuyomi
                 m.ring.enabled = m.label.enabled = m.dist.enabled = m.arrow.enabled = on;
                 if (!on) continue;
                 var (p, name, c) = items[i];
-                var sp = _cam.WorldToScreenPoint(p);
+                var sp = HudUi(p);
                 bool behind = sp.z < 0;
-                var ui = new Vector2((sp.x - Screen.width / 2f) / s, (sp.y - Screen.height / 2f) / s);
-                if (behind) ui = -ui;
+                var ui = new Vector2(sp.x, sp.y);
                 // 画面の外なら、ふちに寄せる
                 float mx = Mathf.Min(halfW, 960) - 70, my = 470;
                 bool edge = behind || Mathf.Abs(ui.x) > mx || Mathf.Abs(ui.y) > my;
@@ -271,7 +270,7 @@ namespace Tsukuyomi
             else if (Owned(1) == 0) goal = _theme == 1 ? "まずは櫓を取れ：北の岩山か、南の大樹の台地へ" : "まずは櫓を取れ：北の山か、南の湖の浮き島へ";
             else goal = "櫓を守りながら、もう一つの櫓も取ろう";
             if (_dead || _phase != MPhase.Fight || _intelT > 0.01f) goal = "";
-            _goalText.font = Ts.Font; _goalText.text = goal; _goalText.color = gc;
+            _goalText.font = Ts.Font; _goalText.text = VrText(goal); _goalText.color = gc;
             _hitT -= Time.unscaledDeltaTime;
             if (_hitX) { var c2 = _hitX.color; c2.a = Mathf.Clamp01(_hitT * 6f); _hitX.color = c2; }
         }

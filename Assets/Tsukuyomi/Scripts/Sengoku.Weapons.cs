@@ -80,41 +80,42 @@ namespace Tsukuyomi
         {
             _cd -= dt; _cd2 -= dt; _abilityCd -= dt;
             // F：どの武器でも殴れる（大将落としは近接攻撃でしか落とせない）
-            if (Act.Throw.Down && _cd <= 0 && !_hammerWind) { Melee(25, 2.4f, false); Swing(0.25f); _cd = 0.45f; }
-            bool L = Act.Light.Down, LH = Act.Light.Held, LU = Act.Light.Up, R = Act.Heavy.Down, RH = Act.Heavy.Held, E = Act.Special.Down;
+            bool swingR = SwingRight(dt), swingL = SwingLeft(dt); // VR：手を振った
+            if ((Act.Throw.Down || swingL) && _cd <= 0 && !_hammerWind) { Melee(25, 2.4f, false); Swing(0.25f); _cd = 0.45f; }
+            bool L = Act.Light.Down || swingR, LH = Act.Light.Held, LU = Act.Light.Up, R = Act.Heavy.Down, RH = Act.Heavy.Held, E = Act.Special.Down;
             switch (_w)
             {
                 case 0: // 二刀流
                     if (L && _cd <= 0) { _combo = (_combo + 1) % 3; bool big = _combo == 0; Melee(big ? 45 : 28, 2.5f, big); Swing(big ? 0.38f : 0.24f); _cd = big ? 0.42f : 0.24f; }
-                    if (R && _cd2 <= 0) { Fire(EyePos + Aim * 0.7f + Right * 0.15f, Aim * 55f, 0, 14, 0, false, ShotKind.Spark); _cd2 = 0.22f; Swing(0.15f); }
+                    if (R && _cd2 <= 0) { Fire(From + Aim * 0.7f + Side(0.15f), Aim * 55f, 0, 14, 0, false, ShotKind.Spark); _cd2 = 0.22f; Swing(0.15f); }
                     if (E && WireTarget(out var hit)) { _wire = true; _anchor = hit.point; _ropeLen = Vector3.Distance(_rig.transform.position + Vector3.up, _anchor); Play(_sWhoosh, 0.6f); }
                     if (_wire && (!Act.Special.Held)) _wire = false;
                     break;
                 case 1: // ハンマー
                     if (L && _cd <= 0 && !_hammerWind) { _hammerWind = true; _windT = 0.32f; Swing(0.7f); }
-                    if (_hammerWind) { _windT -= dt; if (_windT <= 0) { _hammerWind = false; Melee(90, 3f, true, 9f); Kick(-4f); _cd = 0.55f; Boom(EyePos + Aim * 2f + Vector3.down * 0.6f, 0.8f, new Color(1f, 0.7f, 0.4f)); } }
-                    if (R && _cd2 <= 0) { Fire(EyePos + Aim * 0.9f + Right * 0.3f, Aim * 26f, 0, 0, 60, true, ShotKind.Missile); _cd2 = 1.2f; Kick(2f); }
+                    if (_hammerWind) { _windT -= dt; if (_windT <= 0) { _hammerWind = false; Melee(90, 3f, true, 9f); Kick(-4f); _cd = 0.55f; Boom(EyePos + MeleeAim * 2f + Vector3.down * 0.6f, 0.8f, new Color(1f, 0.7f, 0.4f)); } }
+                    if (R && _cd2 <= 0) { Fire(From + Aim * 0.9f + Side(0.3f), Aim * 26f, 0, 0, 60, true, ShotKind.Missile); _cd2 = 1.2f; Kick(2f); }
                     break;
                 case 2: // 傘
                     if (L && _cd <= 0) { Melee(35, 2.7f, false); Swing(0.3f); _cd = 0.38f; }
-                    if (R && _boomer == null) { _boomer = Fire(EyePos + Aim * 0.8f, Aim * 28f, 0, 30, 0, false, ShotKind.Boomerang); _boomer.boomerang = true; }
+                    if (R && _boomer == null) { _boomer = Fire(From + Aim * 0.8f, Aim * 28f, 0, 30, 0, false, ShotKind.Boomerang); _boomer.boomerang = true; }
                     if (E) { _ride = !_ride; if (_ride) { _vel.y = Mathf.Max(_vel.y, 3f); } Play(_sWhoosh, 0.5f); }
                     break;
                 case 3: // 弓
                     if (LH && _cd <= 0) _charge = Mathf.Min(1f, _charge + dt);
-                    if (LU && _charge > 0) { Fire(EyePos + Aim * 0.7f, Aim * (40f + 55f * _charge), 9f, 25 + 75 * _charge, 0, _charge > 0.9f, ShotKind.Arrow); _charge = 0; _cd = 0.3f; Kick(1.2f); }
+                    if (LU && _charge > 0) { Fire(From + Aim * 0.7f, Aim * (40f + 55f * _charge), 9f, 25 + 75 * _charge, 0, _charge > 0.9f, ShotKind.Arrow); _charge = 0; _cd = 0.3f; Kick(1.2f); }
                     _zoom = RH;
                     if (E && _abilityCd <= 0) { _dashT = 0.55f; _dashDir = Aim; _dashHit.Clear(); _abilityCd = 3f; Play(_sWhoosh, 0.8f); }
                     break;
                 case 4: // 大筒
                     _zoom = RH;
-                    if (L && _cd <= 0) { Fire(EyePos + Aim * 1.2f + Right * 0.25f, Aim * 38f, 12f, 0, 110, true, ShotKind.Ball); _cd = 1.6f; Kick(7f); _vel -= Aim * 2.5f; Play(_sBoom, 0.5f); }
-                    if (E && _abilityCd <= 0) { Fire(EyePos + Aim * 1.2f, Aim * 38f, 12f, 0, 80, true, ShotKind.Ball); _vel = -Aim * 17f + Vector3.up * 9f; _grounded = false; _abilityCd = 4f; Kick(10f); Play(_sBoom, 0.6f); }
+                    if (L && _cd <= 0) { Fire(From + Aim * 1.2f + Side(0.25f), Aim * 38f, 12f, 0, 110, true, ShotKind.Ball); _cd = 1.6f; Kick(7f); _vel -= Aim * 2.5f; Play(_sBoom, 0.5f); }
+                    if (E && _abilityCd <= 0) { Fire(From + Aim * 1.2f, Aim * 38f, 12f, 0, 80, true, ShotKind.Ball); _vel = -Aim * 17f + Vector3.up * 9f; _grounded = false; _abilityCd = 4f; Kick(10f); Play(_sBoom, 0.6f); }
                     break;
                 case 5: // 鎖鎌
                     if (L && _cd <= 0) { Melee(32, 2.6f, false); Swing(0.3f); _cd = 0.34f; }
                     if (R && _cd2 <= 0) { ChainThrow(); _cd2 = 0.9f; }
-                    if (E && _abilityCd <= 0 && Physics.Raycast(EyePos, Aim, out var h2, 32f, ~0, QueryTriggerInteraction.Ignore) && h2.collider != _cc)
+                    if (E && _abilityCd <= 0 && Physics.Raycast(From, Aim, out var h2, 32f, ~0, QueryTriggerInteraction.Ignore) && h2.collider != _cc)
                     {
                         _pull = true; _pullT = 1.6f; _pullTo = h2.point + h2.normal * 0.6f + Vector3.up * 0.4f; _abilityCd = 1.5f;
                         ShowLine(h2.point, new Color(0.7f, 0.7f, 0.75f), 0.25f);
@@ -128,7 +129,7 @@ namespace Tsukuyomi
         {
             hit = default;
             if (_rig == null) return false;
-            return Physics.Raycast(EyePos, Aim, out hit, 55f, ~0, QueryTriggerInteraction.Ignore) && hit.collider != _cc && hit.point.y > _rig.transform.position.y - 2f;
+            return Physics.Raycast(From, Aim, out hit, 55f, ~0, QueryTriggerInteraction.Ignore) && hit.collider != _cc && hit.point.y > _rig.transform.position.y - 2f;
         }
 
         // ───────── 移動わざ（ふつうの歩きの代わりに動かす）─────────
@@ -208,7 +209,7 @@ namespace Tsukuyomi
         /// <summary>近接攻撃。from・dir を渡すと武者の攻撃（team は攻めた側。同じ組には当たらない）。</summary>
         void Melee(float dmg, float range, bool heavy, float shove = 0, Vector3? from = null, Vector3? dir = null, int team = 1)
         {
-            var o = from ?? EyePos; var a = dir ?? Aim;
+            var o = from ?? EyePos; var a = dir ?? MeleeAim;
             var center = o + a * range * 0.55f;
             var done = new HashSet<SengokuTarget>();
             bool any = false;
@@ -223,19 +224,20 @@ namespace Tsukuyomi
                 Sparks(pt, heavy ? new Color(1f, 0.6f, 0.3f) : new Color(0.5f, 1f, 1f), heavy ? 14 : 8);
                 any = true;
             }
+            if (any && team == 1 && from == null) Vr.Buzz(true, heavy ? 0.9f : 0.5f, heavy ? 0.15f : 0.07f); // VR：当たったらふるえる
             if (team == 1 && from == null || Vector3.Distance(o, EyePos) < 14f) Play(any ? (heavy ? _sHeavy : _sHit) : _sWhoosh, (any ? 0.8f : 0.4f) * (from == null ? 1f : 0.5f));
         }
 
         void ChainThrow()
         {
-            if (Physics.SphereCast(EyePos, 0.4f, Aim, out var h, 18f, ~0, QueryTriggerInteraction.Ignore) && h.collider != _cc)
+            if (Physics.SphereCast(From, 0.4f, Aim, out var h, 18f, ~0, QueryTriggerInteraction.Ignore) && h.collider != _cc)
             {
                 ShowLine(h.point, new Color(0.7f, 0.7f, 0.75f), 0.3f);
                 var t = h.collider.GetComponentInParent<SengokuTarget>();
                 if (t != null && !t.Down && t.team != 1) { t.Hit(20, h.point, -Aim); t.Shove(-Aim * 8f); Play(_sHit, 0.7f); Sparks(h.point, Color.white, 8); }
                 else Play(_sClick, 0.5f);
             }
-            else ShowLine(EyePos + Aim * 18f, new Color(0.7f, 0.7f, 0.75f), 0.2f);
+            else ShowLine(From + Aim * 18f, new Color(0.7f, 0.7f, 0.75f), 0.2f);
             Swing(0.25f);
         }
 

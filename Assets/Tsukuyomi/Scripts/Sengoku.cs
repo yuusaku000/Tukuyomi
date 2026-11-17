@@ -56,11 +56,13 @@ namespace Tsukuyomi
             Select(0);
             if (_match) InitMatch();
             if (_cam != null) _cam.fieldOfView = _fov;
+            VrInit();
         }
 
         void OnDestroy()
         {
-            if (I == this) I = null;
+            if (I == this) { I = null; Vr.SimSwing = false; }
+            VrEnd();
             foreach (var b in new[] { _hud, _pauseB, _resultB, _selB, _intel }) if (b != null) Destroy(b.gameObject);
             if (_rt != null) { _rt.Release(); Destroy(_rt); }
             foreach (var u in _units) if (u.tag != null) Destroy(u.tag.gameObject);
@@ -93,6 +95,9 @@ namespace Tsukuyomi
                 case "tower":
                     s.Teleport(new Vector3(0, 8.7f, 38)); s._yaw = 180; s._pitch = 12;
                     break;
+                case "vrswing": // 確認用（--vr-sim）：右手を振りつづけて、振る攻撃が出るか見る
+                    s.Teleport(new Vector3(-48, 0.2f, 0)); s._yaw = 90; s._testPlay = true; Vr.SimSwing = true;
+                    break;
                 case "aim":
                     s.Teleport(new Vector3(-48, 0.2f, 0)); s._yaw = 90; s._pitch = 2; s._zoom = true; s._charge = 0.8f;
                     break;
@@ -114,7 +119,7 @@ namespace Tsukuyomi
         {
             float dt = Time.deltaTime;
             bool result = _match && (_phase == MPhase.Result || _phase == MPhase.Select);
-            bool play = !_paused && !Ts.ShotMode && !result && (!_match || (!_dead && _phase == MPhase.Fight));
+            bool play = !_paused && (!Ts.ShotMode || _testPlay) && !result && (!_match || (!_dead && _phase == MPhase.Fight));
             bool lockIt = !_paused && !Ts.ShotMode && !result;
             Cursor.lockState = lockIt ? CursorLockMode.Locked : CursorLockMode.None;
             Cursor.visible = !lockIt;
@@ -124,11 +129,21 @@ namespace Tsukuyomi
             if (_match) IntelTick(Time.unscaledDeltaTime);
             if (_me != null) { _me.frontGuard = _w == 2 && _ride ? 0.7f : 0f; _me.facing = Forward; }
 
-            if (play)
+            if (play && !VrOn)
             {
                 var m = Act.LookMouse + Act.LookStick;
                 _yaw += m.x * 2.2f;
                 _pitch = Mathf.Clamp(_pitch - m.y * 2.2f, -85f, 85f);
+            }
+            if (play)
+            {
+                if (!_match && VrOn)
+                {
+                    // VR の練習場：右スティックを上下に倒して武器を持ちかえる
+                    float sy = Vr.RightStick.y;
+                    if (Mathf.Abs(sy) > 0.7f && !_stickHeld) { Select((_w + (sy > 0 ? Weapons.Length - 1 : 1)) % Weapons.Length); _stickHeld = true; }
+                    if (Mathf.Abs(sy) < 0.3f) _stickHeld = false;
+                }
                 if (!_match)
                 {
                     // 練習場では、いつでも持ちかえられる（試合はラウンドの始めにえらぶ）
@@ -143,15 +158,18 @@ namespace Tsukuyomi
             Shots(dt);
             WeaponTick(dt);
             CameraTick(dt);
+            AimLineTick(play);
             HudTick();
         }
 
         bool _frozen;
 
-        Vector3 Forward => Quaternion.Euler(0, _yaw, 0) * Vector3.forward;
-        Vector3 Right => Quaternion.Euler(0, _yaw, 0) * Vector3.right;
-        public Vector3 EyePos => _rig.transform.position + Vector3.up * Eye;
-        public Vector3 Aim => Quaternion.Euler(_pitch, _yaw, 0) * Vector3.forward;
+        // VR では歩く向きは頭の向き、目は頭の位置、ねらいは右手の向き
+        float MoveYaw => VrOn ? _yaw + Vr.HeadYaw : _yaw;
+        Vector3 Forward => Quaternion.Euler(0, MoveYaw, 0) * Vector3.forward;
+        Vector3 Right => Quaternion.Euler(0, MoveYaw, 0) * Vector3.right;
+        public Vector3 EyePos => VrOn && ReferenceEquals(Vr.Body, this) ? VrHead : _rig.transform.position + Vector3.up * Eye;
+        public Vector3 Aim => VrOn ? Vr.RightHand.forward : Quaternion.Euler(_pitch, _yaw, 0) * Vector3.forward;
 
         void Move(bool play, float dt)
         {
@@ -191,6 +209,7 @@ namespace Tsukuyomi
             if (_cam == null) return;
             if (SpectateCam()) return;
             if (_viewRoot != null && !_camOverride && !_viewRoot.gameObject.activeSelf && !(_match && _phase == MPhase.Select)) _viewRoot.gameObject.SetActive(true);
+            if (VrOn && !_camOverride) return; // VR：カメラは頭に合わせて Vr が置く
             if (_camOverride) { _cam.transform.position = _camPos; _cam.transform.rotation = Quaternion.LookRotation(_camLook - _camPos); _cam.fieldOfView = 60; return; }
             _cam.transform.position = EyePos;
             _cam.transform.rotation = Quaternion.Euler(_pitch, _yaw, 0) * Quaternion.Euler(_tilt);
@@ -229,9 +248,12 @@ namespace Tsukuyomi
             _hud.Apply();
             var r = _hud.root;
             Board.Fans(r, new Rect(16, 16, 1888, 1048), new Color(1, 1, 1, 0.65f), 80);
-            // 照準
-            Board.Ring(r, new Vector2(960, 540), 16, new Color(1, 1, 1, 0.85f), false);
-            var dot = Board.Panel(r, new Rect(957, 537, 6, 6), Board.Teal); dot.sprite = Board.DiscSprite;
+            // 照準（VR では手の先の光の線でねらうので出さない）
+            if (!Vr.On)
+            {
+                Board.Ring(r, new Vector2(960, 540), 16, new Color(1, 1, 1, 0.85f), false);
+                var dot = Board.Panel(r, new Rect(957, 537, 6, 6), Board.Teal); dot.sprite = Board.DiscSprite;
+            }
             // 上
             Board.Display(r, new Rect(60, 34, 600, 70), "SENGOKU", 56, Board.Teal, TextAnchor.MiddleLeft);
             Board.Label(r, new Rect(64, 100, 600, 30), _match ? "" : "練習場　―　わら人形で武器をためす", 20, Color.white);
@@ -252,7 +274,8 @@ namespace Tsukuyomi
             for (int i = 0; i < 6; i++)
                 _wList[i] = Board.Label(r, new Rect(1440, 640 + i * 30, 350, 28), "", 18, Color.white, TextAnchor.MiddleRight);
             _hint = Board.Label(r, new Rect(980, 900, 810, 140), "", 18, new Color(1, 1, 1, 0.85f), TextAnchor.UpperRight);
-            Board.Label(r, new Rect(60, 1010, 900, 30), _match ? "WASD 移動　Shift 走る　Space ジャンプ　F 殴る（大将落としは近接だけ）　Esc 一時停止　自分の城の中で回復" : "WASD 移動　Shift 走る　Space ジャンプ　1〜6・ホイール 武器　Esc 一時停止", 16, new Color(1, 1, 1, 0.7f), TextAnchor.MiddleLeft);
+            if (Vr.On) Board.Label(r, new Rect(60, 1010, 1300, 30), _match ? VrKeys : VrKeysPractice, 16, new Color(1, 1, 1, 0.7f), TextAnchor.MiddleLeft);
+            else Board.Label(r, new Rect(60, 1010, 900, 30), _match ? "WASD 移動　Shift 走る　Space ジャンプ　F 殴る（大将落としは近接だけ）　Esc 一時停止　自分の城の中で回復" : "WASD 移動　Shift 走る　Space ジャンプ　1〜6・ホイール 武器　Esc 一時停止", 16, new Color(1, 1, 1, 0.7f), TextAnchor.MiddleLeft);
             for (int i = 0; i < 14; i++)
             {
                 var t = Board.Display(r, new Rect(0, 0, 200, 50), "", 34, Board.Gold);
@@ -294,7 +317,7 @@ namespace Tsukuyomi
                 _wList[i].color = i == _w ? Board.Teal : new Color(1, 1, 1, 0.55f);
                 _wList[i].fontSize = i == _w ? 22 : 18;
             }
-            _hint.text = w.hint;
+            _hint.text = VrText(w.hint);
             _kill.text = _match ? "" : $"倒したわら人形　{_kills}";
             MatchHudTick();
             _hpFill.sizeDelta = new Vector2(416 * _hp / 100f, 16);
@@ -302,17 +325,17 @@ namespace Tsukuyomi
             _gauge.sizeDelta = new Vector2(200 * g, 8);
             _gaugeImg.color = g >= 1 ? Board.Teal : Board.Gold;
             _gaugeLabel.text = GaugeText;
-            float udt = Time.unscaledDeltaTime, s = Screen.height / 1080f;
+            float udt = Time.unscaledDeltaTime;
             for (int i = 0; i < _dmg.Count; i++)
             {
                 var (t, life, world) = _dmg[i];
                 if (life <= 0) { if (t.text != "") t.text = ""; continue; }
                 life -= udt; world += Vector3.up * udt * 1.2f;
                 _dmg[i] = (t, life, world);
-                var sp = _cam != null ? _cam.WorldToScreenPoint(world) : Vector3.back;
+                var sp = _cam != null ? HudUi(world) : Vector3.back;
                 if (sp.z <= 0) { t.text = ""; continue; }
                 var rt = (RectTransform)t.transform;
-                rt.anchoredPosition = new Vector2((sp.x - Screen.width / 2f) / s + 960 - 100, -(540 - (sp.y - Screen.height / 2f) / s) + 25);
+                rt.anchoredPosition = new Vector2(sp.x + 960 - 100, -(540 - sp.y) + 25);
                 t.canvasRenderer.SetAlpha(Mathf.Clamp01(life * 2f));
             }
         }
