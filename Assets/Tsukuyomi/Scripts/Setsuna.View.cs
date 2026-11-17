@@ -374,7 +374,7 @@ namespace Tsukuyomi
 
         void Play(AudioClip c, float vol)
         {
-            if (c != null && _audio != null) _audio.PlayOneShot(c, vol);
+            if (c != null && _audio != null) _audio.PlayOneShot(c, vol * SoundPrefs.Effects); // メニューの「効果音」の大きさに合わせる
         }
 
         void Whoosh() => Play(_sWhoosh, 0.35f);

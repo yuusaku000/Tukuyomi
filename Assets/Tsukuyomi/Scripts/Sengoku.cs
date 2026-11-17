@@ -123,7 +123,7 @@ namespace Tsukuyomi
             bool lockIt = !_paused && !Ts.ShotMode && !result;
             Cursor.lockState = lockIt ? CursorLockMode.Locked : CursorLockMode.None;
             Cursor.visible = !lockIt;
-            if (_paused) { if (Act.Back.Down) Resume(); HudTick(); return; }
+            if (_paused) { if (Act.Back.Down) Resume(); AimLineTick(false); HudTick(); return; } // VR：止めている間は照準の線と手の武器を隠す
             if (!Ts.ShotMode && !result && Act.Back.Down) { Pause(); return; }
             if (_match) { MatchTick(dt); UnitsTick(dt); }
             if (_match) IntelTick(Time.unscaledDeltaTime);
@@ -230,7 +230,7 @@ namespace Tsukuyomi
             _sHit = Synth.Hit(false); _sHeavy = Synth.Hit(true); _sWhoosh = Synth.Whoosh(); _sBoom = Synth.Boom(); _sJump = Synth.Whoosh(); _sClick = Synth.Click();
         }
 
-        void Play(AudioClip c, float vol) { if (c != null && _audio != null) _audio.PlayOneShot(c, vol); }
+        void Play(AudioClip c, float vol) { if (c != null && _audio != null) _audio.PlayOneShot(c, vol * SoundPrefs.Effects); } // メニューの「効果音」の大きさに合わせる
 
         // ───────── 表示（板） ─────────
 

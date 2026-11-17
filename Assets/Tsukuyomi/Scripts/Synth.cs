@@ -12,6 +12,13 @@ namespace Tsukuyomi
             int n = Mathf.CeilToInt(seconds * Rate);
             var data = new float[n];
             for (int i = 0; i < n; i++) data[i] = f(i / (float)Rate);
+            // 終わりの 40 ミリ秒で小さくして消す（途中で切れて「プツッ」と鳴らないように。鐘は 9 秒目でもまだ鳴っていた）
+            int fade = Mathf.Min(n / 4, Rate / 25);
+            for (int i = 0; i < fade; i++) data[n - 1 - i] *= i / (float)fade;
+            // 大きすぎる所をおさえる（音割れを防ぐ。花火・重い打撃は 1 をこえていた）
+            float peak = 0.0001f;
+            foreach (var v in data) peak = Mathf.Max(peak, Mathf.Abs(v));
+            if (peak > 0.9f) for (int i = 0; i < n; i++) data[i] *= 0.9f / peak;
             var clip = AudioClip.Create(name, n, 1, Rate, false);
             clip.SetData(data, 0);
             return clip;
@@ -195,17 +202,6 @@ namespace Tsukuyomi
         /// <summary>糸が切れる「プツン」。</summary>
         public static AudioClip Snap() =>
             Make("snap", 0.25f, t => Mathf.Sin(2 * Mathf.PI * (900f - 2400f * t) * t) * Mathf.Exp(-t * 22f) * 0.5f);
-
-        /// <summary>鹿威しの「カコーン」（竹が石を打つ音）。</summary>
-        public static AudioClip Kokon()
-        {
-            return Make("kokon", 1.6f, t =>
-            {
-                float knock = Mathf.Sin(2 * Mathf.PI * 820f * t) * Mathf.Exp(-t * 26f) * 0.6f;
-                float hollow = (Mathf.Sin(2 * Mathf.PI * 410f * t) + 0.5f * Mathf.Sin(2 * Mathf.PI * 1230f * t)) * Mathf.Exp(-t * 4.2f) * 0.35f;
-                return (knock + hollow) * Mathf.Clamp01(t * 900f);
-            });
-        }
 
         /// <summary>釣れたときの、ちいさな3つの音。</summary>
         public static AudioClip Jingle(bool big)

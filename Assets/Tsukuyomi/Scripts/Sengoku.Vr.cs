@@ -22,7 +22,8 @@ namespace Tsukuyomi
         public float Yaw { get => _yaw; set => _yaw = value; }
         public void Carry(Vector3 shift) { if (_cc != null && _cc.enabled) _cc.Move(shift); }
         public bool Pointer => _paused || (_match && (_phase == MPhase.Select || _phase == MPhase.Result));
-        public bool CameraFree => _camOverride || (_match && _dead);
+        // VR では倒れたあとも観戦カメラにしない（ゲームが視界を動かすと、頭の動きがつかず酔うため）。その場で復活を待つ
+        public bool CameraFree => _camOverride || (_match && _dead && !VrOn);
 
         void VrInit()
         {
@@ -137,7 +138,7 @@ namespace Tsukuyomi
             }
             bool on = (play || Ts.ShotMode) && !Pointer && !_dead && !_camOverride;
             _aimLine.enabled = on;
-            if (Pointer && _viewRoot != null) _viewRoot.gameObject.SetActive(false); // 板を押す場面では、手の武器を隠す
+            if ((Pointer || _dead) && _viewRoot != null) _viewRoot.gameObject.SetActive(false); // 板を押す場面・倒れている間は、手の武器を隠す
             VrWeaponsShow();
             if (!on) return;
             var o = Vr.RightHand.position + Aim * 0.15f;

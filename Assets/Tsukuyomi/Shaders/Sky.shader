@@ -15,11 +15,11 @@ Shader "Tsukuyomi/Stars"
             #pragma fragment frag
             #include "UnityCG.cginc"
             float _Amount, _TsNight;
-            struct v2f { float4 pos : SV_POSITION; float3 dir : TEXCOORD0; };
-            v2f vert (appdata_base v) { v2f o; o.pos = UnityObjectToClipPos(v.vertex); o.dir = normalize(v.vertex.xyz); return o; }
+            struct v2f { float4 pos : SV_POSITION; float3 dir : TEXCOORD0; UNITY_VERTEX_OUTPUT_STEREO };
+            v2f vert (appdata_base v) { v2f o; UNITY_SETUP_INSTANCE_ID(v); UNITY_INITIALIZE_OUTPUT(v2f, o); UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(o); o.pos = UnityObjectToClipPos(v.vertex); o.dir = normalize(v.vertex.xyz); return o; }
             float hash(float3 p) { p = frac(p * 0.3183099 + 0.1); p *= 17.0; return frac(p.x * p.y * p.z * (p.x + p.y + p.z)); }
             float4 frag (v2f i) : SV_Target
-            {
+            { UNITY_SETUP_STEREO_EYE_INDEX_POST_VERTEX(i);
                 float3 d = normalize(i.dir);
                 float3 c = 0;
                 for (int k = 0; k < 2; k++)

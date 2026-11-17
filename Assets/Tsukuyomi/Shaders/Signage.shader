@@ -12,11 +12,11 @@ Shader "Tsukuyomi/Signage"
             #pragma fragment frag
             #include "UnityCG.cginc"
             float4 _Color; float _Seed, _TsNight;
-            struct v2f { float4 pos : SV_POSITION; float2 uv : TEXCOORD0; };
-            v2f vert (appdata_base v) { v2f o; o.pos = UnityObjectToClipPos(v.vertex); o.uv = v.texcoord.xy; return o; }
+            struct v2f { float4 pos : SV_POSITION; float2 uv : TEXCOORD0; UNITY_VERTEX_OUTPUT_STEREO };
+            v2f vert (appdata_base v) { v2f o; UNITY_SETUP_INSTANCE_ID(v); UNITY_INITIALIZE_OUTPUT(v2f, o); UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(o); o.pos = UnityObjectToClipPos(v.vertex); o.uv = v.texcoord.xy; return o; }
             float hash(float2 p) { return frac(sin(dot(p, float2(12.9898, 78.233)) + _Seed * 7.13) * 43758.5453); }
             float4 frag (v2f i) : SV_Target
-            {
+            { UNITY_SETUP_STEREO_EYE_INDEX_POST_VERTEX(i);
                 float2 uv = i.uv;
                 float t = _Time.y;
                 // 文字のような四角い粒（4列 × 流れる行）

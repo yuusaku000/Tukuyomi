@@ -29,12 +29,12 @@ Shader "Tsukuyomi/Beam"
             float4 _Color;
             float _Boost, _Fade, _Edge, _Soft;
 
-            struct appdata { float4 vertex : POSITION; float3 normal : NORMAL; float4 color : COLOR; float2 uv : TEXCOORD0; };
-            struct v2f { float4 pos : SV_POSITION; float4 color : COLOR; float2 uv : TEXCOORD0; float3 n : TEXCOORD1; float3 v : TEXCOORD2; UNITY_FOG_COORDS(3) };
+            struct appdata { float4 vertex : POSITION; float3 normal : NORMAL; float4 color : COLOR; float2 uv : TEXCOORD0; UNITY_VERTEX_INPUT_INSTANCE_ID };
+            struct v2f { float4 pos : SV_POSITION; float4 color : COLOR; float2 uv : TEXCOORD0; float3 n : TEXCOORD1; float3 v : TEXCOORD2; UNITY_FOG_COORDS(3) UNITY_VERTEX_OUTPUT_STEREO };
 
             v2f vert (appdata i)
             {
-                v2f o;
+                v2f o; UNITY_SETUP_INSTANCE_ID(i); UNITY_INITIALIZE_OUTPUT(v2f, o); UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(o);
                 o.pos = UnityObjectToClipPos(i.vertex);
                 o.color = i.color;
                 o.uv = i.uv;
@@ -45,7 +45,7 @@ Shader "Tsukuyomi/Beam"
             }
 
             float4 frag (v2f i) : SV_Target
-            {
+            { UNITY_SETUP_STEREO_EYE_INDEX_POST_VERTEX(i);
                 float along = _Fade > 0 ? pow(saturate(1 - i.uv.y) + 0.0001, _Fade) : 1;
                 float across = _Edge > 0 ? pow(saturate(1 - abs(i.uv.x * 2 - 1)) + 0.0001, _Edge) : 1;
                 float soft = _Soft > 0 ? pow(abs(dot(normalize(i.n), normalize(i.v))) + 0.0001, _Soft) : 1;

@@ -100,7 +100,16 @@ namespace Tsukuyomi
             var a = new InputAction(name, InputActionType.Value, path, expectedControlType: type ?? (rot ? "Quaternion" : "Vector3"));
             return a;
         }
-        static IEnumerable<InputAction> Reads => new[] { _headPos, _headRot, _lPos, _lRot, _rPos, _rRot, _rStick, _lGrip, _rGrip, _lTrig, _rTrig };
+        static readonly InputAction _rHaptic = Haptic("RHaptic", "RightHand");
+        static readonly InputAction _lHaptic = Haptic("LHaptic", "LeftHand");
+        /// <summary>ふるえを送る先（OpenXR のコントローラーの haptic。名前と使い道の両方で探す）。</summary>
+        static InputAction Haptic(string name, string hand)
+        {
+            var a = new InputAction(name, InputActionType.PassThrough, $"<XRController>{{{hand}}}/haptic");
+            a.AddBinding($"<XRController>{{{hand}}}/{{Haptic}}");
+            return a;
+        }
+        static IEnumerable<InputAction> Reads => new[] { _rHaptic, _lHaptic, _headPos, _headRot, _lPos, _lRot, _rPos, _rRot, _rStick, _lGrip, _rGrip, _lTrig, _rTrig };
 
         static Quaternion Q(InputAction a)
         {
@@ -226,7 +235,8 @@ namespace Tsukuyomi
 
         static void HandVel()
         {
-            float dt = Mathf.Max(1e-4f, Time.deltaTime);
+            // 時間の流れを止めた・遅くした間（一時停止・刹那ガードのスロー）も手の本当の速さになるように、実時間で割る
+            float dt = Mathf.Max(1e-4f, Time.unscaledDeltaTime);
             var r = _rPos.ReadValue<Vector3>(); var l = _lPos.ReadValue<Vector3>();
             // 毎秒 9m より速いのは、手の速さではなく読み取りの飛び（見失った・起動の直後など）とみなして使わない
             if (_velInit)
@@ -242,6 +252,8 @@ namespace Tsukuyomi
         public static void Buzz(bool right, float amp, float seconds)
         {
             if (!On) return;
+            // 本物の機器（OpenXR）：コントローラーの haptic へ送る。まねる機器などは下の送り方
+            try { UnityEngine.XR.OpenXR.Input.OpenXRInput.SendHapticImpulse(right ? _rHaptic : _lHaptic, Mathf.Clamp01(amp), seconds); } catch { }
             var want = right ? UnityEngine.InputSystem.CommonUsages.RightHand : UnityEngine.InputSystem.CommonUsages.LeftHand;
             foreach (var d in UnityEngine.InputSystem.InputSystem.devices)
             {

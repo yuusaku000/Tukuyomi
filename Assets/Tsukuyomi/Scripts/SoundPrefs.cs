@@ -4,7 +4,7 @@ namespace Tsukuyomi
 {
     /// <summary>
     /// 音量（メニューの「音量」で変える。PlayerPrefs に残す）。
-    ///   全体：AudioListener.volume　環境音：波・水・ざわめき・風鈴・祭囃子・鐘・鹿威し・花火　効果音：釣り・遊覧船など　ライブの音楽：ヤチヨのライブの曲
+    ///   全体：AudioListener.volume　環境音：波・水・ざわめき・風鈴・祭囃子・鐘・花火　効果音：釣り・遊覧船など　ライブの音楽：ヤチヨのライブの曲
     /// </summary>
     public static class SoundPrefs
     {

@@ -16,8 +16,9 @@ namespace Tsukuyomi
         // 遠くでは描かない物（島を組み立てるときに、この番号の層に入れる）
         public const int SmallLayer = 24;   // 1.6m より小さい動かない小物（花瓶・桶・提灯など）
         public const int PeopleLayer = 25;  // 町を歩く人
-        static readonly float[] SmallFar = { 100f, 140f, 200f };   // 画面：小物を描く距離（見た目はほぼ変わらない）
-        static readonly float[] VrSmallFar = { 40f, 60f, 90f };     // VR：小物を描く距離
+        // 小物を遠くで描かないのはやめた（2026-11-18 ユーザーの指示：遊覧船から見ると奥の提灯の明かりが消えて見えるため）。0＝カメラの見える距離まで描く
+        static readonly float[] SmallFar = { 0f, 0f, 0f };
+        static readonly float[] VrSmallFar = { 0f, 0f, 0f };
         static readonly float[] VrPeopleFar = { 50f, 60f, 80f };    // VR：人を描く距離
 
         static void SetCull(Camera cam, float small, float people)

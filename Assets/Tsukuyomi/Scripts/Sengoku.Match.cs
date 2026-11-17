@@ -431,7 +431,7 @@ namespace Tsukuyomi
         /// <summary>自分がやられていて残機もないとき：生きている味方のうしろから見る。</summary>
         bool SpectateCam()
         {
-            if (!_match || !_dead) return false;
+            if (!_match || !_dead || VrOn) return false; // VR は観戦しない（Sengoku.Vr の CameraFree）
             Unit ally = null;
             foreach (var u in _units) if (u.team == 1 && !u.Dead && u.go.activeSelf) { ally = u; break; }
             Vector3 pos, look;

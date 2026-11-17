@@ -29,11 +29,11 @@ Shader "Tsukuyomi/Water"
             float4 _TsSkyTop, _TsSkyHorizon, _TsSunDir, _TsSunColor;
             float _TsNight;
 
-            struct v2f { float4 pos : SV_POSITION; float3 wpos : TEXCOORD1; UNITY_FOG_COORDS(0) };
+            struct v2f { float4 pos : SV_POSITION; float3 wpos : TEXCOORD1; UNITY_FOG_COORDS(0) UNITY_VERTEX_OUTPUT_STEREO };
 
             v2f vert (appdata_base v)
             {
-                v2f o;
+                v2f o; UNITY_SETUP_INSTANCE_ID(v); UNITY_INITIALIZE_OUTPUT(v2f, o); UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(o);
                 o.pos = UnityObjectToClipPos(v.vertex);
                 o.wpos = mul(unity_ObjectToWorld, v.vertex).xyz;
                 UNITY_TRANSFER_FOG(o, o.pos);
@@ -47,7 +47,7 @@ Shader "Tsukuyomi/Water"
             }
 
             float4 frag (v2f i) : SV_Target
-            {
+            { UNITY_SETUP_STEREO_EYE_INDEX_POST_VERTEX(i);
                 float t = _Time.y * _Speed;
                 float2 p = i.wpos.xz * _Scale + _Flow.xy * _Time.y;
                 float2 g = 0;

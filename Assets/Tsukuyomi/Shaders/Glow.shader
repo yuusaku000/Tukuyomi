@@ -23,11 +23,11 @@ Shader "Tsukuyomi/Glow"
             float _Day, _Night, _Pulse;
             float _TsNight;
 
-            struct v2f { float4 pos : SV_POSITION; float3 wpos : TEXCOORD1; UNITY_FOG_COORDS(0) };
+            struct v2f { float4 pos : SV_POSITION; float3 wpos : TEXCOORD1; UNITY_FOG_COORDS(0) UNITY_VERTEX_OUTPUT_STEREO };
 
             v2f vert (appdata_base v)
             {
-                v2f o;
+                v2f o; UNITY_SETUP_INSTANCE_ID(v); UNITY_INITIALIZE_OUTPUT(v2f, o); UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(o);
                 o.pos = UnityObjectToClipPos(v.vertex);
                 o.wpos = mul(unity_ObjectToWorld, v.vertex).xyz;
                 UNITY_TRANSFER_FOG(o, o.pos);
@@ -35,7 +35,7 @@ Shader "Tsukuyomi/Glow"
             }
 
             float4 frag (v2f i) : SV_Target
-            {
+            { UNITY_SETUP_STEREO_EYE_INDEX_POST_VERTEX(i);
                 float k = lerp(_Day, _Night, saturate(_TsNight));
                 k *= 1 + _Pulse * 0.25 * sin(_Time.y * 2.5 + i.wpos.x * 0.3 + i.wpos.z * 0.2);
                 float4 c = float4(_Color.rgb * k, 1);
