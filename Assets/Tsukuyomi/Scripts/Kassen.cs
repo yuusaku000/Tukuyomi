@@ -264,12 +264,12 @@ namespace Tsukuyomi
         }
 
         /// <summary>SENGOKU（いまは練習場）をはじめる。</summary>
-        public static void BeginSengoku(bool match = false, int level = 1)
+        public static void BeginSengoku(bool match = false, int level = 1, int theme = -1)
         {
             if (I == null || InMatch) return;
             I.HideIsland();
             InMatch = true;
-            Sengoku.Begin(I._scene, match, level);
+            Sengoku.Begin(I._scene, match, level, theme);
         }
 
         /// <summary>SENGOKU の試合の結果を記録して、ふじゅ〜を渡す。</summary>

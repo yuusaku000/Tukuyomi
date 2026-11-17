@@ -27,12 +27,13 @@ namespace Tsukuyomi
         const float Gravity = 20f, Eye = 1.6f;
 
         /// <summary>match＝3対3 の試合（false なら練習場）。level：0 やさしい・1 ふつう・2 つよい。</summary>
-        public static void Begin(Scene scene, bool match = false, int level = 1)
+        public static void Begin(Scene scene, bool match = false, int level = 1, int theme = -1)
         {
             var go = new GameObject("SENGOKU");
             if (scene.IsValid()) SceneManager.MoveGameObjectToScene(go, scene);
             var s = go.AddComponent<Sengoku>();
             s._match = match; s._level = Mathf.Clamp(level, 0, 2);
+            s._theme = theme < 0 ? Random.Range(0, StageNamesSg.Length) : Mathf.Clamp(theme, 0, StageNamesSg.Length - 1); // 舞台は試合ごとにランダム
             s.Init();
         }
 

@@ -31,7 +31,7 @@ namespace Tsukuyomi
         Camera _pvCam;
         Transform _pvRoot;
         readonly GameObject[] _pvModels = new GameObject[6];
-        Text _sName, _sEn, _sLine, _sOwnerTag, _sRound;
+        Text _sName, _sEn, _sLine, _sOwnerTag, _sRound, _sStage, _sStageLine;
         readonly Image[,] _sBars = new Image[4, 5];
         readonly Image[] _cardBg = new Image[6], _cardBar = new Image[6];
 
@@ -49,7 +49,12 @@ namespace Tsukuyomi
             Board.Display(r, new Rect(90, 50, 900, 110), "CHOOSE YOUR WEAPON", 64, Board.Teal, TextAnchor.MiddleLeft);
             var jp = Board.Label(r, new Rect(96, 150, 600, 50), "武器をえらぶ", 36, Color.white); jp.font = Board.Mincho; jp.fontStyle = FontStyle.Bold;
             Board.Panel(r, new Rect(96, 206, 300, 2), Board.Vermilion);
-            _sRound = Board.Label(r, new Rect(1300, 70, 530, 40), "", 26, Board.Gold, TextAnchor.MiddleRight);
+            _sRound = Board.Label(r, new Rect(1300, 60, 530, 40), "", 26, Board.Gold, TextAnchor.MiddleRight);
+            // 今回の舞台（試合ごとにランダム）
+            Board.Label(r, new Rect(1000, 104, 830, 26), "STAGE ▸ 今回の舞台", 17, new Color(1, 1, 1, 0.6f), TextAnchor.MiddleRight, true);
+            _sStage = Board.Label(r, new Rect(1000, 130, 830, 50), "", 36, Color.white, TextAnchor.MiddleRight);
+            _sStage.font = Board.Mincho; _sStage.fontStyle = FontStyle.Bold;
+            _sStageLine = Board.Label(r, new Rect(1000, 182, 830, 30), "", 19, Board.Teal, TextAnchor.MiddleRight);
 
             // 左：見本
             var frame = new Rect(90, 240, 760, 560);
@@ -154,6 +159,8 @@ namespace Tsukuyomi
             if (_hud) _hud.Alpha = 0;             // 選んでいるあいだは、試合中の表示と手の武器を隠す
             if (_viewRoot) _viewRoot.gameObject.SetActive(false);
             _sRound.text = _round == 3 ? "FINAL ROUND" : $"ROUND {_round}";
+            _sStage.text = StageNamesSg[_theme];
+            _sStageLine.text = StageLines[_theme];
         }
 
         void ConfirmPick()

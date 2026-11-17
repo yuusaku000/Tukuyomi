@@ -49,7 +49,7 @@ namespace Tsukuyomi
             int Side(float s, out int sp, out int dar, out int gate, out int c36, out int c20, out int n36, out int n20, out int brn, out int s36, out int s20, out int brs,
                      out int n36b, out int mt0, out int mt1, out int mt2, out int mt3, out int lk0, out int lk1, out int lk2, out int vw1)
             {
-                sp = Node(new Vector3(s * 60, 0, 8)); dar = Node(new Vector3(s * 53, 0, 0)); gate = Node(new Vector3(s * 44, 0, 0));
+                sp = Node(new Vector3(s * 60, CampH, 8)); dar = Node(new Vector3(s * 53, CampH, 0)); gate = Node(new Vector3(s * 44, CampH * 0.68f, 0));
                 c36 = Node(new Vector3(s * 36, 0, 0)); c20 = Node(new Vector3(s * 20, 0, 0));
                 n36 = Node(new Vector3(s * 36, 0, 18)); n20 = Node(new Vector3(s * 20, 0, 18)); brn = Node(new Vector3(s * 11.5f, 0, 18));
                 s36 = Node(new Vector3(s * 36, 0, -18)); s20 = Node(new Vector3(s * 20, 0, -18)); brs = Node(new Vector3(s * 11.5f, 0, -18));

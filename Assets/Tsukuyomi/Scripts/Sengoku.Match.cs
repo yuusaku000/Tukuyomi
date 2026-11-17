@@ -471,6 +471,9 @@ namespace Tsukuyomi
             _resultB.Alpha = 1;
         }
 
+        /// <summary>その場所の地面の上（確認用）。</summary>
+        Vector3 GroundAt(Vector3 p) => Physics.Raycast(p + Vector3.up * 60f, Vector3.down, out var h, 120f, ~0, QueryTriggerInteraction.Ignore) ? h.point + Vector3.up * 0.3f : p;
+
         /// <summary>確認用（--tour の sengokum:場面）。start・fight・capture・daruma・result。</summary>
         public static void TestMatch(string pose)
         {
@@ -486,10 +489,10 @@ namespace Tsukuyomi
                     s._phase = MPhase.Fight; s._centerT = 0;
                     s._camOverride = true; s._camPos = Sx(new Vector3(-6, 78, -82)) + Vector3.up * 60f; s._camLook = Sx(new Vector3(0, -6, 10));
                     break;
-                case "town": s._phase = MPhase.Fight; s._centerT = 0; s.Teleport(Sx(new Vector3(-44, 0.3f, 0))); s._yaw = 90; s._pitch = 2; break;
-                case "valley": s._phase = MPhase.Fight; s._centerT = 0; s.Teleport(Sx(new Vector3(-14, 0.3f, 18))); s._yaw = 90; s._pitch = 8; break;
-                case "lake": s._phase = MPhase.Fight; s._centerT = 0; s.Teleport(Sx(new Vector3(-30, 0.3f, -42))); s._yaw = 95; s._pitch = 3; break;
-                case "mountain": s._phase = MPhase.Fight; s._centerT = 0; s.Teleport(Sx(new Vector3(-36, 0.3f, 36))); s._yaw = 70; s._pitch = 12; break;
+                case "town": s._phase = MPhase.Fight; s._centerT = 0; s.Teleport(s.GroundAt(Sx(new Vector3(-30, 0.3f, 2)))); s._yaw = 90; s._pitch = 2; break;
+                case "valley": s._phase = MPhase.Fight; s._centerT = 0; s.Teleport(s.GroundAt(Sx(new Vector3(-14, 0.3f, 18)))); s._yaw = 90; s._pitch = 8; break;
+                case "lake": s._phase = MPhase.Fight; s._centerT = 0; s.Teleport(s.GroundAt(Sx(new Vector3(-30, 0.3f, -42)))); s._yaw = 95; s._pitch = 3; break;
+                case "mountain": s._phase = MPhase.Fight; s._centerT = 0; s.Teleport(s.GroundAt(Sx(new Vector3(-36, 0.3f, 36)))); s._yaw = 70; s._pitch = 12; break;
                 case "capture":
                     s._phase = MPhase.Fight; s._centerT = 0;
                     s.Teleport(NorthCapture + new Vector3(-3, 0.3f, -4)); s._yaw = 30; s._pitch = 5;

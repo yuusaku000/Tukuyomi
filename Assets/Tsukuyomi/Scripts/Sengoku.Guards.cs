@@ -41,6 +41,7 @@ namespace Tsukuyomi
                     for (int i = 0; i < 3; i++)
                     {
                         var at = c + new Vector3(0, 0, (i - 1) * 2.4f);
+                        if (Physics.Raycast(at + Vector3.up * 30f, Vector3.down, out var gh, 60f, ~0, QueryTriggerInteraction.Ignore)) at.y = gh.point.y; // 坂や高台の上でも足もとに立つ
                         _guards.Add(MakeGuard(team, at, bow && i == 1, new Vector3(-s, 0, 0)));
                     }
                 }
