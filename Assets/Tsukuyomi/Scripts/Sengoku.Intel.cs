@@ -87,7 +87,8 @@ namespace Tsukuyomi
                 }
                 Area(new Vector2(-8, 32), new Vector2(8, 54), new Color(0.55f, 0.55f, 0.6f, 0.6f));   // 岩山
                 Area(new Vector2(-7, -49), new Vector2(7, -35), new Color(0.45f, 0.6f, 0.35f, 0.6f)); // 大樹の台地
-                Area(new Vector2(-2, -31), new Vector2(2, 31), new Color(0.3f, 0.6f, 0.8f, 0.6f));    // 小川
+                for (int i = 0; i < River.Length - 1; i++) // くねる川（小さな四角を並べて）
+                    for (int k = 0; k < 6; k++) { var q = Vector2.Lerp(River[i], River[i + 1], k / 6f); Area(q - Vector2.one * 2f, q + Vector2.one * 2f, new Color(0.3f, 0.6f, 0.8f, 0.6f)); }
             }
             else
             {

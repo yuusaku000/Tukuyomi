@@ -7,7 +7,7 @@ namespace Tsukuyomi
     /// 森と自然の合戦場（舞台 1）。城下町とはまったく別の形：両端の高台（陣地・高さ12＝今までの3倍）から
     /// 段々に下って、まん中が深い森の谷底になる「すり鉢」。段の境目は岩の崖と滝。
     ///  陣地 → 崖をジグザグに下る坂 → 段の上をくねる小道 → 北・中央・南の3つの下り口 → 谷底。
-    ///  北の櫓は谷底にそびえる岩山の上、南の櫓は大樹の立つ台地の上。谷底のまん中に小川と飛び石と丸太の橋。
+    ///  北の櫓は谷底にそびえる岩山の上、南の櫓は大樹の立つ台地の上。谷底を、北の端から南の端まで川がくねって流れる。
     /// ここの数は「元の数」（横は KX 倍、高さは KY 倍になる）。武者の道すじもこの地形専用。
     /// </summary>
     public partial class Sengoku
@@ -56,7 +56,6 @@ namespace Tsukuyomi
             if (Mathf.Abs(p.x) >= FBaseX - 1 && Mathf.Abs(p.y) <= FBaseZ + 1) return false;
             if (Mathf.Abs(p.x) <= 10f && p.y >= 30f && p.y <= 56f) return false;
             if (Mathf.Abs(p.x) <= 9f && p.y >= -51f && p.y <= -33f) return false;
-            if (Mathf.Abs(p.x) <= 4f && Mathf.Abs(p.y) <= 31f) return false;
             foreach (float s in new[] { -1f, 1f })
                 foreach (var (a, b) in FEdges)
                 {
@@ -120,7 +119,7 @@ namespace Tsukuyomi
                     var pa = FN(a, s); var pb = FN(b, s);
                     if (Mathf.Abs(pa.y - pb.y) > 0.5f) continue;
                     var d = pb - pa; var mid = (pa + pb) * 0.5f;
-                    Block(PrimitiveType.Cube, _map, mid + Vector3.up * 0.04f, new Vector3(2.2f, 0.02f, new Vector2(d.x, d.z).magnitude + 2f), dirt, false, new Vector3(0, Mathf.Atan2(d.x, d.z) * Mathf.Rad2Deg, 0));
+                    Block(PrimitiveType.Cube, _map, mid + Vector3.up * 0.12f, new Vector3(2.2f, 0.03f, new Vector2(d.x, d.z).magnitude + 2f), dirt, false, new Vector3(0, Mathf.Atan2(d.x, d.z) * Mathf.Rad2Deg, 0));
                 }
                 ForestFort(s);
                 // 滝（段の崖に、白く光る水の帯と、下の水たまり）
@@ -140,15 +139,6 @@ namespace Tsukuyomi
             SacredTree(new Vector3(0, 7, -47.5f), 22f);
             Box(new Vector3(0, 19f, -47.5f), new Vector3(6, 0.4f, 6), Timber);
             CaptureRing(FN_S);
-            // 谷底のまん中：小川・飛び石・丸太の橋
-            Block(PrimitiveType.Cube, _map, new Vector3(0, 0.03f, 0), new Vector3(4.5f, 0.03f, 62), Water, false);
-            for (int i = -2; i <= 2; i++) Block(PrimitiveType.Cylinder, _map, new Vector3(i * 0.9f, 0.08f, (i % 2) * 0.6f), new Vector3(0.7f, 0.1f, 0.7f), rock, false);
-            foreach (float z in new[] { 12f, -12f })
-                for (int k = -1; k <= 1; k++)
-                {
-                    var log = Block(PrimitiveType.Cylinder, _map, new Vector3(0, 0.25f, z + k * 0.5f), new Vector3(0.25f, 3.2f, 0.25f), Bark, false);
-                    log.transform.localEulerAngles = new Vector3(0, 0, 90);
-                }
             // 谷をかこむ高い岩壁（北と南）・見えない壁
             for (int i = 0; i < 12; i++)
                 foreach (float sz in new[] { 1f, -1f })
@@ -161,7 +151,11 @@ namespace Tsukuyomi
                 Box(c, s2, Color.white).GetComponent<Renderer>().enabled = false;
             Block(PrimitiveType.Cube, _map, new Vector3(0, -16f, 0), new Vector3(600, 0.2f, 600), new Color(0.2f, 0.28f, 0.24f), false);
 
+            _spots.Clear();
+            ForestDetails();
             ForestScatter();
+            ForestTrees();
+            BFlush();
 
             // 光
             var moon = new GameObject("森の月明かり").AddComponent<Light>();
@@ -221,37 +215,34 @@ namespace Tsukuyomi
         {
             var rng = new System.Random(8128);
             int placed = 0;
-            for (int tries = 0; tries < 5000 && placed < 330; tries++)
+            for (int tries = 0; tries < 5000 && placed < 22; tries++) // 大樹（ふつうの木はまとめ描きで別に）
             {
                 var p2 = new Vector2((float)(rng.NextDouble() * 2 - 1) * 82f, (float)(rng.NextDouble() * 2 - 1) * 56f);
-                if (!FFree(p2, 3.2f)) continue;
-                var at = new Vector3(p2.x, FHeightAt(p2.x, p2.y), p2.y);
-                double r = rng.NextDouble();
-                if (r < 0.5) Cedar(at, 10f + (float)rng.NextDouble() * 10f);
-                else if (r < 0.9) RoundTree(at, 6f + (float)rng.NextDouble() * 5f, rng);
-                else SacredTree(at, 14f + (float)rng.NextDouble() * 6f);
-                placed++;
+                if (!FFree2(p2, 3.5f) || !SpotFree(p2, 2f)) continue;
+                SacredTree(new Vector3(p2.x, FHeightAt(p2.x, p2.y), p2.y), 14f + (float)rng.NextDouble() * 6f);
+                _spots.Add((p2, 2.5f)); placed++;
             }
             for (int k = 0, tries = 0; k < 34 && tries < 1500; tries++)
             {
                 var p2 = new Vector2((float)(rng.NextDouble() * 2 - 1) * 80f, (float)(rng.NextDouble() * 2 - 1) * 54f);
-                if (!FFree(p2, 4.5f)) continue;
-                Boulders(new Vector3(p2.x, FHeightAt(p2.x, p2.y), p2.y), rng); k++;
+                if (!FFree2(p2, 4.5f) || !SpotFree(p2, 2.5f)) continue;
+                Boulders(new Vector3(p2.x, FHeightAt(p2.x, p2.y), p2.y), rng); _spots.Add((p2, 2.5f)); k++;
             }
             for (int k = 0, tries = 0; k < 10 && tries < 1500; tries++)
             {
                 var p2 = new Vector2((float)(rng.NextDouble() * 2 - 1) * 78f, (float)(rng.NextDouble() * 2 - 1) * 52f);
                 float yaw = (float)rng.NextDouble() * 180f, len = 9f + (float)rng.NextDouble() * 7f;
                 var dir = new Vector2(Mathf.Sin(yaw * Mathf.Deg2Rad), Mathf.Cos(yaw * Mathf.Deg2Rad));
-                if (!FFree(p2, 6f) || !FFree(p2 + dir * len * 0.4f, 4.5f) || !FFree(p2 - dir * len * 0.4f, 4.5f)) continue;
+                if (!FFree2(p2, 6f) || !FFree2(p2 + dir * len * 0.4f, 4.5f) || !FFree2(p2 - dir * len * 0.4f, 4.5f) || !SpotFree(p2, len * 0.5f)) continue;
                 float y = FHeightAt(p2.x, p2.y);
                 if (Mathf.Abs(FHeightAt((p2 + dir * len * 0.4f).x, (p2 + dir * len * 0.4f).y) - y) > 0.1f || Mathf.Abs(FHeightAt((p2 - dir * len * 0.4f).x, (p2 - dir * len * 0.4f).y) - y) > 0.1f) continue;
-                CliffWall(new Vector3(p2.x, y, p2.y), len, 5f + (float)rng.NextDouble() * 6f, yaw); k++;
+                CliffWall(new Vector3(p2.x, y, p2.y), len, 5f + (float)rng.NextDouble() * 6f, yaw); _spots.Add((p2, len * 0.5f)); k++;
             }
             for (int k = 0, tries = 0; k < 16 && tries < 600; tries++)
             {
                 var p2 = new Vector2((float)(rng.NextDouble() * 2 - 1) * 80f, (float)(rng.NextDouble() * 2 - 1) * 54f);
-                if (!FFree(p2, 4f)) continue;
+                if (!FFree2(p2, 4f) || !SpotFree(p2, 1.5f)) continue;
+                _spots.Add((p2, 1.5f));
                 var log = Block(PrimitiveType.Cylinder, _map, new Vector3(p2.x, FHeightAt(p2.x, p2.y) + 0.5f, p2.y), new Vector3(0.5f, 2.5f + (float)rng.NextDouble() * 2f, 0.5f), Bark);
                 log.transform.localEulerAngles = new Vector3(90, (float)rng.NextDouble() * 180f, 0); k++;
             }

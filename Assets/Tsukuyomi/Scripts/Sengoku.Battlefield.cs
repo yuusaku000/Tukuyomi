@@ -14,7 +14,7 @@ namespace Tsukuyomi
     public partial class Sengoku
     {
         /// <summary>マップの広さの倍率。組み立ては元の数で行い、最後に横（x・z）を KX 倍、高さ（y）を KY 倍する。</summary>
-        public const float KX = 2.7f, KY = 1.35f;
+        public const float KX = 2.16f, KY = 1.35f; // 横は以前の 2.7 の0.8倍（物の数はそのまま＝密度が濃い）
         /// <summary>元の数の位置を、試合場の位置にする。</summary>
         public static Vector3 Sx(Vector3 v) => new(v.x * KX, v.y * KY, v.z * KX);
         static readonly Vector3 N0 = new(0, 12, 47), S0 = new(0, 1, -46);
