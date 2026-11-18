@@ -131,8 +131,9 @@ namespace Tsukuyomi
             bool lockIt = !_paused && !Ts.ShotMode && !result;
             Cursor.lockState = lockIt ? CursorLockMode.Locked : CursorLockMode.None;
             Cursor.visible = !lockIt;
+            if (ResultKeys()) return;
             if (QuitHoldTick()) return;
-            if (_paused) { if (Act.Back.Down) Resume(); AimLineTick(false); HudTick(); return; } // VR：止めている間は照準の線と手の武器を隠す
+            if (_paused) { if (Act.Back.Down || Pad.Ok) Resume(); AimLineTick(false); HudTick(); return; } // VR：止めている間は照準の線と手の武器を隠す
             if (!Ts.ShotMode && !result && Act.Back.Down) { Pause(); return; }
             if (_match) { MatchTick(dt); UnitsTick(dt); }
             if (_match) IntelTick(Time.unscaledDeltaTime);
@@ -206,9 +207,15 @@ namespace Tsukuyomi
                     // 団扇：空中でもう一度だけ跳べる（2段ジャンプ）。地面に着いたら回復（ユーザーの指示）
                     if (play && _w == 5 && _airJumps > 0 && Act.Jump.Down)
                     {
-                        _airJumps--; _vel.y = 9f; // 落ちている途中でも、しっかり上へ（7.5 → 9）
-                        Play(_sJump, 0.5f); Swing(0.3f);
-                        Sparks(_rig.transform.position + Vector3.up * 0.3f, new Color(1f, 0.95f, 0.5f), 8); // あおいだ風
+                        // 2段目は、いまの上向きの速さに「足す」（前は置きかえていたので、上がっている途中で押すとほとんど変わらず、
+                        // 2段ジャンプに見えなかった。2026-11-18）。押している向きへ、向きも変えられる
+                        _airJumps--;
+                        _vel.y = Mathf.Min(Mathf.Max(_vel.y, 0f) + 9.5f, 15f);
+                        if (wish.sqrMagnitude > 0.01f) flat = Vector3.Lerp(flat, wish.normalized * Mathf.Max(flat.magnitude, wish.magnitude), 0.7f);
+                        Play(_sJump, 0.7f); Swing(0.35f); Kick(-2f);
+                        Sparks(_rig.transform.position + Vector3.up * 0.2f, new Color(1f, 0.95f, 0.5f), 18); // 足もとへあおいだ風
+                        Sparks(_rig.transform.position + Vector3.up * 0.9f, new Color(1f, 1f, 0.8f), 10);
+                        if (Ts.ShotMode || VrOn) Debug.Log($"[SENGOKU] 団扇の2段ジャンプ 上へ {_vel.y:0.0}m/秒");
                     }
                 }
                 if (_grounded) _airJumps = 1;
@@ -378,7 +385,7 @@ namespace Tsukuyomi
                 Board.Frame(r, new Rect(0, 0, 720, 420));
                 Board.Display(r, new Rect(0, 40, 720, 90), "PAUSE", 76, Board.Teal);
                 Board.Label(r, new Rect(0, 130, 720, 34), _match ? "SENGOKU　3対3" : "SENGOKU 練習場", 24, Color.white, TextAnchor.MiddleCenter);
-                Board.ButtonNode(r, new Rect(210, 200, 300, 64), "つづける（Esc）", 26, Resume);
+                Board.ButtonNode(r, new Rect(210, 200, 300, 64), $"つづける（{Pad.OkKey}・{Pad.BackKey}）", 26, Resume);
                 Board.ButtonNode(r, new Rect(160, 285, 400, 56), (_match ? "降参して島へもどる" : "島へもどる") + "\n<size=15>" + (Vr.On ? "Y" : "Esc") + " を長押しでも</size>", 22, Surrender);
             }
             _pauseB.Alpha = 1;
@@ -397,7 +404,7 @@ namespace Tsukuyomi
         /// <summary>Y（VR）・Esc を 1.5 秒長押ししたら、降参して島へもどる（2026-11-18 ユーザーの指示）。もどったら true。</summary>
         bool QuitHoldTick()
         {
-            if (Ts.ShotMode) return false;
+            if (Ts.ShotMode || (_match && _phase == MPhase.Result)) return false; // 結果の板では Y ＝島へもどる（ResultKeys）
             if (!Act.Back.Held) { _quitHold = 0; return false; }
             _quitHold += Time.unscaledDeltaTime;
             if (_quitHold > 0.4f && _quitHold < 1.5f) Center(_match ? "降参する…" : "島へもどる…", Board.Vermilion, 0.2f, $"{(Vr.On ? "Y" : "Esc")} をそのまま押しつづける（{1.5f - _quitHold:0.0} 秒）");

@@ -131,8 +131,9 @@ namespace Tsukuyomi
             if (_menuOpen)
             {
                 Cursor.lockState = CursorLockMode.None; Cursor.visible = true;
-                if (Act.Back.Down) CloseMenu();
+                if (Act.Back.Down) { CloseMenu(); return; }
                 MenuTick();
+                if (_menuOpen) MenuKeys();
                 return;
             }
             if (InMatch || Hud.Blocked || Ts.ShotMode || PlayerController.Busy || PlayerController.Fly) return;
@@ -208,11 +209,39 @@ namespace Tsukuyomi
             Board.ButtonNode(r, new Rect(926, 372, 50, 50), "◀", 22, () => { if (_mode == 1) _sgSel = 1 - _sgSel; else _stageSel = (_stageSel + Setsuna.StageNames.Length) % (Setsuna.StageNames.Length + 1); });
             Board.ButtonNode(r, new Rect(1174, 372, 50, 50), "▶", 22, () => { if (_mode == 1) _sgSel = 1 - _sgSel; else _stageSel = (_stageSel + 1) % (Setsuna.StageNames.Length + 1); });
             _record = Board.Label(r, new Rect(70, 586, 400, 80), "", 18, new Color(1, 1, 1, 0.8f), TextAnchor.UpperLeft);
-            Board.ButtonNode(r, new Rect(w - 300, h - 150, 220, 64), "出陣", 32, StartSetsuna);
-            Board.ButtonNode(r, new Rect(w - 300, h - 76, 220, 44), "閉じる（Esc）", 20, CloseMenu);
+            _goBtn = Board.ButtonNode(r, new Rect(w - 300, h - 150, 220, 64), "出陣", 32, StartSetsuna);
+            _closeBtn = Board.ButtonNode(r, new Rect(w - 300, h - 76, 220, 44), "閉じる", 20, CloseMenu);
+            _stageKey = Board.Label(r, new Rect(930, 424, 290, 22), "", 15, new Color(1, 1, 1, 0.6f), TextAnchor.MiddleCenter);
+            _keys = Board.Label(r, new Rect(70, h - 34, w - 400, 26), "", 16, new Color(1, 1, 1, 0.7f), TextAnchor.MiddleLeft);
         }
 
         readonly Image[] _modeBar = new Image[2];
+        UnityEngine.UI.Button _goBtn, _closeBtn;
+        Text _keys, _stageKey;
+        readonly Pad.Edge _navX = new Pad.Edge(), _navY = new Pad.Edge(), _navR = new Pad.Edge();
+
+        /// <summary>入口の板を、コントローラー・キーボードのボタンで操作する（板のボタンと同じことができる）。</summary>
+        void MenuKeys()
+        {
+            var mv = Act.Move.ReadValue<Vector2>();
+            if (_navY.Tick(mv.y) != 0) { _mode = 1 - _mode; Sfx.Click(); }
+            int x = _navX.Tick(mv.x);
+            if (x != 0)
+            {
+                if (_mode == 1) _sgSel = 1 - _sgSel;
+                else _opp = (_opp + x + SetsunaStyles.Cpu.Length) % SetsunaStyles.Cpu.Length;
+                Sfx.Click();
+            }
+            int rx = _navR.Tick(Pad.RightX);
+            if (rx != 0) { _level = Mathf.Clamp(_level + rx, 0, 2); Sfx.Click(); }
+            for (int i = 0; i < 3; i++) if (Act.Number(i)) _level = i;
+            if (Pad.Alt && _mode == 0) { _stageSel = (_stageSel + 1) % (Setsuna.StageNames.Length + 1); Sfx.Click(); }
+            Pad.SetLabel(_goBtn, Pad.Label("出陣", Pad.OkKey));
+            Pad.SetLabel(_closeBtn, Pad.Label("閉じる", Pad.BackKey));
+            if (_stageKey != null) _stageKey.text = _mode == 0 ? $"{Pad.AltKey} でも切りかえ" : $"{Pad.PickKeys} ←→ でも切りかえ";
+            if (_keys != null) _keys.text = $"{Pad.PickKeys} ↑↓ モード　←→ {(_mode == 0 ? "相手" : "試合／練習場")}　{Pad.RightKeys} 強さ　{Pad.OkKey} 出陣　{Pad.BackKey} 閉じる";
+            if (Pad.Ok) StartSetsuna();
+        }
 
         /// <summary>モードの札（押すとそのモードをえらぶ）。左の帯を返す（えらんでいると青緑）。</summary>
         Image ModeCard(RectTransform r, Rect rc, string en, string jp, string desc, int mode)

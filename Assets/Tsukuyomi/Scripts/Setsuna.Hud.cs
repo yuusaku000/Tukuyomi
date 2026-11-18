@@ -168,7 +168,7 @@ namespace Tsukuyomi
                 Board.Frame(r, new Rect(0, 0, 720, 420));
                 Board.Display(r, new Rect(0, 40, 720, 90), "PAUSE", 76, Board.Teal);
                 Board.Label(r, new Rect(0, 130, 720, 34), "一時停止中", 24, Color.white, TextAnchor.MiddleCenter);
-                Board.ButtonNode(r, new Rect(210, 200, 300, 64), "つづける（Esc）", 26, Resume);
+                Board.ButtonNode(r, new Rect(210, 200, 300, 64), $"つづける（{Pad.OkKey}・{Pad.BackKey}）", 26, Resume);
                 Board.ButtonNode(r, new Rect(160, 285, 400, 56), "降参して島へもどる\n<size=15>" + (Vr.On ? "Y" : "Esc") + " を長押しでも</size>", 22, Surrender);
             }
             _pauseB.Alpha = 1;
@@ -222,17 +222,35 @@ namespace Tsukuyomi
                 _resultTitle = Board.Display(r, new Rect(0, 40, w, 150), "", 130, Board.Teal);
                 _resultMsg = Board.Label(r, new Rect(60, 210, w - 120, 150), "", 28, Color.white, TextAnchor.MiddleCenter);
                 Board.NameTag(r, new Rect(w - 110, 60, 50, 200), C.style.name, Board.Vermilion, true, 28);
-                Board.ButtonNode(r, new Rect(w / 2 - 330, h - 130, 300, 70), "もう一度", 28, Rematch);
-                Board.ButtonNode(r, new Rect(w / 2 + 30, h - 130, 300, 70), "島へもどる", 28, () =>
-                {
-                    Hud.Toast(win ? $"SETSUNA に勝ちました　{got.Split('\n')[0]}" : "SETSUNA：また挑戦してね");
-                    Leave();
-                });
+                _rAgain = Board.ButtonNode(r, new Rect(w / 2 - 330, h - 130, 300, 70), "もう一度", 28, Rematch);
+                _rLeave = Board.ButtonNode(r, new Rect(w / 2 + 30, h - 130, 300, 70), "島へもどる", 28, LeaveResult);
             }
             SetBig(_resultTitle, win ? "勝利" : "敗北");
             _resultTitle.color = win ? Board.Teal : Board.Vermilion;
             _resultMsg.text = $"{C.style.name}（{Kassen.Levels[_level]}）に {P.wins} − {C.wins}\n{got}";
             _resultB.Alpha = 1;
+            _lastWin = win; _lastGot = got; _resultShownAt = Time.unscaledTime;
+            Pad.SetLabel(_rAgain, Pad.Label("もう一度", Pad.OkKey));
+            Pad.SetLabel(_rLeave, Pad.Label("島へもどる", Pad.BackKey));
+        }
+
+        UnityEngine.UI.Button _rAgain, _rLeave;
+        bool _lastWin; string _lastGot = ""; float _resultShownAt;
+
+        void LeaveResult()
+        {
+            Hud.Toast(_lastWin ? $"SETSUNA に勝ちました　{_lastGot.Split('\n')[0]}" : "SETSUNA：また挑戦してね");
+            Leave();
+        }
+
+        /// <summary>結果の板：A（Enter）もう一度・Y（Esc）島へもどる。出てすぐ（1秒）は、必殺のボタンを押しつづけていても進まないように待つ。</summary>
+        bool ResultKeys()
+        {
+            if (_phase != Phase.Result || _resultB == null || _resultB.Alpha <= 0 || Ts.ShotMode) return false;
+            if (Time.unscaledTime - _resultShownAt < 1f) return false;
+            if (Pad.Ok) { Rematch(); return true; }
+            if (Pad.Back) { LeaveResult(); return true; }
+            return false;
         }
 
         void Rematch()

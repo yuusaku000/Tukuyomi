@@ -115,8 +115,8 @@ namespace Tsukuyomi
             Lock(_phase == Phase.Fight && !_paused && !Ts.ShotMode);
 
             if (QuitHoldTick()) return;
-            if (_paused) { if (Act.Back.Down) Resume(); return; }
-            if (_phase == Phase.Result) { HudTick(); return; }
+            if (_paused) { if (Act.Back.Down || Pad.Ok) Resume(); return; }
+            if (_phase == Phase.Result) { if (ResultKeys()) return; HudTick(); return; }
             if (!Ts.ShotMode && Act.Back.Down && _phase != Phase.Result) { Pause(); return; }
 
             float dt = Time.deltaTime;

@@ -540,16 +540,36 @@ namespace Tsukuyomi
                 _rTitle = Board.Display(r, new Rect(0, 40, w, 150), "", 130, Board.Teal);
                 _rMsg = Board.Label(r, new Rect(60, 210, w - 120, 150), "", 28, Color.white, TextAnchor.MiddleCenter);
                 Board.NameTag(r, new Rect(w - 110, 60, 50, 200), "戦国", Board.Vermilion, true, 30);
-                Board.ButtonNode(r, new Rect(w / 2 - 330, h - 130, 300, 70), "もう一度", 28, () => { _resultB.Alpha = 0; _winsW = _winsE = 0; _round = 0; NextRound(); });
-                Board.ButtonNode(r, new Rect(w / 2 + 30, h - 130, 300, 70), "島へもどる", 28, () =>
-                {
-                    Hud.Toast(_winsW > _winsE ? $"SENGOKU に勝ちました　{_rMsg.text.Split('\n')[1]}" : "SENGOKU：また挑戦してね");
-                    Leave();
-                });
+                _rAgain = Board.ButtonNode(r, new Rect(w / 2 - 330, h - 130, 300, 70), "もう一度", 28, Again);
+                _rLeave = Board.ButtonNode(r, new Rect(w / 2 + 30, h - 130, 300, 70), "島へもどる", 28, LeaveResult);
             }
             _rTitle.font = Ts.Font; _rTitle.text = win ? "勝利" : "敗北"; _rTitle.color = win ? Board.Teal : Board.Vermilion;
             _rMsg.text = $"西軍 {_winsW} − {_winsE} 東軍（{Kassen.Levels[_level]}）\n{got}";
             _resultB.Alpha = 1;
+            _resultShownAt = Time.unscaledTime;
+            Pad.SetLabel(_rAgain, Pad.Label("もう一度", Pad.OkKey));
+            Pad.SetLabel(_rLeave, Pad.Label("島へもどる", Pad.BackKey));
+        }
+
+        UnityEngine.UI.Button _rAgain, _rLeave;
+        float _resultShownAt;
+
+        void Again() { _resultB.Alpha = 0; _winsW = _winsE = 0; _round = 0; NextRound(); }
+
+        void LeaveResult()
+        {
+            Hud.Toast(_winsW > _winsE ? $"SENGOKU に勝ちました　{_rMsg.text.Split('\n')[1]}" : "SENGOKU：また挑戦してね");
+            Leave();
+        }
+
+        /// <summary>結果の板：A（Enter）もう一度・Y（Esc）島へもどる。出てすぐ（1秒）は、攻撃のボタンを押しつづけていても進まないように待つ。</summary>
+        bool ResultKeys()
+        {
+            if (!_match || _phase != MPhase.Result || _resultB == null || _resultB.Alpha <= 0 || Ts.ShotMode) return false;
+            if (Time.unscaledTime - _resultShownAt < 1f) return false;
+            if (Pad.Ok) { Again(); return true; }
+            if (Pad.Back) { LeaveResult(); return true; }
+            return false;
         }
 
         /// <summary>その場所の地面の上（確認用）。</summary>

@@ -97,8 +97,8 @@ namespace Tsukuyomi
                 Board.Label(r, new Rect(rc.x + 104, rc.y + 118, 320, 34), $"{Owners[i]}　攻{Stats[i, 0]}・射{Stats[i, 1]}・機{Stats[i, 2]}・守{Stats[i, 3]}", 19, new Color(1, 1, 1, 0.75f));
                 Board.Fan(r, new Rect(rc.x + 2, rc.y + 2, rc.width - 4, rc.height - 4), 3, new Color(1, 1, 1, 0.55f), 34, 5);
             }
-            Board.ButtonNode(r, new Rect(1380, 830, 440, 100), "出陣（Enter）", 40, ConfirmPick);
-            Board.Label(r, new Rect(920, 950, 900, 70), "1〜6 のキーでもえらべます。武器はラウンドごとに選びなおせます。\n倒されて復活しても、武器はこのラウンドのあいだ同じです。", 19, new Color(1, 1, 1, 0.7f), TextAnchor.UpperRight);
+            _selGo = Board.ButtonNode(r, new Rect(1380, 830, 440, 100), "出陣", 40, ConfirmPick);
+            _selKeys = Board.Label(r, new Rect(920, 950, 900, 70), "", 19, new Color(1, 1, 1, 0.7f), TextAnchor.UpperRight);
             BuildPreview();
         }
 
@@ -176,11 +176,22 @@ namespace Tsukuyomi
             Play(_sBoom, 0.4f);
         }
 
+        UnityEngine.UI.Button _selGo;
+        Text _selKeys;
+        readonly Pad.Edge _selX = new Pad.Edge(), _selY = new Pad.Edge();
+
         void SelectTick(float dt)
         {
             if (_selB == null || _selB.Alpha <= 0) return;
             for (int i = 0; i < 6; i++) if (Act.Number(i)) { _pick = i; Play(_sClick, 0.4f); }
-            if (Act.Confirm.Down) { ConfirmPick(); return; }
+            // スティック・矢印キーで札を動かす（2列×3段）
+            var mv = Act.Move.ReadValue<Vector2>();
+            int sx = _selX.Tick(mv.x), sy = _selY.Tick(mv.y);
+            if (sx != 0) { _pick = (_pick / 2) * 2 + Mathf.Clamp(_pick % 2 + sx, 0, 1); Play(_sClick, 0.4f); }
+            if (sy != 0) { _pick = Mathf.Clamp(_pick - sy * 2, _pick % 2, 4 + _pick % 2); Play(_sClick, 0.4f); }
+            Pad.SetLabel(_selGo, Pad.Label("出陣", Pad.OkKey));
+            if (_selKeys != null) _selKeys.text = (Vr.On ? "左スティックでもえらべます" : "1〜6 のキー・矢印キーでもえらべます") + $"。{Pad.OkKey} で出陣。武器はラウンドごとに選びなおせます。" + "\n倒されて復活しても、武器はこのラウンドのあいだ同じです。";
+            if (Pad.Ok) { ConfirmPick(); return; }
             for (int i = 0; i < 6; i++)
             {
                 bool on = i == _pick;
