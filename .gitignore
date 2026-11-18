@@ -30,3 +30,6 @@ sysinfo.txt
 /Assets/Scenes/Tsukuyomi.unity.meta
 /Assets/Tsukuyomi/Generated/
 /Assets/Tsukuyomi/Generated.meta
+
+# 渡す用の zip（GitHub に送れない大きさ）
+*.zip

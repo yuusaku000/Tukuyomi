@@ -169,9 +169,28 @@ namespace Tsukuyomi
                 Board.Display(r, new Rect(0, 40, 720, 90), "PAUSE", 76, Board.Teal);
                 Board.Label(r, new Rect(0, 130, 720, 34), "一時停止中", 24, Color.white, TextAnchor.MiddleCenter);
                 Board.ButtonNode(r, new Rect(210, 200, 300, 64), "つづける（Esc）", 26, Resume);
-                Board.ButtonNode(r, new Rect(210, 285, 300, 56), "降参して島へもどる", 22, () => { Kassen.Reward(false, _level); Leave(); });
+                Board.ButtonNode(r, new Rect(160, 285, 400, 56), "降参して島へもどる\n<size=15>" + (Vr.On ? "Y" : "Esc") + " を長押しでも</size>", 22, Surrender);
             }
             _pauseB.Alpha = 1;
+        }
+
+        /// <summary>降参して島へもどる。一時停止の板のボタンか、Y・Esc の長押しで。</summary>
+        void Surrender() { if (!Ts.ShotMode) Kassen.Reward(false, _level); Leave(); }
+
+        float _quitHold;
+
+        /// <summary>Y（VR）・Esc を 1.5 秒長押ししたら、降参して島へもどる（2026-11-18 ユーザーの指示）。もどったら true。</summary>
+        bool QuitHoldTick()
+        {
+            if (Ts.ShotMode || _phase == Phase.Result) return false;
+            if (!Act.Back.Held) { _quitHold = 0; return false; }
+            _quitHold += Time.unscaledDeltaTime;
+            if (_quitHold > 0.4f && _quitHold < 1.5f) Center("降参する…", Board.Vermilion, 0.2f, $"{(Vr.On ? "Y" : "Esc")} をそのまま押しつづける（{1.5f - _quitHold:0.0} 秒）");
+            if (_quitHold < 1.5f) return false;
+            _quitHold = -999f;
+            if (_paused) Resume();
+            Surrender();
+            return true;
         }
 
         void Resume()

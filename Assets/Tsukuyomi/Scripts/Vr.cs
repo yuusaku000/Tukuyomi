@@ -31,7 +31,7 @@ namespace Tsukuyomi
         // ───────── 設定（メニューの「設定 → VR」）─────────
 
         static readonly string[] QNames = { "軽い", "ふつう", "きれい" };
-        static int _q = -1, _snap = -1, _vig = -1, _warp = -1, _kBody = -1, _kShake = -1; static float _h = float.NaN;
+        static int _q = -1, _snap = -1, _vig = -1, _warp = -1, _kBody = -1, _kShake = -1, _turnLv = -1, _layout = -1; static float _ui = float.NaN; static float _h = float.NaN;
         static int GetI(string k, int d) { try { return PlayerPrefs.GetInt(k, d); } catch { return d; } }
         static void SetI(string k, int v) { try { PlayerPrefs.SetInt(k, v); PlayerPrefs.Save(); } catch { } }
 
@@ -72,6 +72,41 @@ namespace Tsukuyomi
             get { if (_kShake < 0) _kShake = GetI("vr_fight_noshake", 0); return _kShake == 1; }
             set { _kShake = value ? 1 : 0; SetI("vr_fight_noshake", _kShake); }
         }
+        /// <summary>空間に浮かぶ板の大きさ（0.5〜1.3 倍。2026-11-18 ユーザーの指示「UI が大きすぎる」で、はじめは 0.8）。</summary>
+        public static float UiScale
+        {
+            get { if (float.IsNaN(_ui)) { try { _ui = PlayerPrefs.GetFloat("vr_ui", 0.8f); } catch { _ui = 0.8f; } } return _ui; }
+            set
+            {
+                _ui = Mathf.Clamp(Mathf.Round(value * 10f) / 10f, 0.5f, 1.3f);
+                try { PlayerPrefs.SetFloat("vr_ui", _ui); PlayerPrefs.Save(); } catch { }
+                Board.WorldMul = _ui;
+                foreach (var b in Board.All) if (b != null && !b.pinned) b.Apply();
+            }
+        }
+
+        static readonly float[] SnapDeg = { 30f, 45f, 60f, 90f }, SmoothDeg = { 60f, 100f, 150f, 220f };
+        /// <summary>回る速さ（0〜3）。一気に回るときは1回の角度（30・45・60・90 度）、少しずつのときは毎秒の角度。</summary>
+        public static int TurnLevel
+        {
+            get { if (_turnLv < 0) _turnLv = Mathf.Clamp(GetI("vr_turn", 1), 0, 3); return _turnLv; }
+            set { _turnLv = Mathf.Clamp(value, 0, 3); SetI("vr_turn", _turnLv); }
+        }
+        public static float SnapAngle => SnapDeg[TurnLevel];
+        public static float SmoothSpeed => SmoothDeg[TurnLevel];
+        public static string TurnText => SnapTurn ? $"{SnapAngle:0} 度ずつ" : $"毎秒 {SmoothSpeed:0} 度";
+
+        /// <summary>ボタン配置（0 標準：A 調べる・移動わざ／B ジャンプ　1 入れかえ：A ジャンプ／B 調べる・移動わざ）。</summary>
+        public static int ButtonLayout
+        {
+            get { if (_layout < 0) _layout = Mathf.Clamp(GetI("vr_layout", 0), 0, 1); return _layout; }
+            set { _layout = Mathf.Clamp(value, 0, 1); SetI("vr_layout", _layout); Act.ApplyXrLayout(_layout); }
+        }
+        public static string ButtonLayoutName => ButtonLayout == 0 ? "A 調べる・B ジャンプ" : "A ジャンプ・B 調べる";
+        /// <summary>いまの配置での、調べる・移動わざのボタンと、ジャンプのボタンの名前。</summary>
+        public static string KeyUse => ButtonLayout == 0 ? "A" : "B";
+        public static string KeyJump => ButtonLayout == 0 ? "B" : "A";
+
         /// <summary>一気に向きを変えたときなど、少しのあいだ視界のふちを暗くする（「視界のふち」がオンのとき）。</summary>
         public static void Flash(float seconds = 0.25f) { if (I != null) I._flash = Mathf.Max(I._flash, seconds); }
 
@@ -93,7 +128,7 @@ namespace Tsukuyomi
 
         public static void ResetSettings()
         {
-            QualityLevel = 0; SnapTurn = true; Vignette = true; Warp = true; Height = 0f; FightBodyOnly = false; FightNoShake = false;
+            QualityLevel = 0; SnapTurn = true; Vignette = true; Warp = true; Height = 0f; FightBodyOnly = false; FightNoShake = false; UiScale = 0.8f; TurnLevel = 1; ButtonLayout = 0;
         }
 
         // ───────── 頭と手の読みとり ─────────
@@ -115,6 +150,9 @@ namespace Tsukuyomi
             var a = new InputAction(name, InputActionType.Value, path, expectedControlType: type ?? (rot ? "Quaternion" : "Vector3"));
             return a;
         }
+        static readonly InputAction _rAimPos = Val("RAimPos", "<XRController>{RightHand}/pointerPosition");
+        static readonly InputAction _rAimRot = Val("RAimRot", "<XRController>{RightHand}/pointerRotation", true);
+        static readonly InputAction _recenter = new InputAction("Recenter", InputActionType.Button, "<XRController>{RightHand}/{Primary2DAxisClick}");
         static readonly InputAction _rHaptic = Haptic("RHaptic", "RightHand");
         static readonly InputAction _lHaptic = Haptic("LHaptic", "LeftHand");
         /// <summary>ふるえを送る先（OpenXR のコントローラーの haptic。名前と使い道の両方で探す）。</summary>
@@ -124,7 +162,7 @@ namespace Tsukuyomi
             a.AddBinding($"<XRController>{{{hand}}}/{{Haptic}}");
             return a;
         }
-        static IEnumerable<InputAction> Reads => new[] { _rHaptic, _lHaptic, _headPos, _headRot, _lPos, _lRot, _rPos, _rRot, _rStick, _lGrip, _rGrip, _lTrig, _rTrig };
+        static IEnumerable<InputAction> Reads => new[] { _rAimPos, _rAimRot, _recenter, _rHaptic, _lHaptic, _headPos, _headRot, _lPos, _lRot, _rPos, _rRot, _rStick, _lGrip, _rGrip, _lTrig, _rTrig };
 
         static Quaternion Q(InputAction a)
         {
@@ -135,7 +173,27 @@ namespace Tsukuyomi
         public static Vector3 HeadPos => _headPos.ReadValue<Vector3>();
         public static Quaternion HeadRot => Q(_headRot);
         /// <summary>頭の左右の向き（体の向きからのずれ）。歩く向きに使う。</summary>
-        public static float HeadYaw => On ? HeadRot.eulerAngles.y : 0f;
+        public static float HeadYaw => On ? HeadRot.eulerAngles.y - _yawOff : 0f;
+
+        // ───────── 視点のリセット（2026-11-18）─────────
+        // いま見ている向きを「正面」に、いまの頭の位置を遊ぶ場所の「まん中」にする（座って遊ぶ・コードがねじれた・見失ったあとなど）。
+        // 遊ぶ場所（_origin）を、向きは _yawOff だけ回し、位置は _ctr だけずらす。頭・手・板・ワープはこの遊ぶ場所を通して置くので、ずれない。
+        static float _yawOff;
+        static Vector2 _ctr;
+        /// <summary>遊ぶ場所のまん中から見た頭の位置（リセットしたまん中を引いたもの）。</summary>
+        static Vector3 HeadLocal => HeadPos - new Vector3(_ctr.x, 0, _ctr.y);
+
+        /// <summary>視点のリセット（メニューの「設定 → VR」・右スティックの押しこみ・キーボードの Home）。</summary>
+        public static void Recenter()
+        {
+            if (!On) return;
+            _yawOff = HeadRot.eulerAngles.y;
+            _ctr = new Vector2(HeadPos.x, HeadPos.z);
+            Board.ReplaceAll();
+            if (I != null) I._flash = 0.3f;
+            Hud.Toast("視点をリセットしました（いま見ている向きが正面）");
+            Debug.Log($"[VR] 視点のリセット：向き {_yawOff:0}度・まん中 ({_ctr.x:0.00}, {_ctr.y:0.00})");
+        }
 
         /// <summary>遊ぶ場所の原点が床か（false なら目の高さが原点）。</summary>
         static bool _floor = true;
@@ -147,6 +205,17 @@ namespace Tsukuyomi
         {
             foreach (var a in Reads) a.Enable();
             Act.AddXrBindings();
+            Act.ApplyXrLayout(ButtonLayout);
+            Board.WorldMul = UiScale;
+            // コントローラーがつなぎなおされたら（電池・スリープ・Link が切れた など）、割り当てを読みなおす
+            InputSystem.onDeviceChange += (d, ch) =>
+            {
+                if (!(d is UnityEngine.InputSystem.XR.XRController || d is UnityEngine.InputSystem.XR.XRHMD)) return;
+                if (ch != InputDeviceChange.Added && ch != InputDeviceChange.Reconnected && ch != InputDeviceChange.UsageChanged && ch != InputDeviceChange.Enabled) return;
+                foreach (var a in Reads) { a.Disable(); a.Enable(); }
+                Act.Refresh();
+                Debug.Log($"[VR] 機器がつながった：{d.displayName}（{ch}）→ 割り当てを読みなおした");
+            };
         }
 
         /// <summary>GameSession の Start から呼ぶ：起動時の指定を見て、VR で始めるか、えらぶ板を出す。</summary>
@@ -201,6 +270,9 @@ namespace Tsukuyomi
         {
             if (On) return;
             On = true; Sim = sim;
+            // PC の窓が手前でなくなっても（Oculus のアプリを触った・ヘッドセットを外した など）、コントローラーの入力を止めない。
+            // ふつうは Unity が「よそ見中」として入力を止め、もどってもボタンが効かないことがあった（2026-11-18）
+            InputSystem.settings.backgroundBehavior = InputSettings.BackgroundBehavior.IgnoreFocus;
             CloseChoice();
             if (sim) { _floor = true; SimStart(); }
             Board.Current = Board.Mode.World;
@@ -215,8 +287,9 @@ namespace Tsukuyomi
         // ───────── カメラ（OrbitCamera から呼ぶ）─────────
 
         /// <summary>遊ぶ場所の原点（足もと）。体の位置と向き＋背の高さ。</summary>
-        public static Vector3 OriginPos(OrbitCamera cam) => Body != null ? Body.Feet + Vector3.up * (Height + (_floor ? 0f : 1.6f)) : cam.target.position + Vector3.up * (Height + (_floor ? 0f : cam.eyeHeight));
-        public static Quaternion OriginRot(OrbitCamera cam) => Quaternion.Euler(0, Body != null ? Body.Yaw : cam.yaw, 0);
+        public static Vector3 OriginPos(OrbitCamera cam) => (Body != null ? Body.Feet + Vector3.up * (Height + (_floor ? 0f : 1.6f)) : cam.target.position + Vector3.up * (Height + (_floor ? 0f : cam.eyeHeight)))
+                                                           - OriginRot(cam) * new Vector3(_ctr.x, 0, _ctr.y);
+        public static Quaternion OriginRot(OrbitCamera cam) => Quaternion.Euler(0, (Body != null ? Body.Yaw : cam.yaw) - _yawOff, 0);
 
         // ───────── KASSEN などの体（島の人形の代わり）─────────
 
@@ -243,6 +316,9 @@ namespace Tsukuyomi
 
         /// <summary>右手・左手（見た目の手。位置と向きは世界の座標）。VR でないときは null。</summary>
         public static Transform RightHand => I != null ? I._rHand : null;
+        /// <summary>右手の「指す向き」（光の線・ワープ・KASSEN のねらい）。本物の機器は OpenXR の aim、まねる機器などは手と同じ。</summary>
+        public static Transform RightAim => I != null ? (I._rAim != null ? I._rAim : I._rHand) : null;
+        Transform _rAim;
         public static Transform LeftHand => I != null ? I._lHand : null;
         /// <summary>手の速さ（メートル／秒、遊ぶ場所の中の動きだけ。振る攻撃に使う）。</summary>
         public static Vector3 RightVel, LeftVel;
@@ -307,6 +383,8 @@ namespace Tsukuyomi
             _origin.SetParent(transform, false);
             _lHand = MakeHand(true, out _lFingers);
             _rHand = MakeHand(false, out _rFingers);
+            _rAim = new GameObject("右手の指す向き").transform;
+            _rAim.SetParent(_rHand.parent, false);
             _ray = Line("光の線", 0.006f, new Color(0.45f, 0.95f, 1f, 0.85f));
             _arc = Line("ワープの弧", 0.02f, new Color(0.45f, 0.95f, 1f, 0.9f));
             _ringLine = Line("ワープの輪", 0.025f, new Color(0.45f, 0.95f, 1f, 0.9f));
@@ -346,6 +424,7 @@ namespace Tsukuyomi
         {
             if (Sim) SimTick();
             HandVel();
+            if (_recenter.WasPressedThisFrame() || Act.Recenter.Down) Recenter();
             var cam = Cam; var pl = Player;
             if (cam == null || pl == null) return;
             if (Body != null) { BodyTick(cam); return; }
@@ -358,9 +437,9 @@ namespace Tsukuyomi
             {
                 if (SnapTurn)
                 {
-                    if (Mathf.Abs(rs.x) > 0.7f && !_turnHeld) { Turn(cam, 45f * Mathf.Sign(rs.x)); _turnHeld = true; _flash = 0.25f; }
+                    if (Mathf.Abs(rs.x) > 0.7f && !_turnHeld) { Turn(cam, SnapAngle * Mathf.Sign(rs.x)); _turnHeld = true; _flash = 0.25f; }
                 }
-                else if (Mathf.Abs(rs.x) > 0.2f) { Turn(cam, rs.x * 100f * Time.deltaTime); turning = true; }
+                else if (Mathf.Abs(rs.x) > 0.2f) { Turn(cam, rs.x * SmoothSpeed * Time.deltaTime); turning = true; }
             }
             if (Mathf.Abs(rs.x) < 0.3f) _turnHeld = false;
 
@@ -394,8 +473,8 @@ namespace Tsukuyomi
             bool turning = false;
             if (!Body.Pointer && Mathf.Abs(rs.x) > Mathf.Abs(rs.y))
             {
-                if (SnapTurn) { if (Mathf.Abs(rs.x) > 0.7f && !_turnHeld) { Turn(cam, 45f * Mathf.Sign(rs.x)); _turnHeld = true; _flash = 0.25f; } }
-                else if (Mathf.Abs(rs.x) > 0.2f) { Turn(cam, rs.x * 100f * Time.deltaTime); turning = true; }
+                if (SnapTurn) { if (Mathf.Abs(rs.x) > 0.7f && !_turnHeld) { Turn(cam, SnapAngle * Mathf.Sign(rs.x)); _turnHeld = true; _flash = 0.25f; } }
+                else if (Mathf.Abs(rs.x) > 0.2f) { Turn(cam, rs.x * SmoothSpeed * Time.deltaTime); turning = true; }
             }
             if (Mathf.Abs(rs.x) < 0.3f) _turnHeld = false;
             _aiming = false; _arc.enabled = _ringLine.enabled = false;
@@ -473,6 +552,12 @@ namespace Tsukuyomi
             _origin.SetPositionAndRotation(OriginPos(cam), OriginRot(cam));
             Pose(_lHand, _lPos.ReadValue<Vector3>(), Q(_lRot));
             Pose(_rHand, _rPos.ReadValue<Vector3>(), Q(_rRot));
+            var aq = _rAimRot.controls.Count > 0 ? _rAimRot.ReadValue<Quaternion>() : default;
+            if (_rAim != null)
+            {
+                if (aq.x == 0 && aq.y == 0 && aq.z == 0 && aq.w == 0) Pose(_rAim, _rHand.localPosition, _rHand.localRotation);
+                else Pose(_rAim, _rAimPos.ReadValue<Vector3>(), aq);
+            }
             Curl(_lFingers, _lGrip.ReadValue<float>(), _lTrig.ReadValue<float>());
             Curl(_rFingers, _rGrip.ReadValue<float>(), _rTrig.ReadValue<float>());
         }
@@ -494,19 +579,27 @@ namespace Tsukuyomi
         void UpdateRay()
         {
             bool show = Body != null ? Body.Pointer : Choosing || Hud.Blocked || Kassen.Busy;
-            var o = _rHand.position; var dir = _rHand.forward;
-            float best = 4f; bool hit = false;
+            var aim = RightAim; var o = aim.position; var dir = aim.forward;
+            // あたった板のうち、光の線の先に押せるボタンがある板を優先する（2026-11-18：KASSEN では目の前いっぱいの表示の板が
+            // 一時停止や武器えらびの板より手前にあり、線がそこで止まってボタンが押しにくかった）。ボタンがなければ、いちばん近い板
+            float best = 4f, bestBtn = 4f; bool hit = false, btn = false;
+            Board nb = null; Vector3 np = default;
             if (show)
                 foreach (var b in Board.All)
                 {
                     if (b == null || b.passive || b.canvas == null || !b.canvas.enabled || b.canvas.renderMode != RenderMode.WorldSpace || b.Alpha < 0.01f) continue;
                     var ct = (RectTransform)b.canvas.transform;
                     var plane = new Plane(ct.forward, ct.position);
-                    if (!plane.Raycast(new Ray(o, dir), out var t) || t <= 0 || t >= best) continue;
-                    var lp = ct.InverseTransformPoint(o + dir * t);
+                    if (!plane.Raycast(new Ray(o, dir), out var t) || t <= 0 || t >= 4f) continue;
+                    var at = o + dir * t;
+                    var lp = ct.InverseTransformPoint(at);
                     var sz = ct.sizeDelta;
-                    if (Mathf.Abs(lp.x) <= sz.x * 0.5f && Mathf.Abs(lp.y) <= sz.y * 0.5f) { best = t; hit = true; _hitBoard = b; _hitPoint = o + dir * t; }
+                    if (Mathf.Abs(lp.x) > sz.x * 0.5f || Mathf.Abs(lp.y) > sz.y * 0.5f) continue;
+                    if (t < best) { best = t; nb = b; np = at; }
+                    if (t < bestBtn && Over(b, at) != null) { bestBtn = t; btn = true; _hitBoard = b; _hitPoint = at; }
                 }
+            if (btn) { hit = true; best = bestBtn; }
+            else if (nb != null) { hit = true; _hitBoard = nb; _hitPoint = np; }
             _ray.enabled = show;
             _dot.gameObject.SetActive(show && hit);
             Press(show && hit ? _hitBoard : null);
@@ -519,21 +612,13 @@ namespace Tsukuyomi
         /// <summary>光の線の先のボタンを光らせ、右手のトリガーを引いたら押す。</summary>
         void Press(Board b)
         {
-            UnityEngine.UI.Selectable over = null;
-            if (b != null)
-                foreach (var s in b.GetComponentsInChildren<UnityEngine.UI.Selectable>())
-                {
-                    if (!s.IsInteractable()) continue;
-                    var rt = (RectTransform)s.transform;
-                    var lp = rt.InverseTransformPoint(_hitPoint);
-                    if (rt.rect.Contains(new Vector2(lp.x, lp.y))) over = s; // 後ろに並ぶもの（上に描かれるもの）を優先
-                }
+            var over = b != null ? Over(b, _hitPoint) : null;
             var es = EventSystem.current;
             var ev = es != null ? new PointerEventData(es) { button = PointerEventData.InputButton.Left } : null;
             if (over != _hover && ev != null)
             {
                 if (_hover != null) ExecuteEvents.Execute(_hover.gameObject, ev, ExecuteEvents.pointerExitHandler);
-                if (over != null) ExecuteEvents.Execute(over.gameObject, ev, ExecuteEvents.pointerEnterHandler);
+                if (over != null) { ExecuteEvents.Execute(over.gameObject, ev, ExecuteEvents.pointerEnterHandler); Buzz(true, 0.12f, 0.02f); }
             }
             _hover = over;
             float tr = _rTrig.ReadValue<float>();
@@ -542,8 +627,23 @@ namespace Tsukuyomi
             if (pressed && over != null && ev != null)
             {
                 ExecuteEvents.Execute(over.gameObject, ev, ExecuteEvents.pointerClickHandler);
+                Buzz(true, 0.35f, 0.04f);
                 if (Sim) Log($"押した：{over.name}");
             }
+        }
+
+        /// <summary>板の、その点にある押せるもの（後ろに並ぶもの＝上に描かれるものを優先）。</summary>
+        static UnityEngine.UI.Selectable Over(Board b, Vector3 at)
+        {
+            UnityEngine.UI.Selectable over = null;
+            foreach (var s in b.GetComponentsInChildren<UnityEngine.UI.Selectable>())
+            {
+                if (!s.IsInteractable() || !s.isActiveAndEnabled) continue;
+                var rt = (RectTransform)s.transform;
+                var lp = rt.InverseTransformPoint(at);
+                if (rt.rect.Contains(new Vector2(lp.x, lp.y))) over = s;
+            }
+            return over;
         }
 
         /// <summary>光の線が板にあたっている（確認用）。</summary>
@@ -554,7 +654,7 @@ namespace Tsukuyomi
         void AimArc(OrbitCamera cam)
         {
             var pts = new List<Vector3>();
-            var p = _rHand.position; var vel = _rHand.forward * 9f;
+            var p = RightAim.position; var vel = RightAim.forward * 9f;
             pts.Add(p);
             _aimOk = false;
             for (int i = 0; i < 60; i++)
@@ -585,7 +685,7 @@ namespace Tsukuyomi
         void WarpTo(PlayerController pl, OrbitCamera cam, Vector3 at)
         {
             // 頭が行き先の真上に来るように（遊ぶ場所の中で歩いたずれを引く）
-            var off = OriginRot(cam) * HeadPos; off.y = 0;
+            var off = OriginRot(cam) * HeadLocal; off.y = 0;
             pl.Teleport(at - off + Vector3.up * 0.1f, cam.yaw);
             _lastPos = pl.Position;
             _flash = 0.2f;

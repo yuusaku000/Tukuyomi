@@ -45,13 +45,18 @@ namespace Tsukuyomi
         public bool forceWorld;
         /// <summary>空間に浮かべるときの、1ピクセルあたりのメートル。</summary>
         public float worldScale = MetersPerPixel;
+        /// <summary>空間に浮かべる板ぜんぶの大きさの倍率（VR の設定「板の大きさ」）。その場に置いた看板（pinned）には効かない。</summary>
+        public static float WorldMul = 1f;
         /// <summary>空間の板が頭についてくる速さ（大きいほどぴったり）。</summary>
         public float follow = 4f;
         public Vector3 pinPos;
         public float pinScale = 0.01f;
 
         float _alpha = 1f;
-        Vector3 _pos; Quaternion _rot; bool _placed;
+        Vector3 _pos; Quaternion _rot; bool _placed, _glide;
+
+        /// <summary>空間の板を、次に見えたときに目の前へ置きなおす（視点のリセットのとき）。</summary>
+        public static void ReplaceAll() { foreach (var b in All) if (b != null) b._placed = false; }
 
         /// <summary>作った板すべて（VR モードに切りかえたときに置き直す・光の線であたりを調べる）。</summary>
         public static readonly System.Collections.Generic.List<Board> All = new();
@@ -126,7 +131,7 @@ namespace Tsukuyomi
                 sc.dynamicPixelsPerUnit = 3f; // 近くで見ても文字がぼやけないように
                 if (fill || root.sizeDelta.sqrMagnitude < 1f) root.sizeDelta = _size; // 画面いっぱいだった板を、空間ではもとの大きさに
                 ct.sizeDelta = root.sizeDelta;
-                ct.localScale = Vector3.one * worldScale;
+                ct.localScale = Vector3.one * worldScale * WorldMul;
                 root.anchorMin = root.anchorMax = root.pivot = new Vector2(0.5f, 0.5f);
                 root.anchoredPosition = Vector2.zero;
                 _placed = false;
@@ -137,12 +142,45 @@ namespace Tsukuyomi
         public float Alpha
         {
             get => _alpha;
-            set { _alpha = value; if (group != null) group.alpha = value; if (canvas != null) canvas.enabled = value > 0.001f; }
+            set { bool wasOn = _alpha > 0.001f; _alpha = value; if (group != null) group.alpha = value; if (canvas != null) canvas.enabled = value > 0.001f; if (value > 0.001f) _topT = 0; if (!wasOn && value > 0.001f) _placed = false; }
+        }
+
+        /// <summary>
+        /// 空間に浮かべた板（頭についてくる板）を、手の武器や物より手前にいつも描く（2026-11-18：VR の KASSEN で、
+        /// 手に持った武器で表示や戦況の板が隠れていたため）。その場に置いた看板（pinned）は、壁の向こうから見えないよう、ふつうに描く。
+        /// </summary>
+        public bool onTop = true;
+        float _topT;
+        static Material _topMat;
+        static Material TopMat
+        {
+            get
+            {
+                if (_topMat != null) return _topMat;
+                _topMat = new Material(Graphic.defaultGraphicMaterial) { name = "板（いつも手前）" };
+                _topMat.SetInt("unity_GUIZTestMode", (int)UnityEngine.Rendering.CompareFunction.Always);
+                return _topMat;
+            }
+        }
+
+        /// <summary>中身の絵と文字に「いつも手前」をつける（作りなおした中身にもつくよう、ときどき見なおす）。</summary>
+        void TopTick()
+        {
+            bool want = onTop && !pinned && canvas.renderMode == RenderMode.WorldSpace;
+            _topT -= Time.unscaledDeltaTime;
+            if (_topT > 0) return;
+            _topT = 0.25f;
+            foreach (var g in GetComponentsInChildren<Graphic>(true))
+            {
+                if (want && g.material == g.defaultMaterial) g.material = TopMat;
+                else if (!want && g.material == _topMat) g.material = null;
+            }
         }
 
         void LateUpdate()
         {
             if (!canvas.enabled) return;
+            TopTick();
             var cam = Camera.main;
             if (cam == null) return;
             if (pinned)
@@ -157,9 +195,20 @@ namespace Tsukuyomi
             var yaw = Quaternion.Euler(0, head.eulerAngles.y, 0);
             var want = head.position + yaw * worldOffset;
             var face = Quaternion.LookRotation(want - head.position, Vector3.up);
-            if (!_placed) { _pos = want; _rot = face; _placed = true; }
+            if (!_placed) { _pos = want; _rot = face; _placed = true; _glide = false; }
             else
             {
+                // 頭にほぼくっつく表示（KASSEN の表示など、follow が大きい板）は今までどおり。
+                // それ以外は、押せる板（メニューなど）はその場に止まり、大きく（50度）よそを向いたときだけ前へ来る（ボタンを狙いやすく）。
+                // 見るだけの板（案内・お知らせ）は、少し（22度）よそを向くか歩いたら、ゆっくりついてくる（2026-11-18）
+                if (follow < 10f)
+                {
+                    float ang = Mathf.Abs(Mathf.DeltaAngle(_rot.eulerAngles.y, face.eulerAngles.y));
+                    var dp = _pos - want; float dy = Mathf.Abs(dp.y); dp.y = 0; float dist = dp.magnitude;
+                    if (ang > (passive ? 22f : 50f) || dist > (passive ? 0.35f : 0.6f) || dy > 0.4f) _glide = true;
+                    if (!_glide) { transform.SetPositionAndRotation(_pos, _rot); return; }
+                    if (ang < 2f && dist < 0.03f && dy < 0.03f) _glide = false;
+                }
                 float k = 1 - Mathf.Exp(-follow * Time.unscaledDeltaTime);
                 _pos = Vector3.Lerp(_pos, want, k);
                 _rot = Quaternion.Slerp(_rot, face, k);

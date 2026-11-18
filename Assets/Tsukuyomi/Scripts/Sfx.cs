@@ -43,7 +43,7 @@ namespace Tsukuyomi
 
         public static void Play(AudioClip c, float vol)
         {
-            if (Ts.ShotMode || c == null) return;
+            if (Ts.Silent || c == null) return;
             I._src.PlayOneShot(c, vol * SoundPrefs.Effects);
         }
 

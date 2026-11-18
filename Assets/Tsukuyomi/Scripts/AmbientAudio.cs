@@ -48,7 +48,7 @@ namespace Tsukuyomi
         void Start()
         {
             SoundPrefs.Apply();
-            if (Ts.ShotMode) { enabled = false; return; }
+            if (Ts.Silent) { enabled = false; return; }
             var sea = Synth.Water(14f, 0.035f);
             _sea = Src(Vector3.zero, sea, 0.1f, 1, true, false, 150);
             _loops.Add((_sea, 0.1f, false));

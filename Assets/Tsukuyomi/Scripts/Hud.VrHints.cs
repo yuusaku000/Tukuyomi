@@ -47,8 +47,8 @@ namespace Tsukuyomi
         string PromptNow()
         {
             if (player == null || Fishing.Busy) return null;
-            string k = Vr.On ? "A" : "E";
-            if (Rest.Sitting) return Vr.On ? "A・スティック ▸ 立つ" : "E・WASD ▸ 立つ";
+            string k = Vr.On ? Vr.KeyUse : "E";
+            if (Rest.Sitting) return Vr.On ? Vr.KeyUse + "・スティック ▸ 立つ" : "E・WASD ▸ 立つ";
             var shop = PlayerController.Busy ? null : ShopStand.Near(player.Position, 3.2f);
             if (shop != null) return $"{k} ▸ {shop.title}に入る";
             if (PlayerController.Fly) return null;

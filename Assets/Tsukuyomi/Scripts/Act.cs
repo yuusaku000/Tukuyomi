@@ -163,18 +163,53 @@ namespace Tsukuyomi
             Back.Bind("<XRController>{LeftHand}/{SecondaryButton}");
             Back.Bind("<XRController>{LeftHand}/{MenuButton}");
             Cast.Bind("<XRController>{RightHand}/{TriggerButton}");
-            Interact.Bind("<XRController>{RightHand}/{PrimaryButton}");
-            Jump.Bind("<XRController>{RightHand}/{SecondaryButton}");
+            // Interact（調べる）・Jump・Special（移動わざ・必殺）の A・B は ApplyXrLayout で（設定で入れかえられる）
             Light.Bind("<XRController>{RightHand}/{TriggerButton}");
             Heavy.Bind("<XRController>{RightHand}/{GripButton}");
-            Special.Bind("<XRController>{RightHand}/{PrimaryButton}");
+
             Throw.Bind("<XRController>{LeftHand}/{TriggerButton}");
             Info.Bind("<XRController>{LeftHand}/{PrimaryButton}");
             Super.Bind("<XRController>{LeftHand}/{Primary2DAxisClick}");
+            Super.Bind("<XRController>{LeftHand}/{PrimaryButton}"); // 押しこみは押しにくいので X でも（2026-11-18。X は SENGOKU の戦況・島の地図だが、超必殺は SETSUNA だけ）
             Crouch.Bind("<XRController>{LeftHand}/{GripButton}");
         }
 
-        static Button[] All => new[] { Jump, Run, Descend, View, Interact, Cast, Wardrobe, Confirm, Back, Map, Book, HideHud, Info, Light, Heavy, Special, Throw, Super, Crouch };
+        /// <summary>
+        /// VR のボタン配置（設定 → 操作）。0 標準：A 調べる・移動わざ・必殺／B ジャンプ。1 入れかえ：A ジャンプ／B 調べる・移動わざ・必殺。
+        /// </summary>
+        public static void ApplyXrLayout(int layout)
+        {
+            string a = "<XRController>{RightHand}/{PrimaryButton}", b = "<XRController>{RightHand}/{SecondaryButton}";
+            Rebind(Interact, layout == 0 ? a : b);
+            Rebind(Special, layout == 0 ? a : b);
+            Rebind(Jump, layout == 0 ? b : a);
+        }
+
+        /// <summary>その動作の、右手の A・B の割り当てだけを差しかえる（キーボード・ゲームパッドはそのまま）。</summary>
+        static void Rebind(Button btn, string path)
+        {
+            var act = btn.action;
+            act.Disable();
+            for (int i = act.bindings.Count - 1; i >= 0; i--)
+            {
+                var p = act.bindings[i].path;
+                if (p.Contains("{RightHand}/{PrimaryButton}") || p.Contains("{RightHand}/{SecondaryButton}")) act.ChangeBinding(i).Erase();
+            }
+            act.AddBinding(path);
+            act.Enable();
+        }
+
+        /// <summary>割り当てを読みなおす（VR のコントローラーがつなぎなおされたとき。Vr から）。</summary>
+        public static void Refresh()
+        {
+            Move.Disable(); Move.Enable();
+            foreach (var b in All) { b.action.Disable(); b.action.Enable(); }
+        }
+
+        /// <summary>視点のリセット（Home・ゲームパッドの Select。VR は右スティックの押しこみ＝Vr が読む）。</summary>
+        public static readonly Button Recenter = new("Recenter", "<Keyboard>/home", "<Gamepad>/select");
+
+        static Button[] All => new[] { Recenter, Jump, Run, Descend, View, Interact, Cast, Wardrobe, Confirm, Back, Map, Book, HideHud, Info, Light, Heavy, Special, Throw, Super, Crouch };
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
         static void Init()

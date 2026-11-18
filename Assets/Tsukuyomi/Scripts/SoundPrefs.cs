@@ -22,6 +22,7 @@ namespace Tsukuyomi
             set { PlayerPrefs.SetInt("tsukuyomi_mute", value ? 1 : 0); PlayerPrefs.Save(); Apply(); }
         }
 
-        public static void Apply() => AudioListener.volume = Muted ? 0f : Master;
+        // --tour-sound（確認用）では、音は鳴らすが聞こえないように音量を0にする（鳴っているかどうかだけを数える）
+        public static void Apply() => AudioListener.volume = Muted || Ts.Flag("--tour-sound") ? 0f : Master;
     }
 }

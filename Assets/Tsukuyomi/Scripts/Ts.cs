@@ -62,6 +62,8 @@ namespace Tsukuyomi
 
         /// <summary>画面を保存して終わる確認用の起動（マウスやキーを受けつけない）。</summary>
         public static bool ShotMode => Arg("--shot") != null || Arg("--tour") != null || Flag("--check");
+        /// <summary>確認用の起動で音を出さない（--tour-sound を付けると、確認用でも音を出す）。</summary>
+        public static bool Silent => ShotMode && !Flag("--tour-sound");
 
         /// <summary>時刻を "21:30" の形でずらす（確認用）。</summary>
         public static void SetTime(string hhmm)

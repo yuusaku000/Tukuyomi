@@ -20,9 +20,9 @@ namespace Tsukuyomi
 
         public static readonly Weapon[] Weapons =
         {
-            new() { name = "二刀流", en = "TWIN BLADES", hint = "左クリック 連撃（3回目が強い）\n右クリック 先端から光弾\nF 殴る　E ワイヤー（建物に引っかけて飛ぶ・もう一度 E で離して跳ぶ・Space で巻きとる）" },
+            new() { name = "二刀流", en = "TWIN BLADES", hint = "左クリック 連撃（3回目が強い）\n右クリック 先端から光弾\nF 殴る　E ワイヤー（引っかけるとぐっと引き寄せる・Space 長押しでさらに引き寄せ・離すと振り子・もう一度 E で離す。勢いは残るので空中で次へ）" },
             new() { name = "ハンマー", en = "HAMMER", hint = "左クリック 叩きつけ（重い一撃・吹き飛ばす）\n右クリック ミサイル（爆発）\nE 長押し ジェットで飛ぶ（燃料は地面で回復）" },
-            new() { name = "傘", en = "UMBRELLA", hint = "左クリック 突き\n右クリック ブーメランのように投げる（もどってくる）\nE 乗物（吹き抜けの駕籠）に乗って浮かぶ（すべって速い・水の上も渡れる・前の攻撃を防ぐ・Space でおりる）" },
+            new() { name = "傘", en = "UMBRELLA", hint = "左クリック 突き\n右クリック ブーメランのように投げる（長押しでためると遠く・強く。もどってくる）\nE 乗物（吹き抜けの駕籠）に乗って浮かぶ（すべって速い・水の上も渡れる・前の攻撃を防ぐ・Space でおりる）" },
             new() { name = "弓", en = "BOW", hint = "左クリック 長押しでためて、離して射る\n右クリック 長押しで狙う（ズーム）\nE 自分が矢になって飛ぶ（当たると痛い）" },
             new() { name = "金棒", en = "KANABO", hint = "左クリック 振りおろす（重い一撃・吹き飛ばす）\n右クリック 金の弾を撃つ\nE 大きく振って、ねらった方へ大きく跳ぶ（当たると痛い）" },
             new() { name = "団扇", en = "THUNDER FAN", hint = "左クリック あおぎ打ち（少し遠くまで届く・押し返す）\n右クリック 地雷を置く（3つまで。2m まで近づかないと見えない）\nE あおいで、反対方向へ飛ぶ　Space 空中でもう一度跳べる（2段ジャンプ）" },
@@ -32,6 +32,7 @@ namespace Tsukuyomi
         float _cd, _cd2, _abilityCd, _swing, _swingLen = 0.3f, _charge, _fuel = 1f;
         int _combo;
         bool _wire, _ride, _pull, _zoom, _hammerWind;
+        float _zipT; // ワイヤーが刺さった直後の、引き寄せの残り時間
         Vector3 _anchor, _pullTo; float _ropeLen, _dashT, _pullT, _windT;
         Vector3 _dashDir;
         readonly HashSet<SengokuTarget> _dashHit = new HashSet<SengokuTarget>();
@@ -45,7 +46,7 @@ namespace Tsukuyomi
         {
             0 => _wire ? 1 : WireTarget(out _) ? 1 : 0.15f,
             1 => _fuel,
-            2 => _ride ? 1 : 1,
+            2 => _charge > 0 ? _charge : 1,
             3 => _charge > 0 ? _charge : 1 - Mathf.Clamp01(_abilityCd / 3f),
             4 => 1 - Mathf.Clamp01(_abilityCd / 3.5f),
             _ => 1 - Mathf.Clamp01(_abilityCd / 2.2f),
@@ -53,9 +54,9 @@ namespace Tsukuyomi
 
         string GaugeText => _w switch
         {
-            0 => _wire ? "ワイヤー中（E で離す・Space で巻きとる）" : WireTarget(out _) ? "E ワイヤー（届く）" : "ワイヤーが届かない",
+            0 => _wire ? (Vr.On ? $"ワイヤー中（{Vr.KeyJump} 長押しで引き寄せ・{Vr.KeyUse} で離す）" : "ワイヤー中（Space 長押しで引き寄せ・E で離す）") : WireTarget(out _) ? "E ワイヤー（届く）" : "ワイヤーが届かない",
             1 => $"燃料 {_fuel * 100:0}%",
-            2 => _ride ? "傘で浮かんでいる（Space でおりる）" : "E で傘を開く",
+            2 => _charge > 0 ? $"傘をためる {_charge * 100:0}%（離して投げる）" : _ride ? "傘で浮かんでいる（Space でおりる）" : "E で傘を開く",
             3 => _charge > 0 ? $"ため {_charge * 100:0}%" : _abilityCd > 0 ? "矢になる：準備中" : "E 矢になって飛ぶ",
             4 => _abilityCd > 0 ? "大振り：準備中" : "E 大きく振って跳ぶ",
             _ => (_abilityCd > 0 ? "あおぐ：準備中" : "E あおいで飛ぶ") + $"　地雷 {MinesOf(1)}/{MaxMines}",
@@ -85,15 +86,22 @@ namespace Tsukuyomi
             // F：どの武器でも殴れる（大将落としは近接攻撃でしか落とせない）
             bool swingR = SwingRight(dt), swingL = SwingLeft(dt); // VR：手を振った
             if ((Act.Throw.Down || swingL) && _cd <= 0 && !_hammerWind) { Melee(25, 2.4f, false); Swing(0.25f); _cd = 0.45f; }
-            bool L = Act.Light.Down || swingR, LH = Act.Light.Held, LU = Act.Light.Up, R = Act.Heavy.Down, RH = Act.Heavy.Held, E = Act.Special.Down && _stunT <= 0;
+            bool L = Act.Light.Down || swingR, LH = Act.Light.Held, LU = Act.Light.Up, R = Act.Heavy.Down, RH = Act.Heavy.Held, RU = Act.Heavy.Up, E = Act.Special.Down && _stunT <= 0;
             switch (_w)
             {
                 case 0: // 二刀流
                     if (L && _cd <= 0) { _combo = (_combo + 1) % 3; bool big = _combo == 0; Melee(big ? 45 : 28, 2.5f, big); Swing(big ? 0.38f : 0.24f); _cd = big ? 0.42f : 0.24f; }
                     if (R && _cd2 <= 0) { Fire(From + Aim * 0.7f + Side(0.15f), Aim * 55f, 0, 14, 0, false, ShotKind.Spark); _cd2 = 0.22f; Swing(0.15f); }
                     // ワイヤー：E で引っかける・もう一度 E で離して跳ぶ（押しっぱなしにしなくてよい。Shift と同時に E を押しつづけられないキーボードでも切れないように）
-                    if (E && _wire) { _wire = false; _vel += Vector3.up * 6f + Forward * 3f; Play(_sJump, 0.5f); }
-                    else if (E && WireTarget(out var hit)) { _wire = true; _anchor = hit.point; _ropeLen = Vector3.Distance(_rig.transform.position + Vector3.up, _anchor); Play(_sWhoosh, 0.6f); }
+                    // 離す：勢いはそのまま、少し上へ（続けて次の所へ引っかけられる）
+                    if (E && _wire) { _wire = false; var fl = new Vector3(_vel.x, 0, _vel.z); _vel += Vector3.up * 5f + fl.normalized * Mathf.Min(4f, fl.magnitude * 0.15f); Play(_sJump, 0.5f); }
+                    else if (E && WireTarget(out var hit))
+                    {
+                        _wire = true; _anchor = hit.point; _ropeLen = Vector3.Distance(_rig.transform.position + Vector3.up, _anchor);
+                        _zipT = 0.4f; // 刺さった直後は、ぐっと引き寄せる
+                        _grounded = false; if (_vel.y < 2f) _vel.y = 2f;
+                        Play(_sWhoosh, 0.6f);
+                    }
                     else if (E) { ShowText(EyePos + Aim * 4f, "ワイヤーが届かない", Color.white); Play(_sClick, 0.4f); }
                     break;
                 case 1: // ハンマー
@@ -103,7 +111,15 @@ namespace Tsukuyomi
                     break;
                 case 2: // 傘
                     if (L && _cd <= 0) { Melee(35, 2.7f, false); Swing(0.3f); _cd = 0.38f; }
-                    if (R && _boomer == null) { _boomer = Fire(From + Aim * 0.8f, Aim * 28f, 0, 30, 0, false, ShotKind.Boomerang); _boomer.boomerang = true; }
+                    // 右を長押しでためる（最大1秒）。離すと投げる。ためるほど遠くまで飛び、強い（ユーザーの指示）
+                    if (RH && _boomer == null) _charge = Mathf.Min(1f, _charge + dt);
+                    if (RU && _boomer == null)
+                    {
+                        float c = _charge; _charge = 0;
+                        _boomer = Fire(From + Aim * 0.8f, Aim * (28f + 18f * c), 0, 30 + 40 * c, 0, c > 0.9f, ShotKind.Boomerang);
+                        _boomer.boomerang = true; _boomer.outT = 0.6f + 0.7f * c;
+                        Swing(0.3f + 0.2f * c); Kick(0.5f + 1.5f * c);
+                    }
                     if (E) { _ride = !_ride; if (_ride) { _vel.y = Mathf.Max(_vel.y, 3f); } Play(_sWhoosh, 0.5f); }
                     break;
                 case 3: // 弓
@@ -136,11 +152,25 @@ namespace Tsukuyomi
             }
         }
 
+        /// <summary>ワイヤーが届く長さ（2026-11-18 ユーザーの指示で 55m から伸ばした）。</summary>
+        const float WireRange = 75f;
+
         bool WireTarget(out RaycastHit hit)
         {
             hit = default;
             if (_rig == null) return false;
-            return Physics.Raycast(From, Aim, out hit, 55f, ~0, QueryTriggerInteraction.Ignore) && hit.collider != _cc && hit.point.y > _rig.transform.position.y - 2f;
+            float floor = _rig.transform.position.y - 2f;
+            bool Ok(RaycastHit h) => h.collider != _cc && h.point.y > floor && h.collider.GetComponentInParent<SengokuTarget>() == null;
+            if (Physics.Raycast(From, Aim, out hit, WireRange, ~0, QueryTriggerInteraction.Ignore) && Ok(hit)) return true;
+            // ねらいの手助け（2026-11-18）：太めの線で、それでもだめなら少し上・左右にずらした向きでさがす
+            if (Physics.SphereCast(From, 0.8f, Aim, out hit, WireRange, ~0, QueryTriggerInteraction.Ignore) && Ok(hit)) return true;
+            var up = Vector3.up; var side = Vector3.Cross(up, Aim).normalized;
+            foreach (var (a, b) in new[] { (5f, 0f), (0f, 5f), (0f, -5f), (9f, 0f), (5f, 6f), (5f, -6f) })
+            {
+                var dir = Quaternion.AngleAxis(-a, side) * Quaternion.AngleAxis(b, up) * Aim;
+                if (Physics.Raycast(From, dir, out hit, WireRange, ~0, QueryTriggerInteraction.Ignore) && Ok(hit)) return true;
+            }
+            return false;
         }
 
         // ───────── 移動わざ（ふつうの歩きの代わりに動かす）─────────
@@ -153,17 +183,42 @@ namespace Tsukuyomi
 
             if (_w == 0 && _wire)
             {
-                // 振り子：重力＋入力で動き、ロープの長さを超えたら外へ出ないようにする。ロープは少しずつ巻きとる
-                _vel.y -= Gravity * dt;
-                _vel += wish * 9f * dt + (_anchor - p).normalized * 6f * dt;
-                _ropeLen = Mathf.Max(2.5f, _ropeLen - 7f * dt);
+                // ワイヤー（2026-11-18 作りなおし。立体的に飛びまわる道具の動きを参考に）：
+                //  ・刺さった直後（0.4秒）と、Space（VR は B）を押している間は、ガスでぐっと引き寄せる（巻きとり）
+                //  ・離している間は振り子。ロープは長さを保ち、左スティック・WASD で振る向きを変えられる
+                //  ・アンカーのすぐ近くまで来たら、勢いで乗りこえるように自動で離す
+                //  ・E でいつでも離せる。勢いは残るので、空中ですぐ次へ引っかけられる
                 var c = p + Vector3.up;
+                var to = _anchor - c; float d = to.magnitude; var dir = d > 0.01f ? to / d : Vector3.up;
+                bool reel = _zipT > 0 || (play && Act.Jump.Held);
+                _zipT -= dt;
+                _vel.y -= Gravity * (reel ? 0.35f : 0.85f) * dt;
+                _vel += wish * (reel ? 10f : 14f) * dt;
+                if (reel)
+                {
+                    _vel += dir * 42f * dt;                                   // ガスで引き寄せる
+                    float along = Vector3.Dot(_vel, dir);
+                    if (along < 8f) _vel += dir * (8f - along);               // 引き寄せる向きの速さは、少なくとも毎秒 8m
+                    _ropeLen = Mathf.Max(2f, Mathf.Min(_ropeLen, d));
+
+                }
+                else _ropeLen = Mathf.Max(2.5f, _ropeLen - 2f * dt);
                 var next = c + _vel * dt;
                 var off = next - _anchor;
-                if (off.magnitude > _ropeLen) { var fix = _anchor + off.normalized * _ropeLen; _vel = (fix - c) / dt; }
-                _vel = Vector3.ClampMagnitude(_vel, 32f);
-                if (play && Act.Jump.Held) _ropeLen = Mathf.Max(2.5f, _ropeLen - 16f * dt); // Space：ロープを巻きとって上がる（離さない）
-                ShowLine(_anchor, new Color(0.4f, 1f, 1f), 0f);
+                if (off.magnitude > _ropeLen)
+                {
+                    // ロープより外へは出ない：外向きの速さだけを消す（横向きの勢いは残して、振り子になる）
+                    var n = off.normalized; float outV = Vector3.Dot(_vel, n);
+                    if (outV > 0) _vel -= n * outV;
+                }
+                _vel = Vector3.ClampMagnitude(_vel, 42f);
+                if (d < 2.2f)
+                {
+                    // アンカーに着いた：勢いで乗りこえるように離す
+                    _wire = false; _vel += Vector3.up * 6f + new Vector3(dir.x, 0, dir.z) * 3f; Play(_sJump, 0.5f);
+                    return false;
+                }
+                ShowLine(_anchor, reel ? new Color(0.7f, 1f, 1f) : new Color(0.4f, 1f, 1f), 0f);
                 return true;
             }
             if (_w == 1 && play && Act.Special.Held && _fuel > 0)
@@ -258,7 +313,7 @@ namespace Tsukuyomi
 
         class Shot
         {
-            public Vector3 p, v; public float grav, dmg, aoe, life, t; public bool heavy, boomerang, back;
+            public Vector3 p, v; public float grav, dmg, aoe, life, t, outT = 0.6f; public bool heavy, boomerang, back;
             public ShotKind kind; public Transform tr;
             public int team = 1; public Collider self;
             public readonly HashSet<SengokuTarget> hit = new HashSet<SengokuTarget>();
@@ -267,7 +322,7 @@ namespace Tsukuyomi
 
         Shot Fire(Vector3 from, Vector3 vel, float grav, float dmg, float aoe, bool heavy, ShotKind kind, int team = 1, Collider self = null)
         {
-            var s = new Shot { p = from, v = vel, grav = grav, dmg = dmg, aoe = aoe, heavy = heavy, kind = kind, life = kind == ShotKind.Boomerang ? 4f : 5f, team = team, self = self != null ? self : _cc };
+            var s = new Shot { p = from, v = vel, grav = grav, dmg = dmg, aoe = aoe, heavy = heavy, kind = kind, life = kind == ShotKind.Boomerang ? 6f : 5f, team = team, self = self != null ? self : _cc };
             var root = new GameObject("飛び道具").transform; root.SetParent(transform, false);
             switch (kind)
             {
@@ -275,10 +330,8 @@ namespace Tsukuyomi
                 case ShotKind.Missile:
                     Block(PrimitiveType.Capsule, root, Vector3.zero, new Vector3(0.22f, 0.4f, 0.22f), new Color(0.85f, 0.2f, 0.15f), false, new Vector3(90, 0, 0));
                     Block(PrimitiveType.Sphere, root, new Vector3(0, 0, -0.45f), Vector3.one * 0.25f, new Color(1f, 0.7f, 0.3f), false, null, true); break;
-                case ShotKind.Boomerang: BuildUmbrella(root, true, 1.2f); break; // 傘を大きく（ユーザーの指示）
-                case ShotKind.Arrow:
-                    Block(PrimitiveType.Cube, root, Vector3.zero, new Vector3(0.03f, 0.03f, 0.9f), new Color(0.6f, 0.45f, 0.3f), false);
-                    Block(PrimitiveType.Cube, root, new Vector3(0, 0, 0.47f), new Vector3(0.06f, 0.06f, 0.1f), new Color(0.75f, 0.9f, 1f), false, null, true); break;
+                case ShotKind.Boomerang: BuildUmbrella(root, true, 2.2f); break; // 投げた傘は大きく（ユーザーの指示。1.2 → 2.2）
+                case ShotKind.Arrow: BuildArrow(root, team, heavy); break;
                 case ShotKind.Ball: Block(PrimitiveType.Sphere, root, Vector3.zero, Vector3.one * 0.45f, new Color(0.15f, 0.14f, 0.14f), false); break;
                 case ShotKind.Bullet: Block(PrimitiveType.Sphere, root, Vector3.zero, new Vector3(0.12f, 0.12f, 0.3f), new Color(1f, 0.82f, 0.3f), false, null, true); break;
             }
@@ -286,6 +339,27 @@ namespace Tsukuyomi
             _shots.Add(s);
             if (kind != ShotKind.Ball && (team == 1 || Vector3.Distance(from, EyePos) < 18f)) Play(_sWhoosh, team == 1 ? 0.45f : 0.25f);
             return s;
+        }
+
+        /// <summary>
+        /// 矢（2026-11-18 ユーザーの指示で派手に）：光る矢じり・光る羽根・光の尾（味方は水色、敵は赤）。
+        /// ためきった矢（heavy）は金色で大きく、尾も長い。
+        /// </summary>
+        void BuildArrow(Transform root, int team, bool heavy)
+        {
+            var glow = heavy ? new Color(1f, 0.85f, 0.35f) : team == 1 ? new Color(0.45f, 0.95f, 1f) : new Color(1f, 0.4f, 0.35f);
+            float k = heavy ? 1.5f : 1f;
+            Block(PrimitiveType.Cube, root, Vector3.zero, new Vector3(0.035f, 0.035f, 0.95f) * k, new Color(0.65f, 0.48f, 0.3f), false);
+            Block(PrimitiveType.Cube, root, new Vector3(0, 0, 0.5f * k), new Vector3(0.09f, 0.09f, 0.16f) * k, glow, false, new Vector3(0, 0, 45), true);
+            foreach (float a in new[] { 0f, 120f, 240f })
+                Block(PrimitiveType.Cube, root, Quaternion.Euler(0, 0, a) * new Vector3(0, 0.05f * k, -0.4f * k), new Vector3(0.01f, 0.09f, 0.16f) * k, glow, false, new Vector3(0, 0, a), true);
+            var tr = root.gameObject.AddComponent<TrailRenderer>();
+            tr.time = heavy ? 0.45f : 0.28f;
+            tr.startWidth = heavy ? 0.16f : 0.09f; tr.endWidth = 0f;
+            tr.material = Mat(glow, true);
+            tr.startColor = new Color(glow.r, glow.g, glow.b, 0.95f); tr.endColor = new Color(glow.r, glow.g, glow.b, 0f);
+            tr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            tr.minVertexDistance = 0.2f;
         }
 
         void Shots(float dt)
@@ -296,14 +370,14 @@ namespace Tsukuyomi
                 s.t += dt; s.life -= dt;
                 if (s.boomerang)
                 {
-                    if (!s.back && s.t > 0.6f) { s.back = true; s.hit.Clear(); }
+                    if (!s.back && s.t > s.outT) { s.back = true; s.hit.Clear(); }
                     if (s.back) { var to = EyePos - s.p; s.v = to.normalized * 32f; if (to.magnitude < 1.2f) { Kill(i); _boomer = null; continue; } }
                     s.tr.Rotate(0, 900f * dt, 0, Space.World);
                 }
                 s.v += Vector3.down * s.grav * dt;
                 var step = s.v * dt;
                 bool gone = s.life <= 0;
-                if (!gone && Physics.SphereCast(s.p, s.kind == ShotKind.Ball ? 0.25f : 0.12f, step.normalized, out var h, step.magnitude, ~0, QueryTriggerInteraction.Ignore) && h.collider != s.self
+                if (!gone && Physics.SphereCast(s.p, ShotRadius(s.kind), step.normalized, out var h, step.magnitude, ~0, QueryTriggerInteraction.Ignore) && h.collider != s.self
                     && !(h.collider.GetComponentInParent<SengokuTarget>() is SengokuTarget ft && s.team != 0 && ft.team == s.team))
                 {
                     var t = h.collider.GetComponentInParent<SengokuTarget>();
@@ -316,7 +390,7 @@ namespace Tsukuyomi
                     {
                         if (t != null && !t.Down && s.dmg > 0) { t.Hit(s.dmg, h.point, s.v, s.heavy); Play(s.heavy ? _sHeavy : _sHit, 0.8f); if (s.team == 1 && t.team == 2) HitMark(t.Down); }
                         if (s.aoe > 0) Explode(h.point, s.aoe, s.kind == ShotKind.Ball ? 4.5f : 3.5f, s.heavy, s.team);
-                        else Sparks(h.point, s.kind == ShotKind.Arrow ? new Color(0.8f, 0.95f, 1f) : new Color(0.4f, 1f, 1f), 7);
+                        else Sparks(h.point, s.kind == ShotKind.Arrow ? (s.heavy ? new Color(1f, 0.85f, 0.35f) : new Color(0.8f, 0.95f, 1f)) : new Color(0.4f, 1f, 1f), s.kind == ShotKind.Arrow ? (s.heavy ? 16 : 10) : 7);
                         gone = true;
                     }
                 }
@@ -325,6 +399,9 @@ namespace Tsukuyomi
                 if (gone) { Kill(i); if (s == _boomer) _boomer = null; }
             }
         }
+
+        /// <summary>飛び道具の当たりの太さ（投げた傘は見た目に合わせて大きく）。</summary>
+        static float ShotRadius(ShotKind k) => k == ShotKind.Boomerang ? 0.75f : k == ShotKind.Ball ? 0.25f : k == ShotKind.Arrow ? 0.16f : 0.12f;
 
         void Kill(int i)
         {

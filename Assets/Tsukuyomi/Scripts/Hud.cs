@@ -283,6 +283,8 @@ namespace Tsukuyomi
             if (Act.Map.Down && !_menu && !_exchange && !_guide) { _map = !_map; _book = false; }
             if (Input.GetKeyDown(KeyCode.F3)) { _debug = !_debug; Toast(_debug ? "デバッグ表示オン（F3 で消す・F12 で写真）" : "デバッグ表示オフ"); }
             if (Input.GetKeyDown(KeyCode.F12)) TakePhoto();
+            // 視点のリセット（画面モード）：カメラを自分のうしろへもどす（VR は Vr.Recenter）
+            if (!Vr.On && Act.Recenter.Down && cam != null && player != null && !Kassen.Busy) { cam.yaw = player.transform.eulerAngles.y; cam.pitch = 14f; cam.Snap(); Toast("視点をリセットしました"); }
             if (Act.HideHud.Down && !_exchange && !_guide && !_menu && !_map && !ShopOpen && !_book && !_talk && !_tipOpen && _shipAsk == null) { HideAll = !HideAll; _hideHintT = HideAll ? 2.5f : 0; }
             _hideHintT -= Time.unscaledDeltaTime;
             bool usedC = !_exchange && !_guide && !_menu && LiveKeys();

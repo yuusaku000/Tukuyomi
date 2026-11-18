@@ -39,7 +39,7 @@ namespace Tsukuyomi
         MItem[] _mItems;
         MItem[] MItems => _mItems ??= new[]
         {
-            new MItem { group = "遊ぶ", name = "つづける", en = "RESUME", kind = MKind.Action, desc = "メニューを閉じて、島にもどります。", act = () => _menu = false },
+            new MItem { group = "遊ぶ", name = "つづける", en = "RESUME", kind = MKind.Action, desc = "メニューを閉じて、島にもどります。", act = () => { if (LiveShow.Running) { _mbFocus = 1; _mbRow = 0; ShowMenuPane(); } else _menu = false; } },
             new MItem { group = "遊ぶ", name = "地図とワープ", en = "MAP", kind = MKind.Action, desc = "島の地図。行きたい場所をえらんでワープできます。（M）", act = () => Sub(() => { _menu = false; _map = true; }) },
             new MItem { group = "遊ぶ", name = "図鑑と番付", en = "BOOK", kind = MKind.Action, desc = "釣った魚の図鑑と、大物番付。（B）", act = () => Sub(() => OpenBook(0)) },
             new MItem { group = "遊ぶ", name = "着がえ", en = "WARDROBE", kind = MKind.Action, desc = "買った服や髪型にかえます。（C）", act = () => Sub(() => { _menu = false; OpenWardrobe(); }) },
@@ -112,7 +112,7 @@ namespace Tsukuyomi
 
         struct MSnap
         {
-            public float ma, am, fx, mu, look, vh; public bool mute, fp, comp, cross, bub, inv, vsnap, vvig, vwarp; public int q, vq;
+            public float ma, am, fx, mu, look, vh, vui; public bool mute, fp, comp, cross, bub, inv, vsnap, vvig, vwarp; public int q, vq, vturn, vlay;
         }
 
         readonly List<MSnap> _mbUndo = new List<MSnap>();
@@ -122,7 +122,7 @@ namespace Tsukuyomi
             ma = SoundPrefs.Master, am = SoundPrefs.Ambient, fx = SoundPrefs.Effects, mu = SoundPrefs.Music, mute = SoundPrefs.Muted,
             q = Quality.Level, fp = cam != null && cam.firstPerson, comp = CompassOn, cross = CrosshairOn, bub = Crowd.BubblesOn,
             look = Act.LookSpeed, inv = Act.InvertY,
-            vq = Vr.QualityLevel, vsnap = Vr.SnapTurn, vvig = Vr.Vignette, vwarp = Vr.Warp, vh = Vr.Height,
+            vq = Vr.QualityLevel, vsnap = Vr.SnapTurn, vvig = Vr.Vignette, vwarp = Vr.Warp, vh = Vr.Height, vui = Vr.UiScale, vturn = Vr.TurnLevel, vlay = Vr.ButtonLayout,
         };
 
         void Restore(MSnap s)
@@ -144,6 +144,9 @@ namespace Tsukuyomi
             if (Vr.Vignette != s.vvig) Vr.Vignette = s.vvig;
             if (Vr.Warp != s.vwarp) Vr.Warp = s.vwarp;
             if (Vr.Height != s.vh) Vr.Height = s.vh;
+            if (Vr.UiScale != s.vui) Vr.UiScale = s.vui;
+            if (Vr.TurnLevel != s.vturn) Vr.TurnLevel = s.vturn;
+            if (Vr.ButtonLayout != s.vlay) Vr.ButtonLayout = s.vlay;
         }
 
         /// <summary>設定を変えるときに通す：変わっていたら、変える前の値を取り消し用に積む。</summary>
@@ -208,7 +211,27 @@ namespace Tsukuyomi
             Board.Display(p, new Rect(PaneX, 136, PaneW, 30), it.en, 24, Board.Teal, TextAnchor.MiddleLeft);
             Board.Label(p, new Rect(PaneX, 166, PaneW, 48), it.name, 34, Color.white, TextAnchor.MiddleLeft, false, FontStyle.Bold);
             Board.Panel(p, new Rect(PaneX, 216, 140, 2), Board.Vermilion);
-            Board.Label(p, new Rect(PaneX, 228, PaneW, 30), it.desc, 19, new Color(1, 1, 1, 0.75f));
+            bool liveMenu = it.name == "つづける" && LiveShow.Running;
+            Board.Label(p, new Rect(PaneX, 228, PaneW, 30), liveMenu ? "ライブの最中です。ライブにもどるか、ここでやめるかをえらべます。" : it.desc, 19, new Color(1, 1, 1, 0.75f));
+
+            // ライブ中の「つづける」：ライブにもどる・ライブをやめる（やめる前に確かめる）
+            if (liveMenu)
+            {
+                if (_mbConfirm)
+                {
+                    Board.Label(p, new Rect(PaneX, 300, PaneW, 40), "ライブを途中でやめますか？", 26, Color.white);
+                    AddRow("はい、やめる", "ライブを終わって、ステージのまわりを歩けるようにもどります", null, null, () => { _mbConfirm = false; _menu = false; LiveShow.StopNow(); });
+                    AddRow("いいえ", "メニューにもどります", null, null, () => { _mbConfirm = false; _mbRow = 0; ShowMenuPane(); });
+                }
+                else
+                {
+                    AddRow("ライブにもどる", "メニューを閉じて、ライブのつづきを見ます", null, null, () => _menu = false);
+                    AddRow("ライブをやめる", "ライブを途中で終わります（あとでヤチヨに頼めば、またはじめから見られます）", null, null, () => { _mbConfirm = true; _mbFocus = 1; _mbRow = 0; ShowMenuPane(); });
+                }
+                _mbRow = Mathf.Clamp(_mbRow, 0, 1);
+                LayoutRows(_mbConfirm ? 360 : 276);
+                return;
+            }
 
             if (_mbConfirm && it.name == "データの初期化")
             {
@@ -252,14 +275,16 @@ namespace Tsukuyomi
                 case "操作":
                     AddRow("見回す速さ", "マウスと右スティックで見回す速さ", () => $"× {Act.LookSpeed:0.0}", d => Act.LookSpeed = Mathf.Round((Act.LookSpeed + d * 0.1f) * 10f) / 10f, null);
                     Toggle("上下を逆にする", "マウスを上に動かすと下を向く", () => Act.InvertY, v => Act.InvertY = v);
+                    AddRow("VR：回る速さ", "右スティックで回るとき（一気に＝1回の角度、少しずつ＝速さ）", () => Vr.TurnText, d => Vr.TurnLevel = Mathf.Clamp(Vr.TurnLevel + d, 0, 3), () => Vr.TurnLevel = (Vr.TurnLevel + 1) % 4);
+                    AddRow("VR：ボタン配置", "右手の A と B（調べる・KASSEN の移動わざ／ジャンプ）を入れかえる", () => Vr.ButtonLayoutName, d => Vr.ButtonLayout = 1 - Vr.ButtonLayout, () => Vr.ButtonLayout = 1 - Vr.ButtonLayout);
                     UndoRow();
-                    AddRow("初期設定にもどす", "操作の設定を最初の値にもどします", null, null, () => { Act.LookSpeed = 1f; Act.InvertY = false; Sfx.Click(); });
+                    AddRow("初期設定にもどす", "操作の設定を最初の値にもどします", null, null, () => { Act.LookSpeed = 1f; Act.InvertY = false; Vr.TurnLevel = 1; Vr.ButtonLayout = 0; Sfx.Click(); });
                     LayoutRows(276);
-                    Board.Label(p, new Rect(PaneX, 276 + 4 * 58 + 18, PaneW, 26), "キーの一覧", 18, Board.Cyan);
-                    Board.Label(p, new Rect(PaneX, 276 + 4 * 58 + 46, PaneW, 150),
-                        "WASD・矢印　歩く　　Shift　走る　　Space　ジャンプ　　V　視点　　ホイール　近づく・離れる\n" +
-                        "E　お店・話す・座る・釣り　　C　着がえ　　M　地図　　B　図鑑　　H　表示を消す\n" +
-                        "F12　写真　　Esc　閉じる・メニュー　　（KASSEN の操作は、それぞれの板に出ます）", 17, new Color(1, 1, 1, 0.8f), TextAnchor.UpperLeft);
+                    if (Vr.On) return; // VR ではキーの一覧を出さない（ボタンは各板に出る）
+                    Board.Label(p, new Rect(PaneX, 276 + 6 * 58 + 6, PaneW, 22), "キーの一覧", 16, Board.Cyan);
+                    Board.Label(p, new Rect(PaneX, 276 + 6 * 58 + 28, PaneW, 70),
+                        "WASD・矢印 歩く　Shift 走る　Space ジャンプ　V 視点　ホイール 近づく・離れる　E お店・話す・座る・釣り\n" +
+                        "C 着がえ　M 地図　B 図鑑　H 表示を消す　F12 写真　Esc 閉じる・メニュー（KASSEN の操作は、それぞれの板に出ます）", 14, new Color(1, 1, 1, 0.8f), TextAnchor.UpperLeft);
                     return;
                 case "VR":
                     AddRow("画質", Vr.On ? "VR 用。カクカクするときは「軽い」に" : "VR 用（いまは画面モード。VR で遊ぶときに効きます）", () => Vr.QualityName, d => Vr.QualityLevel = (Vr.QualityLevel + d + 3) % 3, () => Vr.QualityLevel = (Vr.QualityLevel + 1) % 3);
@@ -267,6 +292,8 @@ namespace Tsukuyomi
                     Toggle("視界のふちを暗くする", "歩いたり回ったりしている間だけ。酔いにくくなります", () => Vr.Vignette, v => Vr.Vignette = v);
                     Toggle("ワープ移動", "右スティックを前に倒して行き先をえらび、離すとそこへ移る", () => Vr.Warp, v => Vr.Warp = v);
                     AddRow("SETSUNA の酔い防止", "揺れ＝当たったときの視界の揺れをなくす　体だけ＝視界は回らず体だけ相手へ（見えなくなったら一気に向く）", () => FightComfortName[FightComfort], d => FightComfort = (FightComfort + d + 4) % 4, () => FightComfort = (FightComfort + 1) % 4);
+                    AddRow("視点をリセット", "いま見ている向きを正面に、頭の位置をまん中に（右スティックの押しこみでも）", null, null, () => { Vr.Recenter(); if (!Vr.On) Toast("VR のときに使えます"); });
+                    AddRow("板の大きさ", "目の前に浮かぶ表示やメニューの大きさ", () => $"× {Vr.UiScale:0.0}", d => Vr.UiScale += d * 0.1f, null);
                     AddRow("背の高さ", "◀▶ で目の高さを上げ下げ。決定で、いまの背に合わせる", () => Vr.HeightText, d => Vr.Height += d * 0.05f, () => Vr.FitHeight());
                     UndoRow();
                     AddRow("初期設定にもどす", "VR の設定を最初の値にもどします", null, null, () => { Vr.ResetSettings(); Sfx.Click(); });
@@ -309,15 +336,16 @@ namespace Tsukuyomi
             for (int i = 0; i < _mbRows.Count; i++)
             {
                 var row = _mbRows[i]; int idx = i;
-                float y = y0 + i * 58;
-                row.bg = Board.Panel(p, new Rect(PaneX - 10, y, PaneW + 10, 52), new Color(1, 1, 1, 0));
+                float step = _mbRows.Count > 8 ? Mathf.Min(47f, (700f - y0) / _mbRows.Count) : 58f; // 行が多いページ（VR）は、つめて並べる
+                float y = y0 + i * step;
+                row.bg = Board.Panel(p, new Rect(PaneX - 10, y, PaneW + 10, step - 6), new Color(1, 1, 1, 0));
                 row.bg.raycastTarget = true;
                 var b = row.bg.gameObject.AddComponent<UnityEngine.UI.Button>();
                 b.transition = Selectable.Transition.None; b.navigation = new Navigation { mode = Navigation.Mode.None };
                 b.onClick.AddListener(() => { NoSelect(); _mbFocus = 1; _mbRow = idx; if (row.press != null) row.press(); else row.change?.Invoke(1); });
-                Board.Panel(p, new Rect(PaneX - 10, y + 52, PaneW + 10, 1), new Color(1, 1, 1, 0.12f));
+                Board.Panel(p, new Rect(PaneX - 10, y + step - 6, PaneW + 10, 1), new Color(1, 1, 1, 0.12f));
                 Board.Label(p, new Rect(PaneX + 6, y + 2, 420, 30), row.label, 22, Color.white);
-                Board.Label(p, new Rect(PaneX + 6, y + 28, 520, 22), row.hint, 15, new Color(1, 1, 1, 0.55f));
+                Board.Label(p, new Rect(PaneX + 6, y + (step < 46 ? 24 : 28), 560, 20), row.hint, step < 46 ? 13 : 15, new Color(1, 1, 1, 0.55f));
                 if (row.value == null) continue;
                 float vx = PaneX + PaneW - 290;
                 if (row.change != null)

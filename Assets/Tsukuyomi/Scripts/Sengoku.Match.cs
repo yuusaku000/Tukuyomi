@@ -5,7 +5,7 @@ using UnityEngine.UI;
 namespace Tsukuyomi
 {
     /// <summary>
-    /// SENGOKU の試合の決まり。西軍（1：自分と味方2人）対 東軍（2：敵3人）。3ラウンドのうち2本先取。1ラウンド5分、1人2機。
+    /// SENGOKU の試合の決まり。西軍（1：自分と味方2人）対 東軍（2：敵3人）。3ラウンドのうち2本先取。1ラウンド5分、1人3機（2026-11-18 ユーザーの指示で2機から）。
     ///  櫓（北の山・南の湖）：まわりの円に自分の組だけがいると、6秒で占拠（人数が多いほど速い・敵がいると止まる）。
     ///  櫓を1つでも持つと、相手の城の二の丸に「大将落とし」が出る。5段を全部叩き落とすと天守閣が落ちて勝ち。
     ///  両方の櫓を60秒持ちつづけてもコールド勝ち。相手の残機を全部なくしても勝ち。時間切れは櫓の数→残りの人数でくらべる。
@@ -15,7 +15,8 @@ namespace Tsukuyomi
         enum MPhase { Select, Intro, Fight, RoundEnd, Result }
 
         bool _match;
-        int _level = 1, _round, _winsW, _winsE, _myLives = 2;
+        int _level = 1, _round, _winsW, _winsE, _myLives = Lives;
+        const int Lives = 3;
         MPhase _phase = MPhase.Fight;
         float _phaseT, _clock = 300f, _coldT, _deadT, _hurt;
         bool _dead, _healing;
@@ -201,9 +202,9 @@ namespace Tsukuyomi
                 d.root.Find("だるま").localPosition = new Vector3(0, HeadY, 0);
                 d.active = false; d.root.gameObject.SetActive(false);
             }
-            foreach (var u in _units) { u.lives = 2; u.respawnT = 0; Respawn(u); }
+            foreach (var u in _units) { u.lives = Lives; u.respawnT = 0; Respawn(u); }
             ResetGuards();
-            _myLives = 2; _dead = false; _me.Revive(); _hp = 100;
+            _myLives = Lives; _dead = false; _me.Revive(); _hp = 100;
             Teleport(SpawnOf(1, 0)); _yaw = 90; _pitch = 2;
             _phase = MPhase.Select; _phaseT = 0; _centerT = 0;
             _feed.Clear(); _log.Clear();

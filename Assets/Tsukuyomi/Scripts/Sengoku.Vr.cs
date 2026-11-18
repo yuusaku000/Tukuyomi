@@ -40,14 +40,15 @@ namespace Tsukuyomi
 
         /// <summary>
         /// VR では、ずっと出ている表示（武器の名前・説明・体力・操作・目印など）は出さない（2026-11-18 ユーザーの指示）。
-        /// 残すのは、まん中のお知らせ・ダメージの数字・当たった印・赤いふち・倒れたときの「復活まで」だけ。
+        /// 残すのは、まん中のお知らせ・ダメージの数字・当たった印・赤いふち・倒れたときの「復活まで」・移動わざのゲージだけ。
         /// ほかの情報は X で開く戦況の板にある（練習場は X で表示を出し入れ）。showAll で全部出す。
         /// </summary>
         void VrHudLean(bool showAll)
         {
             if (!VrOn || _hud == null) return;
             var keep = new HashSet<Transform>();
-            foreach (var c in new Component[] { _mCenter, _mSub, _hitX, _hurtImg, _mLives }) if (c != null) keep.Add(c.transform);
+            // 移動わざのゲージ（燃料など）も出す（2026-11-18 ユーザーの指示。手もとを見なくても残りがわかるように）
+            foreach (var c in new Component[] { _mCenter, _mSub, _hitX, _hurtImg, _mLives, _gaugeBg, _gaugeImg, _gaugeLabel }) if (c != null) keep.Add(c.transform);
             var dmg = new HashSet<Transform>();
             foreach (var d in _dmg) if (d.t != null) dmg.Add(d.t.transform);
             foreach (Transform c in _hud.root)
@@ -163,12 +164,52 @@ namespace Tsukuyomi
             _aimLine.enabled = on;
             if ((Pointer || _dead) && _viewRoot != null) _viewRoot.gameObject.SetActive(false); // 板を押す場面・倒れている間は、手の武器を隠す
             VrWeaponsShow();
+            NockTick(on);
             if (!on) return;
             var o = Vr.RightHand.position + Aim * 0.15f;
             float len = 40f;
             if (Physics.Raycast(o, Aim, out var h, len, ~0, QueryTriggerInteraction.Ignore) && h.collider != _cc) len = h.distance;
             _aimLine.SetPosition(0, o); _aimLine.SetPosition(1, o + Aim * len);
+            // 弓をためている間は、照準の線を太く・金色に近づける（どれだけたまったか、手もとを見なくてもわかるように）
+            float c = _w == 3 ? _charge : _w == 2 ? _charge : 0;
+            var col = Color.Lerp(new Color(0.4f, 1f, 1f), new Color(1f, 0.85f, 0.35f), c);
+            _aimLine.startColor = new Color(col.r, col.g, col.b, 0.7f + 0.3f * c); _aimLine.endColor = new Color(col.r, col.g, col.b, 0.05f + 0.25f * c);
+            _aimLine.startWidth = 0.008f + 0.012f * c; _aimLine.endWidth = 0.02f + 0.03f * c;
         }
+
+        // ───────── VR の弓：つがえた矢 ─────────
+
+        Transform _nock;
+
+        /// <summary>
+        /// VR で弓をためている間、右手につがえた矢を見せる（2026-11-18：VR では弓の表示がわかりにくかったため）。
+        /// ためるほど手前へ引かれ、光が強くなり、ためきると金色になる。
+        /// </summary>
+        void NockTick(bool on)
+        {
+            bool show = on && _w == 3 && _charge > 0;
+            if (!show) { if (_nock != null) _nock.gameObject.SetActive(false); return; }
+            if (_nock == null)
+            {
+                _nock = new GameObject("つがえた矢").transform;
+                _nock.SetParent(transform, false);
+            }
+            bool full = _charge > 0.9f;
+            if (!_nock.gameObject.activeSelf || _nockFull != full)
+            {
+                for (int i = _nock.childCount - 1; i >= 0; i--) Destroy(_nock.GetChild(i).gameObject);
+                var tr = _nock.GetComponent<TrailRenderer>(); if (tr != null) Destroy(tr);
+                var arrow = new GameObject("矢").transform; arrow.SetParent(_nock, false);
+                BuildArrow(arrow, 1, full);
+                var t2 = arrow.GetComponent<TrailRenderer>(); if (t2 != null) Destroy(t2); // 手に持っている間は尾を出さない
+                _nockFull = full;
+                _nock.gameObject.SetActive(true);
+            }
+            _nock.position = Vr.RightHand.position + Aim * (0.35f - 0.3f * _charge);
+            _nock.rotation = Quaternion.LookRotation(Aim);
+            _nock.localScale = Vector3.one * (0.8f + 0.3f * _charge);
+        }
+        bool _nockFull;
 
         // ───────── 表示の板の上の位置 ─────────
 
@@ -204,11 +245,11 @@ namespace Tsukuyomi
         static string VrText(string s)
         {
             if (!Vr.On || s == null) return s;
-            return s.Replace("左クリック", "右トリガー（近接は右手を振っても）").Replace("右クリック", "右グリップ").Replace("E 長押し", "A 長押し").Replace("E ", "A ")
+            return s.Replace("左クリック", "右トリガー（近接は右手を振っても）").Replace("右クリック", "右グリップ").Replace("E 長押し", Vr.KeyUse + " 長押し").Replace("E ", Vr.KeyUse + " ")
                     .Replace("Space", "B").Replace("F 殴る", "左トリガー・左手を振る 殴る").Replace("F でも殴れる", "左手を振っても殴れる");
         }
 
-        const string VrKeysPractice = "左スティック 移動　右スティック 左右で回る・上下で武器　B ジャンプ　Y 一時停止";
-        const string VrKeys = "左スティック 移動　左グリップ 走る　右スティック 回る　B ジャンプ　左トリガー・左手を振る 殴る　X 戦況　Y 一時停止";
+        static string VrKeysPractice => $"左スティック 移動　右スティック 左右で回る・上下で武器　{Vr.KeyJump} ジャンプ　Y 一時停止（長押しで島へ）";
+        static string VrKeys => $"左スティック 移動　左グリップ 走る　右スティック 回る　{Vr.KeyJump} ジャンプ　左トリガー・左手を振る 殴る　X 戦況　Y 一時停止（長押しで降参）";
     }
 }

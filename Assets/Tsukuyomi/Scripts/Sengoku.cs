@@ -131,6 +131,7 @@ namespace Tsukuyomi
             bool lockIt = !_paused && !Ts.ShotMode && !result;
             Cursor.lockState = lockIt ? CursorLockMode.Locked : CursorLockMode.None;
             Cursor.visible = !lockIt;
+            if (QuitHoldTick()) return;
             if (_paused) { if (Act.Back.Down) Resume(); AimLineTick(false); HudTick(); return; } // VR：止めている間は照準の線と手の武器を隠す
             if (!Ts.ShotMode && !result && Act.Back.Down) { Pause(); return; }
             if (_match) { MatchTick(dt); UnitsTick(dt); }
@@ -150,7 +151,7 @@ namespace Tsukuyomi
                 {
                     // VR の練習場：右スティックを上下に倒して武器を持ちかえる
                     float sy = Vr.RightStick.y;
-                    if (Mathf.Abs(sy) > 0.7f && !_stickHeld) { Select((_w + (sy > 0 ? Weapons.Length - 1 : 1)) % Weapons.Length); _stickHeld = true; }
+                    if (Mathf.Abs(sy) > 0.8f && Mathf.Abs(Vr.RightStick.x) < 0.4f && !_stickHeld) { Select((_w + (sy > 0 ? Weapons.Length - 1 : 1)) % Weapons.Length); _stickHeld = true; }
                     if (Mathf.Abs(sy) < 0.3f) _stickHeld = false;
                 }
                 if (!_match)
@@ -182,7 +183,7 @@ namespace Tsukuyomi
         Vector3 Forward => Quaternion.Euler(0, MoveYaw, 0) * Vector3.forward;
         Vector3 Right => Quaternion.Euler(0, MoveYaw, 0) * Vector3.right;
         public Vector3 EyePos => VrOn && ReferenceEquals(Vr.Body, this) ? VrHead : _rig.transform.position + Vector3.up * Eye;
-        public Vector3 Aim => VrOn ? Vr.RightHand.forward : Quaternion.Euler(_pitch, _yaw, 0) * Vector3.forward;
+        public Vector3 Aim => VrOn ? Vr.RightAim.forward : Quaternion.Euler(_pitch, _yaw, 0) * Vector3.forward;
 
         void Move(bool play, float dt)
         {
@@ -200,11 +201,12 @@ namespace Tsukuyomi
                 }
                 else
                 {
-                    flat = Vector3.MoveTowards(flat, wish, 9f * dt);
+                    // 空中：ふつうの速さより速いとき（ワイヤー・跳ぶわざのあと）は、ゆっくりしか落とさない（勢いを残す。2026-11-18）
+                    flat = Vector3.MoveTowards(flat, wish, (flat.magnitude > wish.magnitude + 1f ? 2.5f : 9f) * dt);
                     // 団扇：空中でもう一度だけ跳べる（2段ジャンプ）。地面に着いたら回復（ユーザーの指示）
                     if (play && _w == 5 && _airJumps > 0 && Act.Jump.Down)
                     {
-                        _airJumps--; _vel.y = 7.5f;
+                        _airJumps--; _vel.y = 9f; // 落ちている途中でも、しっかり上へ（7.5 → 9）
                         Play(_sJump, 0.5f); Swing(0.3f);
                         Sparks(_rig.transform.position + Vector3.up * 0.3f, new Color(1f, 0.95f, 0.5f), 8); // あおいだ風
                     }
@@ -261,7 +263,7 @@ namespace Tsukuyomi
         Board _hud, _pauseB;
         Text _wName, _hint, _kill, _gaugeLabel;
         RectTransform _gauge, _hpFill;
-        Image _gaugeImg;
+        Image _gaugeImg, _gaugeBg;
         readonly Text[] _wList = new Text[6];
         readonly List<(Text t, float life, Vector3 world)> _dmg = new List<(Text, float, Vector3)>();
         Text _wTag;
@@ -288,7 +290,7 @@ namespace Tsukuyomi
             _hpFill = (RectTransform)Board.Panel(r, new Rect(120, 952, 416, 16), Board.Teal).transform;
             Board.Label(r, new Rect(120, 920, 300, 26), "体力", 18, Color.white);
             // 移動わざのゲージ
-            Board.Panel(r, new Rect(860, 600, 200, 8), new Color(0.02f, 0.05f, 0.1f, 0.7f));
+            _gaugeBg = Board.Panel(r, new Rect(860, 600, 200, 8), new Color(0.02f, 0.05f, 0.1f, 0.7f));
             _gaugeImg = Board.Panel(r, new Rect(860, 600, 200, 8), Board.Gold);
             _gauge = (RectTransform)_gaugeImg.transform;
             _gaugeLabel = Board.Label(r, new Rect(760, 612, 400, 26), "", 17, new Color(1, 1, 1, 0.85f), TextAnchor.MiddleCenter);
@@ -377,14 +379,33 @@ namespace Tsukuyomi
                 Board.Display(r, new Rect(0, 40, 720, 90), "PAUSE", 76, Board.Teal);
                 Board.Label(r, new Rect(0, 130, 720, 34), _match ? "SENGOKU　3対3" : "SENGOKU 練習場", 24, Color.white, TextAnchor.MiddleCenter);
                 Board.ButtonNode(r, new Rect(210, 200, 300, 64), "つづける（Esc）", 26, Resume);
-                Board.ButtonNode(r, new Rect(210, 285, 300, 56), _match ? "降参して島へもどる" : "島へもどる", 22, () =>
-                {
-                    if (_match) { if (!Ts.ShotMode) Kassen.RewardSengoku(false, _level); Hud.Toast("SENGOKU：また挑戦してね"); }
-                    else Hud.Toast($"SENGOKU 練習場：わら人形を {_kills} 体倒しました");
-                    Leave();
-                });
+                Board.ButtonNode(r, new Rect(160, 285, 400, 56), (_match ? "降参して島へもどる" : "島へもどる") + "\n<size=15>" + (Vr.On ? "Y" : "Esc") + " を長押しでも</size>", 22, Surrender);
             }
             _pauseB.Alpha = 1;
+        }
+
+        /// <summary>降参して島へもどる（練習場は、そのまま島へ）。一時停止の板のボタンか、Y・Esc の長押しで。</summary>
+        void Surrender()
+        {
+            if (_match) { if (!Ts.ShotMode) Kassen.RewardSengoku(false, _level); Hud.Toast("SENGOKU：また挑戦してね"); }
+            else Hud.Toast($"SENGOKU 練習場：わら人形を {_kills} 体倒しました");
+            Leave();
+        }
+
+        float _quitHold;
+
+        /// <summary>Y（VR）・Esc を 1.5 秒長押ししたら、降参して島へもどる（2026-11-18 ユーザーの指示）。もどったら true。</summary>
+        bool QuitHoldTick()
+        {
+            if (Ts.ShotMode) return false;
+            if (!Act.Back.Held) { _quitHold = 0; return false; }
+            _quitHold += Time.unscaledDeltaTime;
+            if (_quitHold > 0.4f && _quitHold < 1.5f) Center(_match ? "降参する…" : "島へもどる…", Board.Vermilion, 0.2f, $"{(Vr.On ? "Y" : "Esc")} をそのまま押しつづける（{1.5f - _quitHold:0.0} 秒）");
+            if (_quitHold < 1.5f) return false;
+            _quitHold = -999f;
+            if (_paused) Resume();
+            Surrender();
+            return true;
         }
 
         void Resume()

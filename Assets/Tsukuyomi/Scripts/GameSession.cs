@@ -121,6 +121,7 @@ namespace Tsukuyomi
             "stage|21:00||live:s1:chorus:1", "stage|21:00||live:s2:drop:1:c3", "stage|21:00||live:s3:chorus:2:auto",
             "bamboo|12:00||kassen", "bamboo|12:00||setsuna:0:1:fight", "bamboo|12:00||setsuna:2:2:ko:3",
             "bamboo|12:00||sengoku:0:view", "bamboo|12:00||sengokum:fight", "bamboo|12:00||sengokum:overview",
+            "stage|21:00||live:s1:chorus:1:audioreset", "stage|21:00||livestop",
             "shopping|20:00||intro:dress", // はじめての着がえ（板が残るので最後に）
         };
         static readonly string[] CheckVrScenes = { "plaza|21:00||vr:hands", "plaza|21:00||vr:point", "plaza|21:00||vr:warp", "plaza|21:00||vr:turn" };
@@ -237,6 +238,10 @@ namespace Tsukuyomi
                 // 初めてのログイン：intro（ヤチヨのセリフ）・intro:dress（無料の着がえ）・intro:bye（夜の景色のあと）・bonus（初ログインボーナス）
                 if (p.Length > 3 && (p[3].StartsWith("intro") || p[3] == "bonus")) Hud.TestIntro(p[3] == "bonus" ? "bonus" : p[3].Length > 6 ? p[3].Substring(6) : "");
                 if (p.Length > 3 && p[3] == "night") YachiyoNpc.I?.MakeNight();
+                // audioreset：音の出口が変わったときと同じように、音の仕組みを作りなおす（AudioRecover が鳴らしなおすかの確認）
+                if (p.Length > 3 && p[3] == "audioreset") StartCoroutine(AudioResetTest());
+                // livestop：ライブ中にメニューの「つづける → ライブをやめる → はい」
+                if (p.Length > 3 && p[3] == "livestop") { Hud.OpenMenu(true); LiveShow.StopNow(); Hud.OpenMenu(false); Debug.Log($"[Tour] livestop running={LiveShow.Running}"); }
                 // 段階4：live:秒[:c番号][:tip][:ask] ／ live:s1:chorus:2[+秒]… でライブのその場面へ（音は出さない）
                 if (p.Length > 3 && p[3].StartsWith("live:") && LiveShow.I != null)
                 {
@@ -272,6 +277,7 @@ namespace Tsukuyomi
                         else if (a[k] == "auto") LiveShow.SetAutoCam(true);
                         else if (a[k] == "tip") LiveShow.I.TestTip(1000);
                         else if (a[k] == "ask") Hud.TestTipAsk();
+                        else if (a[k] == "audioreset") StartCoroutine(AudioResetTest());
                     }
                     again = true;
                 }
@@ -305,6 +311,21 @@ namespace Tsukuyomi
             }
             if (_checking) { _checkScene = "終わり"; WriteCheckReport(dir); }
             Application.Quit();
+        }
+
+        IEnumerator AudioResetTest()
+        {
+            yield return new WaitForSeconds(1.5f);
+            int Count() { int n = 0; foreach (var a in FindObjectsByType<AudioSource>(FindObjectsSortMode.None)) if (a.isPlaying) n++; return n; }
+            int before = Count();
+            var was = new List<AudioSource>();
+            foreach (var a in FindObjectsByType<AudioSource>(FindObjectsSortMode.None)) if (a.isPlaying) was.Add(a);
+            AudioSettings.Reset(AudioSettings.GetConfiguration());
+            int right = Count();
+            yield return new WaitForSecondsRealtime(2f);
+            Debug.Log($"[Tour] audioreset 鳴っていた音 {before} → 作りなおした直後 {right} → 2秒後 {Count()}");
+            foreach (var a in was)
+                if (a != null) Debug.Log($"[Tour] audioreset 音 {a.name} clip={(a.clip ? a.clip.name : "なし")} load={(a.clip ? a.clip.loadState.ToString() : "-")} 鳴っている={a.isPlaying} 有効={a.isActiveAndEnabled} time={a.time:0.0} vol={a.volume:0.00}");
         }
 
         IEnumerator Shot(string path, float delay)

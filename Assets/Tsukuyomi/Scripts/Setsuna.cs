@@ -114,6 +114,7 @@ namespace Tsukuyomi
             if (_slowT > 0) { _slowT -= udt; if (_slowT <= 0 && !_paused) Time.timeScale = 1f; }
             Lock(_phase == Phase.Fight && !_paused && !Ts.ShotMode);
 
+            if (QuitHoldTick()) return;
             if (_paused) { if (Act.Back.Down) Resume(); return; }
             if (_phase == Phase.Result) { HudTick(); return; }
             if (!Ts.ShotMode && Act.Back.Down && _phase != Phase.Result) { Pause(); return; }

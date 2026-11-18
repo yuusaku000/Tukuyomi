@@ -169,8 +169,20 @@ namespace Tsukuyomi
             Debug.Log("[Live] begin " + (requested ? "(requested)" : "(22:00)"));
         }
 
+        /// <summary>ライブを途中でやめる（メニューの「つづける → ライブをやめる」）。</summary>
+        public static void StopNow()
+        {
+            if (!Running) return;
+            I.End();
+            Hud.Toast("ライブを終わりました。またね！（ヤチヨ）");
+        }
+
+        /// <summary>曲の音を作っている途中でライブが終わったら、その結果はすてる（次のライブの曲とまざらないように）。</summary>
+        volatile int _gen;
+
         void End()
         {
+            _gen++;
             _phase = Phase.Idle;
             if (music) music.Stop();
             if (rig) rig.gameObject.SetActive(false);
@@ -192,12 +204,14 @@ namespace Tsukuyomi
             if (i < 0 || i >= _set.Count || _going[i] || _ready[i] || _clips[i]) return;
             _going[i] = true;
             var s = _set[i];
+            int gen = _gen;
             var th = new Thread(() =>
             {
                 var sw = System.Diagnostics.Stopwatch.StartNew();
                 float[] d = null;
                 try { d = LiveMusic.Render(s); }
                 catch (Exception e) { Debug.LogError("[Live] render failed: " + e); }
+                if (gen != _gen) return; // 途中でやめたライブの曲
                 _data[i] = d; _ready[i] = true;
                 Debug.Log($"[Live] rendered '{s.title}' {s.length:0.0}s in {sw.ElapsedMilliseconds}ms");
             }) { IsBackground = true, Priority = System.Threading.ThreadPriority.BelowNormal };
@@ -210,6 +224,7 @@ namespace Tsukuyomi
             {
                 _clips[i] = AudioClip.Create("live_" + i, _data[i].Length, 1, LiveMusic.Rate, false);
                 _clips[i].SetData(_data[i], 0);
+                AudioRecover.Keep(_clips[i], _data[i]);
                 LogLevels(_set[i], _data[i]);
                 _data[i] = null;
             }
@@ -308,7 +323,7 @@ namespace Tsukuyomi
                         float at = music.timeSamples / (float)music.clip.frequency;
                         if (Mathf.Abs(at - _songT) > 0.12f) _songT = at; else _songT += (at - _songT) * 0.1f;
                     }
-                    if (_songT >= s.length - 0.05f || (music && music.clip != null && !music.isPlaying && _songT > 2f && !Ts.ShotMode))
+                    if (_songT >= s.length - 0.05f || (music && music.clip != null && !music.isPlaying && _songT > 2f && !Ts.Silent && !AudioRecover.Busy))
                     {
                         Cheer(1f);
                         if (_si + 1 < _set.Count)
@@ -345,7 +360,7 @@ namespace Tsukuyomi
             _phase = Phase.Song; _si = i;
             _pt = 0; _songT = 0;
             var clip = Clip(i);
-            if (music && clip && !Ts.ShotMode)
+            if (music && clip && !Ts.Silent)
             {
                 music.clip = clip; music.timeSamples = 0;
                 music.Play();
@@ -458,7 +473,7 @@ namespace Tsukuyomi
             {
                 _cheer = Mathf.MoveTowards(_cheer, 0, Time.deltaTime * 0.22f);
                 float want = (0.08f + _cheer * 0.9f) * SoundPrefs.Ambient * (_phase == Phase.Idle ? 0 : 1);
-                if (!cheer.isPlaying && want > 0.01f && cheer.clip != null && !Ts.ShotMode) cheer.Play();
+                if (!cheer.isPlaying && want > 0.01f && cheer.clip != null && !Ts.Silent) cheer.Play();
                 cheer.volume = Mathf.MoveTowards(cheer.volume, want, Time.deltaTime * 1.5f);
                 cheer.spatialBlend = 1f - near * 0.6f;
             }

@@ -31,8 +31,9 @@ namespace Tsukuyomi
         void BuildIntel()
         {
             _intel = Board.Create("戦況（ホログラム）", new Vector2(IW, IH), 45);
-            _intel.forceWorld = true; _intel.worldScale = 0.00098f; _intel.follow = 22f;
-            _intel.worldOffset = new Vector3(0, -0.03f, 0.78f);
+            // 0.78m は近すぎて目が疲れるので 1.0m へ（見た目の大きさは同じになるよう、大きさも合わせる。2026-11-18）
+            _intel.forceWorld = true; _intel.worldScale = 0.00126f; _intel.follow = 22f;
+            _intel.worldOffset = new Vector3(0, -0.03f, 1.0f);
             _intel.Apply();
             var r = _intel.root;
             // 地・縁・走査線・四隅の扇
@@ -178,7 +179,7 @@ namespace Tsukuyomi
                 var (name, info, bar, img) = _iRows[row++];
                 name.text = n;
                 string state = gone ? "退場" : dead ? "復活待ち" : heal ? "回復中" : "戦闘中";
-                info.text = $"{weapon}　残機 {new string('●', Mathf.Max(0, lives))}{new string('○', Mathf.Max(0, 2 - lives))}　{state}";
+                info.text = $"{weapon}　残機 {new string('●', Mathf.Max(0, lives))}{new string('○', Mathf.Max(0, 3 - lives))}　{state}";
                 name.color = dead ? new Color(1, 1, 1, 0.4f) : Color.white;
                 bar.sizeDelta = new Vector2(328 * Mathf.Clamp01(hp), 10);
             }

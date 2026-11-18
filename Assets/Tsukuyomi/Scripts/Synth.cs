@@ -21,6 +21,7 @@ namespace Tsukuyomi
             if (peak > 0.9f) for (int i = 0; i < n; i++) data[i] *= 0.9f / peak;
             var clip = AudioClip.Create(name, n, 1, Rate, false);
             clip.SetData(data, 0);
+            AudioRecover.Keep(clip, data);
             return clip;
         }
 
@@ -47,6 +48,7 @@ namespace Tsukuyomi
                 }
                 var clip = AudioClip.Create(name, len, 1, src.frequency, false);
                 clip.SetData(data, 0);
+                AudioRecover.Keep(clip, data);
                 return clip;
             }
             catch { return src; }
@@ -73,6 +75,7 @@ namespace Tsukuyomi
             if (peak > 0.9f) for (int i = 0; i < n; i++) data[i] *= 0.9f / peak;
             var clip = AudioClip.Create(name, n, 1, Rate, false);
             clip.SetData(data, 0);
+            AudioRecover.Keep(clip, data);
             return clip;
         }
 

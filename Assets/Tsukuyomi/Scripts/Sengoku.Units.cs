@@ -13,7 +13,7 @@ namespace Tsukuyomi
     {
         public class Unit
         {
-            public string name; public int team, weapon, role, lives = 2;
+            public string name; public int team, weapon, role, lives = 3;
             public GameObject go; public CharacterController cc; public SengokuTarget target; public DollAnimator doll;
             public Vector3 vel; public float cd, cd2, respawnT, stuckT, repathT, attackPose;
             public Vector3 lastPos, goal = new(999, 0, 0);
