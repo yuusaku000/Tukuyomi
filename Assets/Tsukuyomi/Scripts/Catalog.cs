@@ -180,6 +180,12 @@ namespace Tsukuyomi
             Acc("odango", "ヤチヨのおだんご髪", Slot.Hair, 3000, "ヤチヨとおなじ、おだんごとツインテール。"),
             Acc("kingyo", "光る金魚", Slot.Shoulder, 3000, "肩のあたりを、光る金魚がついてくる。"),
             Acc("hagoromo", "天女の羽衣", Slot.Back, 3000, "肩にかかる、光る羽衣。"),
+            Acc("usamimi", "うさぎの耳", Slot.Head, 1200, "ぴんと立った、白いうさぎの耳。"),
+            Acc("kitsunemimi", "きつねの耳", Slot.Head, 1200, "山吹色の、とがったきつねの耳。"),
+            Acc("hanakanmuri", "花かんむり", Slot.Head, 1500, "桜と菜の花をあんだ、花のかんむり。"),
+            Acc("oni", "鬼の角", Slot.Head, 1800, "おでこの上に、小さな2本の角。"),
+            Acc("hikarinowa", "光の輪", Slot.Head, 2500, "頭の上にうかぶ、金色に光る輪。"),
+            Acc("chou", "光る蝶の羽", Slot.Back, 3000, "背中に、水色とむらさきに光る蝶の羽。"),
 
             // ───────── 食べ物：甘味処 ─────────
             Food("kanmi", "mitarashi", "みたらし団子", 100, FoodShape.Skewer, C(0.8f, 0.55f, 0.25f), C(0.85f, 0.75f, 0.55f), "甘じょっぱいたれの団子。", "みたらし団子をたべた。たれがあまじょっぱくておいしい！"),

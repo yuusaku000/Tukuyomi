@@ -5,6 +5,7 @@ namespace Tsukuyomi
 {
     /// <summary>
     /// SETSUNA の VR 対応（ユーザーと決めたこと：画面モードと同じく、視界ごと相手のほうへ向き、揺れも残す）。
+    /// 2026-11-18：酔い防止の設定を足した（設定 → VR の「SETSUNA：体だけ相手へ向く」「SETSUNA：揺れを止める」。どちらも最初はオフ）。
     ///  ・体の向きはいつも相手のほう（右スティックでは回らない）。しゃがむ・倒れると目の高さも下がる。当たると視界が揺れる。
     ///  ・自分の手は VR の手（画面モードの、カメラの前で動く腕は出さない）。
     ///  ・手を振ると攻撃：右手を速く振ると強、ふつうに振ると弱。左手を振ると弱。当たるとコントローラーがふるえる。
@@ -32,8 +33,26 @@ namespace Tsukuyomi
             }
         }
 
-        /// <summary>体の向き：いつも相手のほう（回しても変わらない）。</summary>
+        /// <summary>
+        /// 体の向き：ふつうはいつも相手のほう（回しても変わらない）。
+        /// 設定「体だけ相手へ向く」（Vr.FightBodyOnly）のときは、視界は勝手に回らない。右スティックで回せて、
+        /// 相手が正面から 70 度より外へ出たら、一気に相手のほうへ向きなおす（視界のふちを暗くして）。
+        /// </summary>
         public float Yaw
+        {
+            get
+            {
+                float face = FaceYaw;
+                if (!Vr.FightBodyOnly) return face;
+                if (float.IsNaN(_vrYaw)) _vrYaw = face;
+                if (Mathf.Abs(Mathf.DeltaAngle(_vrYaw, face)) > 70f) { _vrYaw = face; Vr.Flash(0.3f); }
+                return _vrYaw;
+            }
+            set { if (Vr.FightBodyOnly) _vrYaw = value; }
+        }
+        float _vrYaw = float.NaN;
+
+        float FaceYaw
         {
             get
             {
@@ -41,8 +60,10 @@ namespace Tsukuyomi
                 var d = C.pos - P.pos; d.y = 0;
                 return d.sqrMagnitude > 1e-4f ? Mathf.Atan2(d.x, d.z) * Mathf.Rad2Deg : 0;
             }
-            set { }
         }
+
+        /// <summary>ラウンドの始めに、視界を相手のほうへ向けなおす。</summary>
+        void VrRound() { _vrYaw = float.NaN; }
 
         public void Carry(Vector3 shift) { }
         public bool Pointer => _paused || _phase == Phase.Result;
@@ -67,7 +88,7 @@ namespace Tsukuyomi
             if (!VrOn) return;
             if (_armsRoot != null && _armsRoot.gameObject.activeSelf) _armsRoot.gameObject.SetActive(false);
             _shake = Mathf.MoveTowards(_shake, 0, Time.unscaledDeltaTime * 0.4f);
-            _vrShake = Random.insideUnitSphere * _shake;
+            _vrShake = Vr.FightNoShake ? Vector3.zero : Random.insideUnitSphere * _shake;
         }
 
         // ───────── 振る攻撃 ─────────

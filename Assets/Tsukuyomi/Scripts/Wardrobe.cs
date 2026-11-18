@@ -359,6 +359,60 @@ namespace Tsukuyomi
                     foreach (float s in new[] { -1f, 1f })
                         Part(fish, PrimitiveType.Sphere, new Vector3(0.04f * s, 0.02f, 0.06f), Vector3.one * 0.022f, Black);
                     return h.gameObject;
+                case "usamimi":
+                    h = Holder(head, id);
+                    foreach (float s in new[] { -1f, 1f })
+                    {
+                        Part(h, PrimitiveType.Capsule, new Vector3(0.08f * s, 0.36f, -0.02f), new Vector3(0.08f, 0.17f, 0.04f), White, false, new Vector3(0, 0, -10 * s));
+                        Part(h, PrimitiveType.Capsule, new Vector3(0.08f * s, 0.355f, 0.004f), new Vector3(0.045f, 0.13f, 0.03f), Pink, false, new Vector3(0, 0, -10 * s));
+                    }
+                    return h.gameObject;
+                case "kitsunemimi":
+                    h = Holder(head, id);
+                    var fox = new Color(0.98f, 0.68f, 0.25f);
+                    foreach (float s in new[] { -1f, 1f })
+                    {
+                        Part(h, PrimitiveType.Cube, new Vector3(0.12f * s, 0.26f, -0.01f), new Vector3(0.1f, 0.15f, 0.04f), fox, false, new Vector3(0, 0, 40 + 14 * s));
+                        Part(h, PrimitiveType.Cube, new Vector3(0.12f * s, 0.255f, 0.008f), new Vector3(0.055f, 0.09f, 0.03f), White, false, new Vector3(0, 0, 40 + 14 * s));
+                    }
+                    return h.gameObject;
+                case "hanakanmuri":
+                    h = Holder(head, id); h.localPosition = new Vector3(0, 0.17f, -0.01f);
+                    var cols = new[] { Pink, White, new Color(1f, 0.9f, 0.3f) };
+                    for (int i = 0; i < 12; i++)
+                    {
+                        float a = i / 12f * Mathf.PI * 2;
+                        var at = new Vector3(Mathf.Sin(a) * 0.2f, 0, Mathf.Cos(a) * 0.2f);
+                        Part(h, PrimitiveType.Sphere, at, Vector3.one * 0.06f, cols[i % 3]);
+                        Part(h, PrimitiveType.Sphere, at * 1.02f + Vector3.down * 0.025f, new Vector3(0.05f, 0.02f, 0.05f), new Color(0.4f, 0.7f, 0.35f));
+                    }
+                    return h.gameObject;
+                case "oni":
+                    h = Holder(head, id);
+                    foreach (float s in new[] { -1f, 1f })
+                    {
+                        Part(h, PrimitiveType.Capsule, new Vector3(0.08f * s, 0.25f, 0.08f), new Vector3(0.05f, 0.07f, 0.05f), new Color(0.95f, 0.88f, 0.7f), false, new Vector3(-15, 0, -14 * s));
+                        Part(h, PrimitiveType.Sphere, new Vector3(0.09f * s, 0.31f, 0.065f), Vector3.one * 0.035f, Red, false);
+                    }
+                    return h.gameObject;
+                case "hikarinowa":
+                    h = Holder(head, id); h.localPosition = new Vector3(0, 0.36f, -0.02f); h.localEulerAngles = new Vector3(-12, 0, 0);
+                    for (int i = 0; i < 16; i++)
+                    {
+                        float a = i / 16f * 360f;
+                        var q = Quaternion.Euler(0, a, 0);
+                        Part(h, PrimitiveType.Cube, q * new Vector3(0, 0, 0.15f), new Vector3(0.062f, 0.018f, 0.022f), Gold, true, new Vector3(0, a, 0));
+                    }
+                    return h.gameObject;
+                case "chou":
+                    h = Holder(body, id); h.localPosition = new Vector3(0, 1.1f, -0.26f);
+                    var up = new Color(0.45f, 0.85f, 1f); var low = new Color(0.8f, 0.55f, 1f);
+                    foreach (float s in new[] { -1f, 1f })
+                    {
+                        Part(h, PrimitiveType.Sphere, new Vector3(0.22f * s, 0.14f, -0.02f), new Vector3(0.34f, 0.3f, 0.02f), up, true, new Vector3(0, 12 * s, -25 * s));
+                        Part(h, PrimitiveType.Sphere, new Vector3(0.17f * s, -0.1f, -0.02f), new Vector3(0.22f, 0.2f, 0.02f), low, true, new Vector3(0, 12 * s, 30 * s));
+                    }
+                    return h.gameObject;
                 case "hagoromo":
                     h = Holder(body, id);
                     var silk = new Color(1f, 0.78f, 0.9f);

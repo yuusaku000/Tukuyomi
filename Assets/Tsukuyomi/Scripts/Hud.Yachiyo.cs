@@ -29,32 +29,51 @@ namespace Tsukuyomi
         /// <summary>確認用（--tour の talk）。</summary>
         public static void TestTalk() => OpenTalk();
 
-        static void CloseTalk() { _talk = false; YachiyoNpc.Talking = false; }
+        public static void CloseTalk() { _talk = false; YachiyoNpc.Talking = false; }
 
-        void DrawTalk()
+        // ───────── 会話の板（2026-11-18：IMGUI から板へ。VR でも光の線とトリガーで押せる）─────────
+
+        Board _tk;
+
+        string _tkKey;
+        const float TkW = 1100, TkH = 300;
+
+        /// <summary>毎フレーム（BoardsTick から）。</summary>
+        void TalkTick()
         {
-            var r = new Rect(W / 2 - 520, H - 420, 1040, 300);
-            Fill(r, new Color(0.01f, 0.03f, 0.08f, 0.82f));
-            Panel(r);
-            var tag = new Rect(r.x + 30, r.y - 26, 200, 46);
-            Fill(tag, new Color(Pink.r, Pink.g, Pink.b, 0.9f));
-            Text(tag, "ヤチヨ", 26, Color.white, TextAnchor.MiddleCenter, false, FontStyle.Bold);
-            Text(new Rect(r.x + 40, r.y + 34, r.width - 80, 80), _yLine, 28, Color.white, TextAnchor.UpperLeft);
-            float bx = r.x + 40, by = r.yMax - 100, bw = 230, gap = 16;
+            if (!_talk) { if (_tk != null) _tk.Alpha = 0; _tkKey = null; return; }
+            if (_tk == null)
+            {
+                _tk = Board.Create("ヤチヨとの会話", new Vector2(TkW, TkH), 34);
+                _tk.screenAnchor = new Vector2(0.5f, 0); _tk.screenOffset = new Vector2(0, 90);
+                _tk.worldOffset = new Vector3(0, -0.25f, 1.15f);
+                _tk.Apply();
+            }
+            _tk.Alpha = 1;
+            string key = $"{_yLine}|{YachiyoNpc.TimeChanged}";
+            if (key == _tkKey) return;
+            _tkKey = key;
+            var r = _tk.root;
+            Board.Clear(r);
+            Board.Panel(r, new Rect(0, 26, TkW, TkH - 26), new Color(0.01f, 0.03f, 0.08f, 0.9f));
+            Board.Corners(r, new Rect(0, 26, TkW, TkH - 26), new Color(Board.Cyan.r, Board.Cyan.g, Board.Cyan.b, 0.9f), 18, 3);
+            Board.Panel(r, new Rect(0, 26, 6, TkH - 26), Board.Pink);
+            Board.Panel(r, new Rect(34, 0, 200, 48), new Color(Board.Pink.r, Board.Pink.g, Board.Pink.b, 0.95f));
+            Board.Label(r, new Rect(34, 0, 200, 48), "ヤチヨ", 28, Color.white, TextAnchor.MiddleCenter, false, FontStyle.Bold);
+            Board.Wrap(r, new Rect(50, 66, TkW - 100, 100), _yLine, 30, Color.white, TextAnchor.UpperLeft);
+            float bx = 40, by = TkH - 96, bw = 235, gap = 14;
             var ya = YachiyoNpc.I;
             if (!YachiyoNpc.TimeChanged)
-            {
-                if (Button(new Rect(bx, by, bw, 64), "夜にして"))
+                Board.Btn(r, new Rect(bx, by, bw, 64), "夜にして", 24, () =>
                 {
                     if (YachiyoNpc.IsNight) _yLine = "いまはもう夜だよ。ほら、月がきれい…";
                     else if (ya != null) { ya.MakeNight(); CloseTalk(); }
-                }
-            }
-            else if (Button(new Rect(bx, by, bw, 64), "もとの時間にもどして", 22)) { ya?.RestoreTime(); CloseTalk(); }
+                });
+            else Board.Btn(r, new Rect(bx, by, bw, 64), "もとの時間にもどして", 21, () => { ya?.RestoreTime(); CloseTalk(); });
             bx += bw + gap;
-            if (Button(new Rect(bx, by, bw, 64), "ライブをお願い")) { CloseTalk(); Live.Request(player, cam); }
+            Board.Btn(r, new Rect(bx, by, bw, 64), "ライブをお願い", 24, () => { CloseTalk(); Live.Request(player, cam); });
             bx += bw + gap;
-            if (Button(new Rect(bx, by, bw, 64), "おしゃべり"))
+            Board.Btn(r, new Rect(bx, by, bw, 64), "おしゃべり", 24, () =>
             {
                 string[] chat =
                 {
@@ -65,8 +84,8 @@ namespace Tsukuyomi
                     "わたしの新しい曲、ライブで歌うから待っててね",
                 };
                 _yLine = chat[Random.Range(0, chat.Length)];
-            }
-            if (Button(new Rect(r.xMax - 40 - bw, by, bw, 64), "またね（Esc）")) CloseTalk();
+            });
+            Board.Btn(r, new Rect(TkW - 40 - bw, by, bw, 64), Vr.On ? "またね（Y）" : "またね（Esc）", 24, CloseTalk);
         }
     }
 }

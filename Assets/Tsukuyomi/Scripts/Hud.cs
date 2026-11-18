@@ -417,7 +417,7 @@ namespace Tsukuyomi
             }
 
             // 板（メニュー・遊び方・両替）を開いている間は、画面に直接描く表示を出さない（板の上に重なるため）
-            if (_menu || _guide || _exchange || _map || _book || _shipAsk != null || _tipOpen || _intro || _bonusOpen) { GUI.matrix = Matrix4x4.identity; return; }
+            if (_menu || _guide || _exchange || _map || _book || _shipAsk != null || _tipOpen || _intro || _bonusOpen || _talk) { GUI.matrix = Matrix4x4.identity; return; }
 
             // 画面の四隅のかぎ（スマコンの視野）
             Corners(new Rect(14, 14, W - 28, H - 28), new Color(Cyan.r, Cyan.g, Cyan.b, 0.35f), 70, 2);
@@ -433,12 +433,12 @@ namespace Tsukuyomi
 
             // 座ってしばらくすると、表示を消して景色だけにする
             bool calm = Rest.Idle > 6f || LiveShow.AutoCam; // おまかせカメラの間も表示を消して景色だけにする
-            if (!Blocked && calm && !LiveShow.AutoCam) DrawActivity();
+            if (!Blocked && calm && !LiveShow.AutoCam && !BoardHints) DrawActivity();
             if (!Blocked && !calm)
             {
-                if (CompassOn) Compass();
-                // 釣り・座る・番付の立て札
-                DrawActivity();
+                if (CompassOn && !BoardHints) Compass();
+                // 釣り・座る・番付の立て札（VR では板：Hud.VrHints）
+                if (!BoardHints) DrawActivity();
                 // 左下：座標
                 if (player != null)
                 {
@@ -449,9 +449,9 @@ namespace Tsukuyomi
                 // 右下：キー
                 Keys();
                 // お店の AR 看板と「E で入る」
-                DrawShopSigns();
+                if (!BoardHints) DrawShopSigns();
                 // 近くの人の吹き出し
-                DrawBubbles();
+                if (!BoardHints) DrawBubbles();
 
                 // 一人称の照準
                 if (cam != null && cam.firstPerson && CrosshairOn)
@@ -468,7 +468,7 @@ namespace Tsukuyomi
             }
 
             // 場所の名前（小さく、右上に）
-            if (_bannerT > 0 && !string.IsNullOrEmpty(_bannerTitle))
+            if (_bannerT > 0 && !string.IsNullOrEmpty(_bannerTitle) && !BoardHints)
             {
                 float a = Mathf.Clamp01(_bannerT / 0.6f) * Mathf.Clamp01((_bannerLen - _bannerT) / 0.3f + 0.2f) * 0.9f;
                 float open = Mathf.Clamp01((_bannerLen - _bannerT) / 0.5f);
@@ -482,7 +482,6 @@ namespace Tsukuyomi
 
             if (_debug) DrawDebug();
             if (_book || _shipAsk != null) { }
-            else if (_talk) DrawTalk();
             GUI.matrix = Matrix4x4.identity;
         }
 

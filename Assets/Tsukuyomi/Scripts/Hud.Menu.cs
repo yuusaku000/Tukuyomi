@@ -266,6 +266,7 @@ namespace Tsukuyomi
                     AddRow("回り方", "右スティックを左右に倒したとき（一気に＝45度ずつ・酔いにくい）", () => Vr.SnapTurn ? "一気に" : "少しずつ", d => Vr.SnapTurn = !Vr.SnapTurn, () => Vr.SnapTurn = !Vr.SnapTurn);
                     Toggle("視界のふちを暗くする", "歩いたり回ったりしている間だけ。酔いにくくなります", () => Vr.Vignette, v => Vr.Vignette = v);
                     Toggle("ワープ移動", "右スティックを前に倒して行き先をえらび、離すとそこへ移る", () => Vr.Warp, v => Vr.Warp = v);
+                    AddRow("SETSUNA の酔い防止", "揺れ＝当たったときの視界の揺れをなくす　体だけ＝視界は回らず体だけ相手へ（見えなくなったら一気に向く）", () => FightComfortName[FightComfort], d => FightComfort = (FightComfort + d + 4) % 4, () => FightComfort = (FightComfort + 1) % 4);
                     AddRow("背の高さ", "◀▶ で目の高さを上げ下げ。決定で、いまの背に合わせる", () => Vr.HeightText, d => Vr.Height += d * 0.05f, () => Vr.FitHeight());
                     UndoRow();
                     AddRow("初期設定にもどす", "VR の設定を最初の値にもどします", null, null, () => { Vr.ResetSettings(); Sfx.Click(); });
@@ -275,6 +276,14 @@ namespace Tsukuyomi
                     break;
             }
             LayoutRows(276);
+        }
+
+        static readonly string[] FightComfortName = { "なし", "揺れを止める", "体だけ向く", "両方" };
+        /// <summary>SETSUNA の酔い防止（0 なし・1 揺れを止める・2 体だけ相手へ向く・3 両方）。</summary>
+        static int FightComfort
+        {
+            get => (Vr.FightNoShake ? 1 : 0) + (Vr.FightBodyOnly ? 2 : 0);
+            set { Vr.FightNoShake = (value & 1) != 0; Vr.FightBodyOnly = (value & 2) != 0; }
         }
 
         void Slider(string label, string hint, Func<float> get, Action<float> set)

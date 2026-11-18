@@ -94,6 +94,7 @@ namespace Tsukuyomi
             _clock = RoundTime;
             _comboP = _comboC = 0;
             SetPhase(Phase.Intro);
+            VrRound();
             Center(_round == 3 ? "FINAL ROUND" : $"ROUND {_round}", Board.Teal, 1.6f, "");
         }
 

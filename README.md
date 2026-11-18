@@ -136,7 +136,7 @@ sh build.sh   （Git Bash で。世界の組み立て → exe の書き出し �
 
 出来上がりは `Build\Tsukuyomi.exe`（環境変数 `TSUKUYOMI_BUILD_OUT` で変えられる）。
 本番は `dist\Tsukuyomi.exe`。ミニヤチヨはここを起動する（`TSUKUYOMI_EXE` で変えられる）。
-本番に反映するときは、ツクヨミを閉じてから `Build` の中身を `dist` にコピーする。
+本番に反映するときは、ツクヨミを閉じてから `sh deploy.sh`（`Build` の中身を `dist` に写す。遊ぶのに要らない `Tsukuyomi_BurstDebugInformation_DoNotShip` は写さない）。
 
 ### 動作確認用の起動オプション
 
@@ -155,6 +155,7 @@ sh build.sh   （Git Bash で。世界の組み立て → exe の書き出し �
 | `--vr` / `--vr-sim` / `--screen` | 起動時の板を出さずに、VR／まねる機器の VR／画面で始める。`--vr-sim` は XR Interaction Toolkit のまねる頭と手（マウスで見回す・左クリック 右トリガー・右クリック ワープ・Z/X 回る） |
 | tour の `vr:hands・point・click・warp・go・turn・smooth・walk・settings` | `--vr-sim` のときの確かめ（手・板を指す・トリガーで押す・ワープの弧・ワープ・一気に回る・少しずつ回る・視界のふち・VR の設定と取り消し）。記録は `[VR]`・`[VrTest]` |
 | tour の `choice` / `choice:vr` | 起動時の「画面／VR」の板（`choice:vr` は VR で遊ぶを押す） |
+| `--check`（`--vr-sim` `--board-world` `--check-only plaza,live` も足せる） | ほぼ全部の場面（約35）を1回の起動で撮り、場面ごとの速さとエラーを `%APPDATA%\Tsukuyomi\check\report_日時\report.md` にまとめる。ふだんの save.json は変えない（写しで遊ぶ） |
 | `--live 60` | 起動してすぐライブを始め、ライブ全体の60秒目へ飛ぶ（確認用。音は出さない） |
 | `--live-set 2,1,4` | ライブの曲順を決める（0 パレード・1 てがみ・2 ハイパージャンプ・3 金魚・4 ハイウェイ） |
 

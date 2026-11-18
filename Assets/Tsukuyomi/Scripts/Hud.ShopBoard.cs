@@ -29,6 +29,8 @@ namespace Tsukuyomi
         {
             ShopBoardTick();
             IntroTick();
+            TalkTick();
+            VrHintsTick();
             MapBoardTick();
             BookBoardTick();
             ShipBoardTick();

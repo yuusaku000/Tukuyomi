@@ -218,9 +218,24 @@ namespace Tsukuyomi
 
         // ───────── 無料の着がえ ─────────
 
+        /// <summary>はじめての着がえでえらべる服（全部だと多すぎるので、浴衣・振袖・ふだん着・巫女・ドレス・十二単から20種類）。</summary>
+        static readonly string[] GiftClothes =
+        {
+            "sakura", "aizome", "asagao", "kingyo_y", "hanabi",
+            "botan", "wakatake", "yukiusagi", "hoshizora", "tsukiyo", "kinran",
+            "momiji", "samue", "jogakusei", "miko",
+            "dress_sakura", "dress_sora", "dress_kurobara",
+            "juni_sakura", "juni_tsukikage",
+        };
+
         static List<Item> Gifts(ItemKind k)
         {
             var l = new List<Item>();
+            if (k == ItemKind.Clothes)
+            {
+                foreach (var id in GiftClothes) { var it = Catalog.Get(id); if (it != null) l.Add(it); }
+                return l;
+            }
             foreach (var it in Catalog.Of(k)) if (!string.IsNullOrEmpty(it.shop) && it.price > 0) l.Add(it);
             return l;
         }

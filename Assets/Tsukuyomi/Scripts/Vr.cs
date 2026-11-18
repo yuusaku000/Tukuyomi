@@ -31,7 +31,7 @@ namespace Tsukuyomi
         // ───────── 設定（メニューの「設定 → VR」）─────────
 
         static readonly string[] QNames = { "軽い", "ふつう", "きれい" };
-        static int _q = -1, _snap = -1, _vig = -1, _warp = -1; static float _h = float.NaN;
+        static int _q = -1, _snap = -1, _vig = -1, _warp = -1, _kBody = -1, _kShake = -1; static float _h = float.NaN;
         static int GetI(string k, int d) { try { return PlayerPrefs.GetInt(k, d); } catch { return d; } }
         static void SetI(string k, int v) { try { PlayerPrefs.SetInt(k, v); PlayerPrefs.Save(); } catch { } }
 
@@ -60,6 +60,21 @@ namespace Tsukuyomi
             get { if (_warp < 0) _warp = GetI("vr_warp", 1); return _warp == 1; }
             set { _warp = value ? 1 : 0; SetI("vr_warp", _warp); }
         }
+        /// <summary>KASSEN（SETSUNA）の酔い防止：体だけ相手へ向き、視界は自分で回す（相手が視界の外へ出たら一気に向きなおす）。</summary>
+        public static bool FightBodyOnly
+        {
+            get { if (_kBody < 0) _kBody = GetI("vr_fight_body", 0); return _kBody == 1; }
+            set { _kBody = value ? 1 : 0; SetI("vr_fight_body", _kBody); }
+        }
+        /// <summary>KASSEN（SETSUNA）の酔い防止：当たったときの視界の揺れを止める。</summary>
+        public static bool FightNoShake
+        {
+            get { if (_kShake < 0) _kShake = GetI("vr_fight_noshake", 0); return _kShake == 1; }
+            set { _kShake = value ? 1 : 0; SetI("vr_fight_noshake", _kShake); }
+        }
+        /// <summary>一気に向きを変えたときなど、少しのあいだ視界のふちを暗くする（「視界のふち」がオンのとき）。</summary>
+        public static void Flash(float seconds = 0.25f) { if (I != null) I._flash = Mathf.Max(I._flash, seconds); }
+
         /// <summary>背の高さ（目の高さに足すメートル。-0.5〜+0.8）。座って遊ぶときは上げる。</summary>
         public static float Height
         {
@@ -78,7 +93,7 @@ namespace Tsukuyomi
 
         public static void ResetSettings()
         {
-            QualityLevel = 0; SnapTurn = true; Vignette = true; Warp = true; Height = 0f;
+            QualityLevel = 0; SnapTurn = true; Vignette = true; Warp = true; Height = 0f; FightBodyOnly = false; FightNoShake = false;
         }
 
         // ───────── 頭と手の読みとり ─────────

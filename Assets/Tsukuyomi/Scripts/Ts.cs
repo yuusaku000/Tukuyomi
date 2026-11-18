@@ -44,6 +44,15 @@ namespace Tsukuyomi
                 var dir = string.IsNullOrEmpty(env)
                     ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Tsukuyomi")
                     : env;
+                // --check：一括確認の起動は、ふだんの記録を変えないように写しで遊ぶ（最初の1回だけ save.json を写す）
+                if (Flag("--check"))
+                {
+                    var src = Path.Combine(dir, "save.json");
+                    dir = Path.Combine(dir, "check");
+                    Directory.CreateDirectory(dir);
+                    var dst = Path.Combine(dir, "save.json");
+                    if (!File.Exists(dst) && File.Exists(src)) { try { File.Copy(src, dst); } catch { } }
+                }
                 Directory.CreateDirectory(dir);
                 return dir;
             }
@@ -52,7 +61,7 @@ namespace Tsukuyomi
         static TimeSpan? _offset;
 
         /// <summary>画面を保存して終わる確認用の起動（マウスやキーを受けつけない）。</summary>
-        public static bool ShotMode => Arg("--shot") != null || Arg("--tour") != null;
+        public static bool ShotMode => Arg("--shot") != null || Arg("--tour") != null || Flag("--check");
 
         /// <summary>時刻を "21:30" の形でずらす（確認用）。</summary>
         public static void SetTime(string hhmm)
