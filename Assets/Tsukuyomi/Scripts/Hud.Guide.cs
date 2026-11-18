@@ -47,7 +47,7 @@ namespace Tsukuyomi
             _i.ShowGuidePage(Mathf.Clamp(page, 0, GuidePages.Length - 1));
         }
 
-        static void CloseGuide()
+        public static void CloseGuide()
         {
             _guide = false;
             var d = GameSession.Instance != null ? GameSession.Instance.Data : null;

@@ -43,6 +43,21 @@ namespace Tsukuyomi
 
         // ───────── 近くの物の案内 ─────────
 
+        /// <summary>近くに E で調べる物があるか（ハンマーのジェットは、ないときだけ E 長押しで飛ぶ）。</summary>
+        public static bool NearAction
+        {
+            get
+            {
+                if (_i == null || _i.player == null) return false;
+                if (Rest.Sitting || Fishing.Busy) return true;
+                var s = _i.PromptNow();
+                return s != null;
+            }
+        }
+
+        /// <summary>ハンマーのジェットの燃料（表示用の文字）。</summary>
+        static string FuelText => $"ジェット　{new string('■', Mathf.CeilToInt(PlayerController.Fuel * 10))}{new string('□', 10 - Mathf.CeilToInt(PlayerController.Fuel * 10))}　{PlayerController.Fuel * 100:0}%";
+
         /// <summary>いま出す案内（Hud.Fish の DrawActivity・Hud.Shop の DrawShopSigns と同じ順番）。</summary>
         string PromptNow()
         {
@@ -65,6 +80,7 @@ namespace Tsukuyomi
         {
             string s = show ? PromptNow() : null;
             string sub = show && SkyShip.I != null && SkyShip.I.RiderAboard && !string.IsNullOrEmpty(SkyShip.I.Status) ? "遊覧船 ▸ " + SkyShip.I.Status : null;
+            if (show && PlayerController.ShowFuel) sub = FuelText;
             if (s == null && sub == null) { if (_vhPrompt != null) _vhPrompt.Alpha = 0; return; }
             if (_vhPrompt == null)
             {

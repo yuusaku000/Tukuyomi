@@ -16,6 +16,33 @@ namespace Tsukuyomi
         Vector3 _safePos;
         float _safeYaw;
 
+        // ───────── かぐやのハンマーのジェット（KASSEN の「つよい」に勝つと使える。2026-11-18）─────────
+        // 近くに調べる物がない所で E（VR は A）を長押しすると、上へ噴いて飛ぶ。空中では押すとすぐ噴く。ハンマーは出さない。
+        // 燃料は約3秒ぶん、地面に着くと約4秒でもどる（SENGOKU のハンマーと同じ）。
+
+        /// <summary>燃料（0〜1）。</summary>
+        public static float Fuel = 1f;
+        /// <summary>いま噴いている。</summary>
+        public static bool Jetting;
+        /// <summary>燃料を表示するか（使える・へっているか噴いているとき）。</summary>
+        public static bool ShowFuel => Kassen.JetUnlocked && (Jetting || Fuel < 0.999f);
+        float _eHold; bool _eFree;
+
+        /// <summary>このフレームで噴くか。</summary>
+        /// <summary>確認用（tour の jet）：この秒数だけ、E を押しているのと同じに噴く。</summary>
+        public static float TestJetT;
+
+        bool JetWanted(bool grounded)
+        {
+            if (TestJetT > 0) { TestJetT -= Time.deltaTime; return Kassen.JetUnlocked && Fuel > 0; }
+            if (!Kassen.JetUnlocked || Hud.Blocked || Ts.ShotMode || LiveShow.AutoCam || InWater) { _eHold = 0; return false; }
+            // 押しはじめたときに、近くに調べる物（お店・ヤチヨ・席・釣り など）がなかったときだけ（E はそちらを優先）
+            if (Act.Interact.Down) { _eFree = !Hud.NearAction; _eHold = 0; }
+            if (!Act.Interact.Held || !_eFree) { _eHold = 0; return false; }
+            _eHold += Time.deltaTime;
+            return Fuel > 0 && (!grounded || _eHold > 0.25f);
+        }
+
         /// <summary>デバッグ用の飛行モード（F4）。壁もすりぬける。Space で上、Ctrl / Q で下、Shift で速く。</summary>
         public static bool Fly;
 
@@ -90,9 +117,26 @@ namespace Tsukuyomi
                 if (!Hud.Blocked && Act.Jump.Down && !InWater) { _vy = jumpSpeed; jumped = true; _airT = 1f; }
                 if (transform.position.y > 0.6f && !InWater && (SkyShip.I == null || !SkyShip.I.OnDeck(transform.position))) { _safePos = transform.position; _safeYaw = transform.eulerAngles.y; }
             }
+            // ハンマーのジェット：上へ噴く（重力より強く）。燃料を使う。地面ではもどる
+            bool jet = JetWanted(_cc.isGrounded || _airT < 0.18f);
+            bool started = jet && !Jetting;
+            if (started) Sfx.Whoosh();
+            Jetting = jet;
+            if (jet)
+            {
+                if (started && _vy < 3f) _vy = 3f; // 地面からは、すぐ浮く
+                _vy = Mathf.Min(_vy + 34f * Time.deltaTime, 11f);
+                if (_vy < 0) _vy += 40f * Time.deltaTime; // 落ちている途中でも、すぐ止まって上へ
+                _airT = 1f;
+                Fuel = Mathf.Max(0, Fuel - Time.deltaTime / 3.2f);
+                // 空中では、押している向きへ速く進める（走るより少し速く）
+                _move = Vector3.Lerp(_move, (fwd * input.y + right * input.x) * 13f, 1 - Mathf.Exp(-3f * Time.deltaTime));
+            }
+            else if (_cc.isGrounded && Fuel < 1) Fuel = Mathf.Min(1, Fuel + Time.deltaTime * 0.25f);
             // ライブの「無重力」：会場では、決まった高さまでふわっと浮く
             float fh = LiveShow.FloatHeight;
-            if (fh > 0.05f && LiveShow.PlayerInVenue) _vy = Mathf.Clamp((Island.Ground + 0.1f + fh - transform.position.y) * 2.2f, -4f, 5f);
+            if (jet) { }
+            else if (fh > 0.05f && LiveShow.PlayerInVenue) _vy = Mathf.Clamp((Island.Ground + 0.1f + fh - transform.position.y) * 2.2f, -4f, 5f);
             else _vy += gravity * Time.deltaTime;
             var before = transform.position;
             var flags = _cc.Move((_move + Vector3.up * _vy) * Time.deltaTime);

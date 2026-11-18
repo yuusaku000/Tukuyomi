@@ -115,7 +115,7 @@ namespace Tsukuyomi
         static readonly string[] CheckScenes =
         {
             "torii|20:00", "torii|20:00||talk", "shopping|20:00", "shopping|20:00||shop:yukata", "shopping|20:00||wear", "shopping|20:00||shop:komono",
-            "plaza|21:00", "plaza|21:00||map", "plaza|21:00||menu:0", "plaza|21:00||menu:7", "plaza|21:00||guide:0", "plaza|21:00||exchange",
+            "plaza|21:00", "plaza|21:00||jet|2.2", "plaza|21:00||map", "plaza|21:00||menu:0", "plaza|21:00||menu:7", "plaza|21:00||guide:0", "plaza|21:00||exchange",
             "fishing|16:00", "fishing|16:00||fish:bite", "fishing|16:00||book", "fishing|16:00||rank", "fishing|16:00||sit",
             "sakura|12:00", "upper|18:00", "bamboo|12:00", "lookout|21:00", "onsen|21:00", "palace|21:00", "shitamachi|21:00",
             "stage|21:00||live:s1:chorus:1", "stage|21:00||live:s2:drop:1:c3", "stage|21:00||live:s3:chorus:2:auto",
@@ -198,6 +198,7 @@ namespace Tsukuyomi
                 int err0 = _checkErrors.Count;
                 Hud.CloseShop();
                 Hud.CloseTalk();
+                Hud.CloseGuide(); Hud.CloseExchange();
                 Kassen.ResetForTour();
                 Hud.CloseBook();
                 Fishing.I?.Stop();
@@ -238,6 +239,8 @@ namespace Tsukuyomi
                 // 初めてのログイン：intro（ヤチヨのセリフ）・intro:dress（無料の着がえ）・intro:bye（夜の景色のあと）・bonus（初ログインボーナス）
                 if (p.Length > 3 && (p[3].StartsWith("intro") || p[3] == "bonus")) Hud.TestIntro(p[3] == "bonus" ? "bonus" : p[3].Length > 6 ? p[3].Substring(6) : "");
                 if (p.Length > 3 && p[3] == "night") YachiyoNpc.I?.MakeNight();
+                // jet：ハンマーのジェットを2秒噴いて、どれだけ上がったかを記録（--check のときだけ解放する。ふだんの記録は変えない）
+                if (p.Length > 3 && p[3] == "jet") StartCoroutine(JetTest());
                 // audioreset：音の出口が変わったときと同じように、音の仕組みを作りなおす（AudioRecover が鳴らしなおすかの確認）
                 if (p.Length > 3 && p[3] == "audioreset") StartCoroutine(AudioResetTest());
                 // livestop：ライブ中にメニューの「つづける → ライブをやめる → はい」
@@ -311,6 +314,16 @@ namespace Tsukuyomi
             }
             if (_checking) { _checkScene = "終わり"; WriteCheckReport(dir); }
             Application.Quit();
+        }
+
+        IEnumerator JetTest()
+        {
+            if (Ts.Flag("--check") && _data != null) _data.hammerJet = true;
+            yield return new WaitForSeconds(0.5f);
+            float y0 = player.Position.y;
+            PlayerController.Fuel = 1f; PlayerController.TestJetT = 2f;
+            yield return new WaitForSeconds(2.1f);
+            Debug.Log($"[Tour] jet 解放={Kassen.JetUnlocked} 上がった高さ {player.Position.y - y0:0.0}m 燃料 {PlayerController.Fuel * 100:0}%");
         }
 
         IEnumerator AudioResetTest()

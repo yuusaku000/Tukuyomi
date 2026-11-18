@@ -42,6 +42,8 @@ namespace Tsukuyomi
         // KASSEN：SETSUNA の勝ち負け
         public int setsunaWins, setsunaLosses;
         public int sengokuWins, sengokuLosses;
+        // KASSEN の「つよい」に勝つと、島でもかぐやのハンマーのジェットで飛べる（E 長押し）
+        public bool hammerJet;
         // 初めてのログインの演出（ヤチヨの案内と無料の着がえ）。introStarted は途中で終わったときにやりなおすため
         public bool introStarted, introDone;
         // 初めてのログインの夜：この現実の時刻（"yyyy-MM-dd HH:mm"、次の日の出）まで夜のまま。空ならふつう

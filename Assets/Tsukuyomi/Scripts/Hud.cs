@@ -448,6 +448,14 @@ namespace Tsukuyomi
                     Text(new Rect(36, H - 74, 600, 22), $"POS  X {p.x,7:0.0}   Z {p.z,7:0.0}   ALT {p.y,5:0.0}m", 16, new Color(Cyan.r, Cyan.g, Cyan.b, 0.8f), TextAnchor.UpperLeft, true);
                     Text(new Rect(36, H - 50, 600, 22), $"VIEW {(cam != null && cam.firstPerson ? "1ST PERSON" : "3RD PERSON")}   GFX {Quality.Name}", 16, new Color(Cyan.r, Cyan.g, Cyan.b, 0.6f), TextAnchor.UpperLeft, true);
                 }
+                // ハンマーのジェットの燃料（VR は Hud.VrHints の案内の板）
+                if (PlayerController.ShowFuel && !BoardHints)
+                {
+                    var fr = new Rect(W / 2 - 160, H - 250, 320, 34);
+                    Panel(fr, 0.8f);
+                    Fill(new Rect(fr.x + 8, fr.y + 24, (fr.width - 16) * PlayerController.Fuel, 5), PlayerController.Fuel > 0.2f ? Gold : new Color(1f, 0.4f, 0.35f));
+                    Text(new Rect(fr.x, fr.y + 2, fr.width, 22), PlayerController.Jetting ? "ジェット噴射中" : "ジェットの燃料（地面でもどる）", 16, Color.white, TextAnchor.MiddleCenter);
+                }
                 // 右下：キー
                 Keys();
                 // お店の AR 看板と「E で入る」

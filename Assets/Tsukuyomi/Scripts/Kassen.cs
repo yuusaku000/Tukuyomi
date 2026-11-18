@@ -263,7 +263,7 @@ namespace Tsukuyomi
             for (int i = 0; i < 2; i++) _modeBar[i].color = i == _mode ? Board.Teal : new Color(1, 1, 1, 0.15f);
             _stageText.text = _mode == 1 ? (_sgSel == 0 ? "3対3 の試合" : "練習場") : _stageSel == 0 ? "おまかせ" : Setsuna.StageNames[_stageSel - 1];
             _oppDesc.text = _mode == 1 ? "味方：茜・楓\n敵：疾風・岩鉄・朧" : st.desc;
-            _levelText.text = _mode == 1 ? (_sgSel == 0 ? $"勝てば {SengokuRewards[_level]:N0} ふじゅ〜（相手と味方の強さ）" : "練習場はごほうびなし") : $"勝てば {Rewards[_level]:N0} ふじゅ〜" + (_level == 2 && !HardCleared ? "　＋　初めて勝つと「狐のきぐるみ」" : "");
+            _levelText.text = _mode == 1 ? (_sgSel == 0 ? $"勝てば {SengokuRewards[_level]:N0} ふじゅ〜（相手と味方の強さ）" + (_level == 2 && !JetUnlocked ? "　＋　島で飛べる力" : "") : "練習場はごほうびなし") : $"勝てば {Rewards[_level]:N0} ふじゅ〜" + (_level == 2 && !HardCleared ? "　＋　初めて勝つと「狐のきぐるみ」" : "") + (_level == 2 && !JetUnlocked ? "・島で飛べる力" : "");
             for (int i = 0; i < 3; i++)
                 _levelRing[i].color = i == _level ? new Color(0.5f, 0.12f, 0.1f, 0.95f) : new Color(0.04f, 0.1f, 0.18f, 0.85f);
             var d = Data;
@@ -272,6 +272,20 @@ namespace Tsukuyomi
 
         static SaveData Data => GameSession.Instance != null ? GameSession.Instance.Data : null;
         public static bool HardCleared => Data != null && Data.owned.Contains(Catalog.KitsuneKigurumi);
+
+        /// <summary>島でハンマーのジェットが使えるか（KASSEN の「つよい」に勝った。前に SETSUNA の「つよい」に勝った人も）。</summary>
+        public static bool JetUnlocked => Data != null && (Data.hammerJet || HardCleared);
+
+        const string JetMsg = "かぐやのハンマーの力を手に入れました！ 島で E（VR は A）を長押しすると、空を飛べます";
+
+        /// <summary>「つよい」に勝ったら、ハンマーのジェットを解放する。初めてなら説明を返す。</summary>
+        static string UnlockJet(SaveData d, int level)
+        {
+            if (level != 2 || d.hammerJet) return "";
+            bool first = !JetUnlocked;
+            d.hammerJet = true;
+            return first ? "\n" + JetMsg : "";
+        }
 
         void StartSetsuna()
         {
@@ -313,8 +327,9 @@ namespace Tsukuyomi
             if (!win) { d.sengokuLosses++; GameSession.Instance.SaveItems(); return "ふじゅ〜はもらえませんでした"; }
             d.sengokuWins++;
             int amt = SengokuRewards[Mathf.Clamp(level, 0, 2)];
+            string jet = UnlockJet(d, level);
             Fuju.Earn(amt);
-            return $"＋{amt:N0} ふじゅ〜";
+            return $"＋{amt:N0} ふじゅ〜" + jet;
         }
 
         void HideIsland()
@@ -376,6 +391,7 @@ namespace Tsukuyomi
             if (!win) { d.setsunaLosses++; GameSession.Instance.SaveItems(); return "ふじゅ〜はもらえませんでした"; }
             d.setsunaWins++;
             int amt = Rewards[Mathf.Clamp(level, 0, 2)];
+            string jet = UnlockJet(d, level); // 狐のきぐるみより先に見る（きぐるみを持っていると「前に解放ずみ」になるため）
             string msg = $"＋{amt:N0} ふじゅ〜";
             if (level == 2 && !d.owned.Contains(Catalog.KitsuneKigurumi))
             {
@@ -383,7 +399,7 @@ namespace Tsukuyomi
                 msg += "\n「狐のきぐるみ」を手に入れました！（C の着がえで着られます）";
             }
             Fuju.Earn(amt); // ここで保存もする
-            return msg;
+            return msg + jet;
         }
     }
 }

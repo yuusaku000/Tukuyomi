@@ -50,6 +50,8 @@ namespace Tsukuyomi
         public static void Click() => Play(I._click, 0.6f);
         public static void Coin() => Play(I._coin, 0.9f);
         public static void Gong() => Play(I._gong, 0.8f);
+        static AudioClip _whoosh;
+        public static void Whoosh() { if (_whoosh == null) _whoosh = Synth.Whoosh(); Play(_whoosh, 0.5f); }
 
         /// <summary>はじめに一度作っておく（足音のため）。</summary>
         public static void Ensure() { var _ = I; }

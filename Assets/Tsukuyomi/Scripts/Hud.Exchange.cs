@@ -29,7 +29,7 @@ namespace Tsukuyomi
             if (doAmount > 0) { _i._exAmount = doAmount; _i.DoExchange(); }
         }
 
-        static void CloseExchange() { if (!(_i != null && _i._exBusy)) _exchange = false; }
+        public static void CloseExchange() { if (!(_i != null && _i._exBusy)) _exchange = false; }
 
         void BuildExchange()
         {
